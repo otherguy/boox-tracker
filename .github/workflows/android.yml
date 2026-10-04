@@ -1,0 +1,33 @@
+name: Android checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Android SDK
+        run: |
+          set +o pipefail
+          yes | mise exec -- android --no-metrics sdk install platforms/android-36 build-tools/35.0.0
+          set -o pipefail
+      - name: Static checks
+        run: |
+          mise exec -- ruff format --check scripts
+          mise exec -- ruff check scripts
+          mise exec -- ktlint '**/*.kt' '**/*.kts'
+          mise exec -- markdownlint-cli2
+          mise exec -- actionlint
+      - name: Tests and APK
+        run: mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reading-sync-debug
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/reports/tests/
+            app/build/reports/lint-results-*.html

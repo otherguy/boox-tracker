@@ -1,0 +1,14 @@
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.jks
+*.keystore
+*.apk
+*.sha256
+signing.properties
+.code-review-graph/
+
+dist/
+
+.ruff_cache/

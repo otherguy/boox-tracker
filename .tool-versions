@@ -1,0 +1,10 @@
+java temurin-21.0.12+8.0.LTS
+android-sdk 23.0
+gradle 8.13
+node 24.18.0
+ktlint 1.8.0
+markdownlint-cli2 0.23.0
+actionlint 1.7.12
+python 3.14.8
+github-cli 2.102.0
+ruff 0.16.10

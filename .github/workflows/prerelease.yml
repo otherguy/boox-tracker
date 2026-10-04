@@ -1,0 +1,69 @@
+name: Diagnostic prerelease
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Prerelease tag (for example v0.1.0-diagnostic.1)
+        required: true
+        type: string
+      version_code:
+        description: Increasing Android version code
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: SDK
+        run: |
+          set +o pipefail
+          yes | mise exec -- android --no-metrics sdk install platforms/android-36 build-tools/35.0.0
+          set -o pipefail
+      - name: Signing configuration
+        env:
+          KEYSTORE: ${{ secrets.READING_SYNC_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.READING_SYNC_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.READING_SYNC_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.READING_SYNC_KEY_PASSWORD }}
+        run: |
+          mise exec -- python - <<'PY'
+          import base64, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          key = root / 'diagnostic.jks'
+          key.write_bytes(base64.b64decode(os.environ['KEYSTORE'], validate=True))
+          key.chmod(0o600)
+          config = root / 'signing.properties'
+          values = {'storeFile': str(key), 'storePassword': os.environ['STORE_PASSWORD'], 'keyAlias': os.environ['KEY_ALIAS'], 'keyPassword': os.environ['KEY_PASSWORD']}
+          def escape(value):
+              encoded = value.encode('utf-16-be')
+              return ''.join(chr(92) + 'u' + encoded[i:i+2].hex() for i in range(0, len(encoded), 2))
+          with os.fdopen(os.open(config, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w') as f:
+              f.write(''.join(k + '=' + escape(v) + chr(10) for k, v in values.items()))
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write('READING_SYNC_SIGNING_PROPERTIES=' + str(config) + chr(10))
+          PY
+      - name: Build and verify
+        env:
+          VERSION_CODE: ${{ inputs.version_code }}
+        run: |
+          test "$VERSION_CODE" -gt 0
+          mise exec -- ruff format --check scripts
+          mise exec -- ruff check scripts
+          mise exec -- ktlint '**/*.kt' '**/*.kts'
+          mise exec -- markdownlint-cli2
+          mise exec -- actionlint
+          mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug assembleDiagnostic "-PversionCode=$VERSION_CODE"
+          mise exec -- python scripts/package-artifacts.py
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          mise exec -- gh release create "$TAG" --target "$COMMIT" --draft --prerelease --title "Reading Sync $TAG" --notes "Diagnostic APK. Physical BOOX compatibility is unverified; follow docs/device-testing.md." dist/reading-sync-0.1.0-diagnostic.apk dist/reading-sync-0.1.0-diagnostic.apk.sha256 dist/build-info.json

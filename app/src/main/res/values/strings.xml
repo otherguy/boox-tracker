@@ -1,0 +1,8 @@
+<resources>
+    <string name="title">Reading Sync</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="activity">Activity</string>
+    <string name="background_state">Background checks: %1$s</string>
+    <string name="on">On</string>
+    <string name="off">Off</string>
+</resources>
