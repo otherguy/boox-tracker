@@ -1,6 +1,6 @@
 # Project status and handoff
 
-Updated 2026-10-06 after the 0.3.3 USB update. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-06 after the 0.3.4 completion-sync build; 0.3.3 is the last version installed on the device. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
@@ -8,7 +8,7 @@ Implementation is complete for the approved automatic matching/offline milestone
 
 The checkout is `feat/automatic-offline-sync`. HEAD is `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0`, the original 0.1.0 commit. Later source, tests, and docs are local modified/untracked files. Preserve them and staged state. The remote is `git@github.com:otherguy/boox-tracker.git`. CI passed for 0.1.0; no current-source push or remote CI run is recorded. GitHub releases and prereleases remain on hold. A successful manual sync does not lift that hold.
 
-## Built: 0.3.3 / code 10
+## Built: 0.3.4 / code 11
 
 | Item | Current value |
 | --- | --- |
@@ -18,8 +18,8 @@ The checkout is `feat/automatic-offline-sync`. HEAD is `a795e98c0e77f8b9af61d303
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.3.3-diagnostic.apk`, 3,507,514 bytes |
-| Diagnostic APK SHA-256 | `5e9df530dc178f4af9668fa53bf48b90cdcabf4268ca19a5fd05e1d159472bd2` |
+| Diagnostic APK | `dist/boox-tracker-0.3.4-diagnostic.apk`, 3,510,390 bytes |
+| Diagnostic APK SHA-256 | `78874fed5996db78bb34e5ea8db9676675946c4d2c0d7bb3e6eb0daec71e3ec5` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -39,7 +39,7 @@ Native device-code OAuth uses public client `bc5f2c0f-79d7-42b5-b525-6293454d393
 
 Matching tries explicit Hardcover identities, ISBN-13/ISBN-10/ASIN, accessible Goodreads mappings, then one normalized title/alternative-title plus author match. Multiple editions of one book establish book identity. Conflicts and ambiguity hold the update with a visible error, without dialogs. Successful matches are cached by source identity and metadata fingerprint, with a one-hour expiry.
 
-Progress uses a verified positive page-count basis: existing active remote edition, exact source edition, default ebook, then default physical. Existing remote editions are preserved. Conversion is approximate pages, rounded HALF_UP. Higher remote progress and history are protected. Missing page counts, completed/reread/status/history conflicts remain held. There are no catalogue edits or automatic completion/rereads.
+Progress uses a verified positive page-count basis: existing active remote edition, exact source edition, default ebook, then default physical. Existing remote editions are preserved. Conversion is approximate pages, rounded HALF_UP. Higher remote progress and history are protected. Missing page counts, reread/status/history conflicts remain held. A finished source (status `2`, full fraction) completes the read with a last-access finish date and sets the book to Read; an already-Read remote book is reported current. There are no catalogue edits or automatic rereads.
 
 SQLite persists the latest queued revision per account/service/source book before delivery and retains all observations. Sending is serialized. Only the revision sent is acknowledged; newer observations survive. Uncertain writes read remote state before another mutation. Separate unique WorkManager jobs collect locally every requested fifteen minutes without a network constraint, and deliver with a network constraint using `APPEND_OR_REPLACE`. Android/BOOX determine actual execution times.
 
@@ -53,7 +53,7 @@ Startup requires a persisted readable read-only SAF ebook-folder grant. It expla
 
 The popup merges database and ebook identifiers off the main thread. It shows full values, bold Title Case keys, ISBN/ASIN, explicit OK/error states, and distinct human-readable Last Access/Read At. Absent service tags are omitted. `progressProblem: null` in diagnostic JSON means no parse error; it is not unknown progress.
 
-Activity uses recycled rows and lazy details, shows the latest 250 events, and retains full history for safe user-requested JSON/text export. All/Issues, expansion, scroll retention, and compatible upgrade retention remain. No retention/deletion policy is approved. The observation service, its permissions/actions, Read Now, diagnostic sections, and background toggle were removed in 0.3.0.
+Activity uses recycled rows and lazy details, shows the latest 250 events, and retains full history for safe user-requested JSON/text export. All/Issues, expansion, scroll retention, and compatible upgrade retention remain. No retention/deletion policy is approved. The app's observation service, explicit permissions/actions, Read Now, diagnostic sections, and background toggle were removed in 0.3.0. The merged APK still inherits WorkManager's generic foreground-service declaration and scheduling permissions; current workers are not promoted to foreground work. See [permission details](research.md#android-references).
 
 ## Automatically tested
 

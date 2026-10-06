@@ -1,6 +1,61 @@
 # Verification record
 
-Local build and automated checks for 0.1.2 passed on 2026-10-05. Provider/background findings below come from the user's 0.1.0 installation, exports, and timed actions on 2026-10-04, followed by 0.1.1 and 0.1.2 exports on 2026-10-05. They confirm independent scheduled reads after boot, retained earlier logs, saved progress, and scheduled reads near cover close and after wake. The user confirmed much faster Activity scrolling after installing 0.1.2. This is a qualitative device result, not a timed performance measurement. Regular execution during sleep remains unverified.
+Updated 2026-10-06 for Boox Tracker 0.3.4/code 11. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below and [device checklist](device-testing.md#current-033-checks). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+
+## Current evidence summary
+
+| Category | Confirmed evidence | Limits / next proof |
+| --- | --- | --- |
+| Built | 0.3.4 debug/signed APKs, new package, approved automatic matching/offline/UI scope, completion sync for the detected book | Other services, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 85 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
+| Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
+| Physical current UI/update | Signed 0.3.1–0.3.3 updates; prompt, merged identifiers, readable-grant cancellation checked | Future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Source / publication | Current source local on feat/automatic-offline-sync; CI configured, only 0.1.0 remote success recorded | No current-source remote CI; releases/prereleases still held |
+
+APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
+
+The merged diagnostic manifest was also inspected: WorkManager adds generic FOREGROUND_SERVICE/SystemForegroundService, WAKE_LOCK and RECEIVE_BOOT_COMPLETED. The source manifest has no observation service or explicit notification/foreground permission, and current code has no foreground-worker promotion. The removed observation feature does not imply that the final APK has no framework foreground-service declaration.
+
+## Regression findings and pitfalls
+
+### Source, identifiers, and display
+
+- A null provider ISBN does not mean no EPUB ISBN exists. The shipping popup now reads the same merged repository as sync off the main thread.
+- `progressProblem: null` means no fraction error; valid progress shows OK. Missing/unreadable/invalid progress stays explicit and never becomes 0%.
+- Reader extraction is the single tag allowlist; UI labels do not add another. Future tags are display-only, and ASIN is currently used by Hardcover.
+- Ebook cache namespace changes invalidate parsed metadata without deleting settings/logs. Application, database/export, and cache versions are separate.
+- Stored lastAccess can lag book switches; provider/library percentages can differ from in-book display. No source selector or percentage offset resolves that uncertainty.
+
+### Queue, permissions, and lifecycle
+
+- Persist per-account/service/book revisions before delivery. Acknowledge only the sent revision so newer observations survive; reconcile remote state after uncertain writes.
+- APPEND_OR_REPLACE retains a delivery enqueue during worker completion. A global pending book or KEEP-only enqueue can lose required work.
+- Offline waiting is neutral; On persists for connected accounts, Off pauses sends, and account identity failures cannot reuse another account's state.
+- Explain folder choice before launching the picker. Cancelling replacement revalidates the existing grant; denial/revocation still gates. Activity-owned validation state prevents recreation from losing the prompt.
+- Preserve current remote edition/history/page basis. A missing basis is a held update, not permission to guess pages or overwrite completed history.
+
+### Test and device handling
+
+- Await rendered book state before UI taps; provider-call counts can advance before snapshot rendering. Use explicit latches/clock control, not arbitrary sleeps.
+- Test denial must throw before cursor allocation. A throw inside cursor construction can leak a resource before production code receives it.
+- Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
+- Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
+- BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Completion sync 0.3.4
+
+**Built:** debug and signed diagnostic APKs, version 0.3.4/code 11. Package, diagnostic certificate, app database/export schemas, ebook cache namespace, and OAuth client ID are unchanged. Artifact `dist/boox-tracker-0.3.4-diagnostic.apk`, SHA-256:
+
+```text
+78874fed5996db78bb34e5ea8db9676675946c4d2c0d7bb3e6eb0daec71e3ec5
+```
+
+Provider status `2` with a full fraction now completes the matched Hardcover read with full pages and a finish date, then sets the book to Read. The finish date is the device-local date of `lastAccess`, then the queued read time, then delivery time. An already-Read remote book returns `already_current` without writes. A not-yet-Read book with exactly one finished read, from an interrupted earlier write or the user, only receives the status update. The logged `progressPages` is the value written, including a higher remote count. Status `2` with a partial fraction holds as `source_finish_progress_mismatch`; status `1` at 100% holds as `source_status_not_finished`; other codes hold as `source_status_unsupported`. Rereads remain protected. The Hardcover row shows Finished instead of a percentage after a completed send.
+
+**Automatically tested:** 85 tests, zero failures/errors/skips, empty stderr. New regressions failed first on the old status gate, then passed: new finished book, finishing an existing read, already-Read remote, partial-progress hold, read-time fallback, interrupted-write retry, remote already at full or higher pages, and queue delivery after a status change following a held full-progress send. Date tests run in a fixed Asia/Bangkok zone with literal expected dates. The full Gradle test/lint/assemble gate, ktlint, ruff, markdownlint, actionlint, and both scoped reviews passed; the reviews' retry and full-pages findings were fixed with tests before the final build. Android lint retains ten dependency/tool-version notices per variant.
+
+**Verified on physical BOOX:** none yet. A read-only ADB listing on 2026-10-06 established the status-code meanings above. The signed 0.3.4 update has not been installed; a real finish with one read entry and the expected date on Hardcover, and the reopen-after-finish hold, are the pending checks in [device testing](device-testing.md#completion-sync). Hardcover's own behaviour for `update_user_book(status_id: 3)` is unverified.
 
 ## Identifier allowlist 0.3.3
 
@@ -136,7 +191,13 @@ Android lint: zero errors, ten dependency/tool-version notices for each variant.
 
 **Verified on physical BOOX:** no new 0.2.0 installation, Keystore/OAuth, SAF picker, ISBN catalogue match, or remote account update has been tested. Prior provider/background evidence below remains valid only for its recorded firmware/cases. Local HTTP and software-key tests establish app behavior, not Android Keystore behavior or Hardcover account permissions on the user's device. Follow [the first connector device test](device-testing.md#first-hardcover-build-2026-10-06). After manual sync works, test ordinary scheduled sync separately with observation off, Reading Sync hidden, and exports taken before manual actions.
 
+## Historical diagnostic evidence scope
+
+Local checks for 0.1.2 passed on 2026-10-05. Provider/background findings below come from the user's 0.1.0 installation, exports, and timed actions on 2026-10-04, followed by 0.1.1/0.1.2 exports on 2026-10-05. They confirm independent scheduled reads after boot, retained logs, saved progress, and reads near cover close/after wake. The user confirmed faster Activity scrolling after 0.1.2, without a timed benchmark. Regular sleep execution remains unverified. Observation and its controls were removed in 0.3.0; their records are retained as historical evidence.
+
 ## Built
+
+This section records the historical 0.1.2 diagnostic build. The current artifact is in [Identifier allowlist 0.3.3](#identifier-allowlist-033).
 
 Both variants built with the tool versions in `.tool-versions`:
 
@@ -164,6 +225,8 @@ e33ed852a9029c0f67dc74dc0fee0eece81d7e16707bfef9d9c70359793d46a3
 Direct checks of the old and new APKs verified the same package and certificate, version code increasing from 2 to 3, and version name 0.1.2. The new APK is not debuggable and declares no Internet or broad storage permission. This establishes the signing and package requirements for an update; it does not replace the physical installation and log-retention check.
 
 ## Automatically tested
+
+This section records the historical 0.1.2 suite, not the current 76-test total.
 
 Twenty tests passed, with zero failures, errors, or skipped tests:
 
@@ -196,7 +259,9 @@ Times below are local, UTC+07:00. Source exports are retained by the user outsid
 
 ### Provider and progress
 
-The provider returned 786 library records and 45 columns. Candidate fields `name`, `uuid`, `nativeAbsolutePath`, `progress`, `readingStatus`, `lastAccess`, and `extraAttributes` were present. Their availability does not imply non-null values for every record. An inspected snapshot had 772 null progress values and 14 valid fractions. Raw status codes `0`, `1`, and `2` occurred; code `0` appeared on records with null progress, without establishing its meaning. These are record counts, not proof of 786 distinct books.
+The provider returned 786 library records and 45 columns. Candidate fields `name`, `uuid`, `nativeAbsolutePath`, `progress`, `readingStatus`, `lastAccess`, and `extraAttributes` were present. Their availability does not imply non-null values for every record. An inspected snapshot had 772 null progress values and 14 valid fractions. Raw status codes `0`, `1`, and `2` occurred. These are record counts, not proof of 786 distinct books.
+
+A read-only ADB projection on 2026-10-06 returned 786 rows: 772 with code `0`, all with null progress and only 11 with a `lastAccess`; 6 with code `1` and partial fractions, four of them at 1 to 11 of several hundred units; and 8 with code `2`, every one at a full fraction such as `910/910` or `10000/10000`. The user confirmed the meanings: `0` not started, `1` reading, `2` finished. Five works appeared twice, once as an untouched code `0` file and once as a different file carrying the real state, so a file record is not a unique work. The ADB query is desktop evidence of provider contents, not app-UID evidence.
 
 Discovered columns:
 
@@ -307,4 +372,4 @@ Compatibility with other BOOX models or firmware, reliable execution across repe
 
 The configured remote is [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). The initial source commit `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0` passed the [Android checks workflow](https://github.com/otherguy/boox-tracker/actions/runs/37175084972); its successful conclusion and matching commit were rechecked during the 0.1.1 work. This CI result covers 0.1.0, not the local 0.1.1/0.1.2 changes.
 
-No GitHub release exists at this check. GitHub prereleases and releases are on hold until the user confirms Reading Sync is a working app. The manual workflow and [signing instructions](build-and-release.md#github-delivery) remain available for that later stage; they were not dispatched.
+No release existed at the recorded initial GitHub check. No release/prerelease was created during later local work, and publication remains on hold. Current source remains local on feat/automatic-offline-sync at the original 0.1.0 HEAD; no 0.3.x remote CI run is recorded. The manual workflow and [signing instructions](build-and-release.md#github-delivery) remain a future path, not authorization to dispatch it.

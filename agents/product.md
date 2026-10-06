@@ -1,6 +1,6 @@
 # Product context
 
-Confirmed context as of 2026-10-06, current app 0.3.3/code 10. The [approved automatic/offline plan](plan-20261006-automatic-offline-sync.md) is implemented. [Verification](verification.md) separates implementation from physical evidence. Historical plans do not override these decisions.
+Confirmed context as of 2026-10-06, current app 0.3.4/code 11. The [approved automatic/offline plan](plan-20261006-automatic-offline-sync.md) is implemented. [Verification](verification.md) separates implementation from physical evidence. Historical plans do not override these decisions.
 
 ## Confirmed direction
 
@@ -22,7 +22,9 @@ The shared identifier reader is the only tag allowlist. The UI labels its result
 
 BOOX fraction units are not physical pages. Use its calculated percentage without an offset. Hardcover's current progress input accepts pages/seconds, so percentage delivery needs a verified positive edition page count. Prefer an existing active remote read's edition; otherwise exact source edition, default ebook, then default physical. Verify that the basis belongs to the matched book. Preserve an existing edition even if it differs from the source; explain that with the amber match state. If the existing basis has no usable page count, hold instead of changing the interpretation of history.
 
-Convert the fraction to approximate pages, rounded HALF_UP. Preserve higher remote progress, completed/paused/reread history, ratings, and dates. Missing page counts or protected history hold the update. Automatic completion and reread creation remain outside this change. Do not create catalogue records or alter a user's ebook to force a match.
+Convert the fraction to approximate pages, rounded HALF_UP. Preserve higher remote progress, completed/paused/reread history, ratings, and dates. Missing page counts or protected history hold the update. Do not create catalogue records or alter a user's ebook to force a match.
+
+Completion sync was approved on 2026-10-06 for the detected book only. When NeoReader saves status `2` with a full fraction, the app writes full pages and a finish date to the read, then sets the Hardcover status to Read. The finish date is the device-local date of the provider last-access time, falling back to the query date. No start date is written. A remote book already marked Read is left unchanged and reported as current. A not-yet-Read book with exactly one finished read, whether from an interrupted earlier write or the user, only receives the status update; that read keeps its pages and date. Equal or higher remote pages do not stop a finish; the higher count is kept. Status `2` with a partial fraction, or status `1` at 100%, holds until NeoReader's state is consistent. Rereads remain held: reopening a finished book can return it to status `1`, and a remote finished read then protects history as before.
 
 ### Durable collection and delivery
 
@@ -47,7 +49,8 @@ Package/namespace changed in 0.3.0/code 7 to `dev.otherguy.booxtracker`; develop
 | Finding | Product limit |
 | --- | --- |
 | Ordinary-app Metadata access works on one GoColor7 firmware | Do not assume other devices/firmware work or replace it with privileged access |
-| Many library records have null progress; codes are not a firmware contract | Keep unknown/missing/error states distinct; never substitute 0% |
+| Most library records are code `0` with null progress; codes `0`/`1`/`2` mean not started/reading/finished on the tested device | Keep unknown/missing/error states distinct; never substitute 0%; do not interpret other codes |
+| The same work can appear as two provider records, one untouched and one with real state | Key sync on the matched remote book and the record with usable state, never on file count |
 | In-book percentages differ from provider/library values | Do not add an offset or claim exact physical pages |
 | Saved metadata sometimes changes on exit, and also after a later wake/read | Do not claim every page turn persists or exit is the only trigger |
 | Font size 28 → 42 left one inspected fraction unchanged | Useful one-book evidence, not a universal pagination rule |
@@ -63,7 +66,7 @@ The next approved work is physical validation in [device testing](device-testing
 | Area | Missing implementation or decision |
 | --- | --- |
 | Other services | Supported APIs/authentication; no connectors built. Margins inquiry sent, no reply/access reported as of 2026-10-05 |
-| Reading lifecycle | Automatic completion/rereads and any wider conflict policy |
+| Reading lifecycle | Rereads and any wider conflict policy. A Sync All backfill button was considered and rejected on 2026-10-06 in favour of completion sync for the detected book, which is now built |
 | Sources | Embedded non-EPUB metadata parsers and separately scoped statistics-provider access, if needed |
 | Website | Proposed project/download site under an unspecified otherguy.dev subdomain; hosting not selected |
 | History and distribution | Retention/deletion policy, updater, optional Obtainium/store channels |

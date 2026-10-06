@@ -1,6 +1,6 @@
 # Boox Tracker: automatic matching and offline sync
 
-Approved by the user on 2026-10-06. Supersedes edition-selection proposals and the diagnostic observation UI. Publication remains on hold.
+Approved by the user on 2026-10-06. Implementation is complete through 0.3.3/code 10; physical validation is partly complete. Supersedes edition-selection proposals and the diagnostic observation UI. Publication remains on hold. Read [project status](project-status.md) and [device testing](device-testing.md) for the resume point.
 
 ## Automatic matching
 
@@ -28,7 +28,7 @@ Approved by the user on 2026-10-06. Supersedes edition-selection proposals and t
 ## UI and identity
 
 - [x] Sync/Activity header with DB title, fraction percentage, count, read time, status icon and black Sync Now; tap for bordered metadata.
-- [x] Remove diagnostic sections, Read Now, expansion, background toggle and observation service/permissions.
+- [x] Remove diagnostic sections, Read Now, expansion, background toggle and app-owned observation service/permissions.
 - [x] Mandatory persisted read-only ebook folder with Exit/Allow again; background errors have no UI; About can replace folder.
 - [x] Device information in Activity; bordered updated About; retained Activity performance/export/artwork/static transitions.
 - [x] Package/namespace dev.otherguy.booxtracker, debug suffix, 0.3.0/code 7, existing signer/client ID, fresh data; keep old installation.
@@ -39,18 +39,41 @@ Approved by the user on 2026-10-06. Supersedes edition-selection proposals and t
 - [x] Edition fallback/page conversion/remote history protection.
 - [x] Durable multi-book queue, reconnect, interruptions, revisions, Off/On/account isolation.
 - [x] Folder/UI/background/Activity tests; mise build/static checks; parallel reviews; screenshots and signed checksum APK.
-- [ ] Real BOOX sign-in and sync, then offline/reconnect hidden-app delivery; report physical evidence separately.
 - [x] Update public and agent documents; no GitHub publication.
+
+## Physical verification
+
+- [x] Real native BOOX sign-in and user-initiated exact-edition sync; user confirmed remote progress on 0.3.1.
+- [ ] Real book-only sync using the automatic fallback path.
+- [ ] Offline collection, retained multi-book queue across restart/reboot, and reconnection delivery with the app hidden.
+
+Automatic checks cover these paths; unchecked items require physical evidence, not missing implementation. Inspect actual edition/raw-progress/delivery events in an export. Opening the app sends automatically, so only earlier hidden-app executions prove that case. Use [the current protocol](device-testing.md#offline-collection-and-hidden-app-delivery).
 
 ## Notes
 
-- Match cache expires after one hour in addition to invalidation by metadata fingerprint.
-- An existing remote edition without pages remains held to avoid reinterpreting remote progress. A pageless exact source edition can fall through to valid defaults.
-- Delivery uses unique APPEND_OR_REPLACE work so an enqueue during worker completion cannot lose the next network-triggered attempt.
-- Final local checks passed: 73 tests, both builds, both Android lint variants, all static checks, both reviews, signed packaging and API 32 screenshots. No physical BOOX was connected; the remaining physical checklist stays unchecked. No release or prerelease was created.
-- Subsequent USB handoff installed and launched signed 0.3.0/code 7 on the user's GoColor7. The newly installed package was disabled by `com.onyx`; enabling it allowed launch. No data clear or uninstall was performed. Account sync and hidden-app offline delivery remain unchecked.
-- The user requested an explanation before the startup folder picker. Version 0.3.1/code 8 implements Exit / Choose folder before the picker and keeps Exit / Allow again after cancellation. The startup regression and all 73 tests passed. Both builds, lint/static checks, and scoped reviews passed. The signed update and explanation were checked on the physical GoColor7; account sync remains pending.
-- Version 0.3.2/code 9 updates metadata with full merged identifiers, existing service tags, bold labels, readable timestamps, and explicit OK/error states. It keeps the saved readable grant when folder replacement is cancelled, including during Activity recreation. All 76 tests and required gates/reviews passed; the signed update, popup, and picker cancellation were checked on the GoColor7. The user confirmed foreground exact matching and remote progress on 0.3.1. Book-only/background offline delivery stays unchecked.
-- The user subsequently reported Exact edition matched and Synced at… in the Hardcover row, and confirmed remote progress. Their In the Blood screenshots show Currently Reading and 240/480 pages (50%). This is physical evidence for the user-initiated exact match/send path; actual edition IDs/raw fraction await an export. Book-only fallback and hidden-app offline resumption remain pending, so the combined physical checklist stays unchecked.
+### Matching and queue decisions
 
-- Version 0.3.3/code 10 keeps the reader as the only identifier allowlist, per the user correction. The popup adds display labels for explicit StoryGraph/Fable/Margins tags; those integrations remain Coming Soon. Cache namespace 2 refreshes older parsed metadata. All 76 tests and required gates/reviews passed; the signed update and present/absent metadata rows were checked on the GoColor7. Future-service tags have automatic coverage only; hidden-app offline delivery remains pending.
+- Match cache expires after one hour as well as invalidating on metadata fingerprint changes.
+- Existing remote editions without pages remain held. Pageless exact source editions can fall through to verified defaults.
+- Unique delivery uses APPEND_OR_REPLACE so enqueue during worker completion retains another network-triggered attempt.
+- The identifier reader is the single allowlist; the popup supplies labels only. Future-service tags are display-only, not connectors.
+- Ebook cache namespace 2 refreshes extracted fields even if source modification time is unchanged; it is not a schema migration.
+
+### Delivery history
+
+| Version / code | Changes and evidence |
+| --- | --- |
+| 0.3.0 / 7 | Approved matching, queue, UI/package scope; 73 local tests/checks/reviews, signed API 32 screenshots. Later USB install/launch on GoColor7; com.onyx had disabled the package, cause unknown |
+| 0.3.1 / 8 | Explanation before picker, Exit / Choose folder; 73 tests/checks/reviews; signed update and prompt visually checked. User subsequently confirmed native approval/exact match/manual remote progress |
+| 0.3.2 / 9 | Full merged identifiers, bold keys, readable dates, explicit states, readable-grant cancellation/recreation fixes; 76 tests/checks/reviews; popup and cancelled replacement checked on BOOX |
+| 0.3.3 / 10 | One reader allowlist, explicit future display tags, cache namespace 2; 76 tests/checks/reviews; signed update and real-book popup checked |
+
+The user's Hardcover screenshots show In the Blood, Currently Reading, 240/480 pages (50%). They do not identify the actual selected edition or raw source fraction. Book-only and hidden-app offline delivery remain unchecked. Future-service rows have automatic coverage only because those tags were absent from the tested book.
+
+The old package was absent from installed/known lists; no uninstall/data clear was issued. If present again, preserve its logs and disable old sends/checks/observation. Compatible 0.3.x updates retained the same data inode; that is not reboot-queue proof. Foreground update checks around 22:03–22:04 and 22:31–22:32 are excluded from background evidence.
+
+### Remaining scope
+
+Merged APK permission checks distinguish app declarations from dependencies: WorkManager still contributes generic FOREGROUND_SERVICE/SystemForegroundService, WAKE_LOCK and boot scheduling. Observation and its explicit permissions are gone; current workers do not enter foreground mode. Removing a feature does not remove all library declarations.
+
+Current source remains local on feat/automatic-offline-sync, based on the initial 0.1.0 commit. Existing CI has not run on it. No release/prerelease was created or authorized. Other service connectors, rereads (completion is in the [completion plan](plan-20261006-completion-sync.md)), embedded non-EPUB parsers, website, statistics provider, updater, and retention policy need separate scope. See [product decisions](product.md#open-decisions-and-next-work).

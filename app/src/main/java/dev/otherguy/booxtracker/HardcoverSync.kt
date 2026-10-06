@@ -1,6 +1,8 @@
 package dev.otherguy.booxtracker
 
 import java.math.RoundingMode
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -13,7 +15,7 @@ fun editionPages(raw: String?, pages: Int): Int {
 }
 
 class HardcoverSync(private val auth: HardcoverAuth, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
-    suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: Int? = null): JSONObject = auth.authorized { token ->
+    suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: Int? = null, readAt: String? = null): JSONObject = auth.authorized { token ->
         suspend fun query(query: String, variables: JSONObject = JSONObject()): JSONObject {
             coroutineContext.ensureActive()
             if (query.startsWith("mutation") && !maySend()) throw SyncProblem("service_disabled")
@@ -21,7 +23,18 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
             coroutineContext.ensureActive()
             return result
         }
-        if (book.raw("readingStatus") != "1") throw SyncProblem("source_status_not_currently_reading")
+        val finished = when (book.raw("readingStatus")) {
+            "1" -> false
+            "2" -> true
+            else -> throw SyncProblem("source_status_unsupported")
+        }
+        if (finished && Progress.parse(book.raw("progress")).percent != "100") throw SyncProblem("source_finish_progress_mismatch")
+        val finishedOn = if (finished) {
+            val millis = accessTime(book) ?: readAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: System.currentTimeMillis()
+            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
+        } else {
+            null
+        }
         val me = query("query Identity { me { id } }").records("me").singleOrNull() ?: throw SyncProblem("hardcover_identity_unavailable")
         if (expectedAccount != null && me.getInt("id") != expectedAccount) throw SyncProblem("hardcover_account_changed")
         val match = HardcoverMatcher({ q, v -> query(q, v) }, store).match(book.optString("key").takeIf { it.isNotBlank() }, identifiers)
@@ -36,7 +49,13 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
         val existing = library.singleOrNull()
         var userBookId: Int
         val reads = existing?.records("user_book_reads") ?: emptyList()
-        if (existing != null) {
+        if (finished && existing?.getInt("status_id") == 3) {
+            return@authorized JSONObject().put("bookId", bookId).put("title", catalog.optString("title")).put("matchKind", match.optString("matchKind"))
+                .put("rawProgress", book.raw("progress")).put("finished", true).put("outcome", "already_current").put("unchanged", true)
+        }
+        // A finished source with one finished read on a not-yet-Read book only needs the status update, whoever wrote that read.
+        val resumable = finished && existing != null && existing.getInt("status_id") in setOf(1, 2) && reads.size == 1 && reads[0].isNull("paused_at") && !reads[0].isNull("finished_at")
+        if (existing != null && !resumable) {
             if (existing.getInt("status_id") !in setOf(1, 2)) throw SyncProblem("hardcover_status_conflict")
             if (reads.any { !it.isNull("finished_at") || !it.isNull("paused_at") } || reads.size > 1) throw SyncProblem("hardcover_read_history_conflict")
         }
@@ -58,21 +77,26 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
         if (basis.optInt("book_id") != bookId) throw SyncProblem("hardcover_edition_book_conflict")
         val editionId = basis.getInt("id")
         val pages = basis.getInt("pages")
-        val progressPages = editionPages(book.raw("progress"), pages)
-        if (progressPages >= pages) throw SyncProblem("completion_not_supported")
-        val detail = JSONObject().put("bookId", bookId).put("editionId", editionId).put("isbns", JSONArray(identifiers.isbns.sorted()))
+        val sourcePages = if (finished) pages else editionPages(book.raw("progress"), pages)
+        if (!finished && sourcePages >= pages) throw SyncProblem("source_status_not_finished")
+        val remotePages = read?.let { if (it.isNull("progress_pages")) null else it.getInt("progress_pages") }
+        val progressPages = if (finished) maxOf(remotePages ?: 0, sourcePages) else sourcePages
+        val detail = JSONObject().put("bookId", bookId).put("editionId", editionId).put("isbns", JSONArray(identifiers.isbns.sorted())).put("finished", finished).put("finishedAt", finishedOn ?: JSONObject.NULL)
             .put("sourceEditionId", exactId ?: JSONObject.NULL).put("existingEditionPreserved", remoteEditionId != null && exactId != null && remoteEditionId != exactId)
             .put("matchKind", if (exactId == editionId) "edition" else "book").put("title", catalog.optString("title"))
             .put("editionPages", pages).put("progressPages", progressPages).put("rawProgress", book.raw("progress"))
         if (read != null) {
-            val remotePages = if (read.isNull("progress_pages")) null else read.getInt("progress_pages")
             val remoteEdition = if (read.isNull("edition_id")) existing?.optInt("edition_id", -1) else read.getInt("edition_id")
             if (read.optInt("progress_seconds") > 0 || (remotePages == null && read.optDouble("progress", 0.0) > 0)) throw SyncProblem("hardcover_progress_format_unsupported")
             if (remoteEdition != null && remoteEdition > 0 && remoteEdition != editionId) throw SyncProblem("hardcover_edition_conflict")
             if ((remoteEdition == null || remoteEdition <= 0) && (remotePages ?: 0) > 0) throw SyncProblem("hardcover_edition_unavailable")
-            if ((remotePages ?: 0) > progressPages) return@authorized detail.put("outcome", "kept_higher_remote_progress").put("remoteProgressPages", remotePages)
-            if (remotePages == progressPages && remoteEdition == editionId && existing?.optInt("status_id") == 2) return@authorized detail.put("outcome", "already_current").put("unchanged", true)
+            if (!finished && (remotePages ?: 0) > progressPages) return@authorized detail.put("outcome", "kept_higher_remote_progress").put("remoteProgressPages", remotePages)
+            if (!finished && remotePages == progressPages && remoteEdition == editionId && existing?.optInt("status_id") == 2) return@authorized detail.put("outcome", "already_current").put("unchanged", true)
         }
+        suspend fun updateStatus(operation: String, id: Int, status: Int) = mutation(
+            query("mutation $operation(\$id: Int!, \$object: UserBookUpdateInput!) { update_user_book(id: \$id, object: \$object) { id error } }", JSONObject().put("id", id).put("object", JSONObject().put("status_id", status))),
+            "update_user_book"
+        )
         if (existing == null) {
             val result = mutation(
                 query("mutation AddBook(\$object: UserBookCreateInput!) { insert_user_book(object: \$object) { id error } }", JSONObject().put("object", JSONObject().put("book_id", bookId).put("edition_id", editionId).put("status_id", 2))),
@@ -81,17 +105,18 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
             userBookId = result.getInt("id")
         } else {
             userBookId = existing.getInt("id")
-            if (existing.getInt("status_id") == 1) {
-                mutation(query("mutation StartBook(\$id: Int!, \$object: UserBookUpdateInput!) { update_user_book(id: \$id, object: \$object) { id error } }", JSONObject().put("id", userBookId).put("object", JSONObject().put("status_id", 2))), "update_user_book")
+            if (!finished && existing.getInt("status_id") == 1) {
+                updateStatus("StartBook", userBookId, 2)
             }
         }
-        val objectValue = JSONObject().put("edition_id", editionId).put("progress_pages", progressPages)
-        val result = if (read == null) {
-            mutation(query("mutation AddRead(\$id: Int!, \$read: DatesReadInput!) { insert_user_book_read(user_book_id: \$id, user_book_read: \$read) { id error } }", JSONObject().put("id", userBookId).put("read", objectValue)), "insert_user_book_read")
-        } else {
-            mutation(query("mutation AdvanceRead(\$id: Int!, \$read: DatesReadInput!) { update_user_book_read(id: \$id, object: \$read) { id error } }", JSONObject().put("id", read.getInt("id")).put("read", objectValue)), "update_user_book_read")
+        val objectValue = JSONObject().put("edition_id", editionId).put("progress_pages", progressPages).putOpt("finished_at", finishedOn)
+        val readId = when {
+            resumable -> read!!.getInt("id")
+            read == null -> mutation(query("mutation AddRead(\$id: Int!, \$read: DatesReadInput!) { insert_user_book_read(user_book_id: \$id, user_book_read: \$read) { id error } }", JSONObject().put("id", userBookId).put("read", objectValue)), "insert_user_book_read").getInt("id")
+            else -> mutation(query("mutation AdvanceRead(\$id: Int!, \$read: DatesReadInput!) { update_user_book_read(id: \$id, object: \$read) { id error } }", JSONObject().put("id", read.getInt("id")).put("read", objectValue)), "update_user_book_read").getInt("id")
         }
-        detail.put("outcome", "sent").put("userBookId", userBookId).put("readId", result.getInt("id"))
+        if (finished) updateStatus("FinishBook", userBookId, 3)
+        detail.put("outcome", "sent").put("userBookId", userBookId).put("readId", readId)
     }
 
     private fun mutation(data: JSONObject, field: String): JSONObject {

@@ -435,7 +435,7 @@ class MainActivity : AppCompatActivity() {
         val connected = state.getBoolean("connected")
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
-        val savedProgress = success?.rawProgressPercent()
+        val savedProgress = if (success?.optBoolean("finished") == true) " · Finished" else success?.rawProgressPercent()
         val summary = when {
             app.hardcover.signingIn -> "Sign-in pending"
             !state.getBoolean("enabled") -> state.optString("connectionError").takeIf { it.isNotBlank() }?.replace('_', ' ') ?: if (!connected) "Off · Not connected" else "Off"

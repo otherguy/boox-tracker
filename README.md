@@ -24,7 +24,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 
 Each provider has its own switch. Coming Soon providers cannot be enabled. Reading information remains available without a tracker account.
 
-Hardcover matches automatically using identifiers or title and author. It converts saved progress to approximate edition pages, keeps higher remote progress, and protects completed reads and reading history. Offline updates stay queued across book changes and restarts. See the [Hardcover guide](docs/hardcover.md).
+Hardcover matches automatically using identifiers or title and author. It converts saved progress to approximate edition pages, marks the book Read when NeoReader marks it finished, keeps higher remote progress, and protects earlier completed reads and reading history. Offline updates stay queued across book changes and restarts. See the [Hardcover guide](docs/hardcover.md).
 
 ## Download and get started
 

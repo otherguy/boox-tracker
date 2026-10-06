@@ -201,7 +201,7 @@ class HardcoverConnection(private val app: ReadingSyncApp, private val auth: Har
             store.put("hardcover.active", JSONObject().put("source", source).put("runId", id).toString())
             diagnostics.event(source, "hardcover_sync_start", id, JSONObject().put("key", book.getString("key")))
             try {
-                val result = sync.send(book, BookIdentifiers.fromJson(item.getJSONObject("identifiers")), accountId.toInt())
+                val result = sync.send(book, BookIdentifiers.fromJson(item.getJSONObject("identifiers")), accountId.toInt(), item.getString("readAt"))
                     .put("durationMs", SystemClock.elapsedRealtime() - started).put("readAt", item.getString("readAt"))
                     .put("timestamp", Instant.now().toString()).put("sourceState", item.getString("sourceState"))
                 val acknowledged = store.acknowledge(item)

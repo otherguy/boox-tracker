@@ -35,7 +35,7 @@ An existing Hardcover read's edition is preserved. Otherwise, the app uses the e
 
 The raw NeoReader fraction becomes approximate pages, rounded to the nearest whole page. These fraction units are not physical pages. Hardcover may show a different percentage because its edition page count and rounding differ from NeoReader.
 
-Boox Tracker keeps higher remote progress. It can start a Want to Read book or advance an existing unfinished read. It does not change catalogue records, ratings, reviews, historical dates, completed reads, paused reads, or rereads. Finish books on Hardcover yourself; automatic completion is not included.
+Boox Tracker keeps higher remote progress. It can start a Want to Read book or advance an existing unfinished read. When NeoReader marks the detected book finished, Boox Tracker records full progress and the finish date on that read and sets the book to Read. The finish date is the day of NeoReader's last saved access. A book already marked Read on Hardcover is left unchanged. It does not change catalogue records, ratings, reviews, historical dates, paused reads, or rereads; reopening a finished book keeps the existing finished read protected.
 
 Delivery is shown separately as **Pending**, **Synced at…**, or a failure. The last successful time and progress remain visible after a failed attempt for that book. A result for another book is not shown as the current book's success.
 

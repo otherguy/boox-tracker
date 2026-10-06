@@ -7,6 +7,8 @@ import android.widget.CheckBox
 import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import java.net.URLDecoder
+import java.time.Instant
+import java.time.ZoneId
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -129,14 +131,14 @@ class HardcoverServer : AutoCloseable {
     }
     val http = HardcoverHttp(server.url("/").toString().removeSuffix("/"))
 
-    fun withRead(pages: Int, status: Int = 2, finished: Boolean = false, edition: Int = 20): HardcoverServer = apply {
+    fun withRead(pages: Int, status: Int = 2, finished: Boolean = false, edition: Int = 20, finishedAt: String = "2026-01-01"): HardcoverServer = apply {
         library = JSONArray().put(
             JSONObject().put("id", 30).put("status_id", status).put("edition_id", edition).put(
                 "user_book_reads",
                 JSONArray().put(
                     JSONObject()
                         .put("id", 40).put("edition_id", edition).put("progress_pages", pages).put("progress_seconds", JSONObject.NULL)
-                        .put("finished_at", if (finished) "2026-01-01" else JSONObject.NULL).put("paused_at", JSONObject.NULL)
+                        .put("finished_at", if (finished) finishedAt else JSONObject.NULL).put("paused_at", JSONObject.NULL)
                 )
             )
         )
@@ -192,7 +194,10 @@ class HardcoverServer : AutoCloseable {
                 if (field == "insert_user_book") library.put(JSONObject().put("id", 30).put("status_id", 2).put("edition_id", 20).put("user_book_reads", JSONArray()))
                 if (field == "update_user_book") library.getJSONObject(0).put("status_id", variables.getJSONObject("object").getInt("status_id"))
                 if (field == "insert_user_book_read") library.getJSONObject(0).getJSONArray("user_book_reads").put(JSONObject(variables.getJSONObject("read").toString()).put("id", 40))
-                if (field == "update_user_book_read") library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).put("progress_pages", variables.getJSONObject("read").getInt("progress_pages"))
+                if (field == "update_user_book_read") {
+                    val read = variables.getJSONObject("read")
+                    library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).put("progress_pages", read.getInt("progress_pages")).put("finished_at", read.opt("finished_at") ?: JSONObject.NULL)
+                }
                 JSONObject().put(field, JSONObject().put("id", if (field.endsWith("read")) 40 else 30).put("error", JSONObject.NULL))
             }
         }
@@ -211,7 +216,10 @@ class HardcoverTest {
     private lateinit var auth: HardcoverAuth
     private val identifiers = BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author")
 
+    private val defaultZone = java.util.TimeZone.getDefault()
+
     @Before fun setup() {
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Bangkok"))
         server = HardcoverServer()
         grantTestFolder(RuntimeEnvironment.getApplication() as ReadingSyncApp)
         (RuntimeEnvironment.getApplication() as ReadingSyncApp).diagnostics.store.put("hardcover.account", "1")
@@ -221,6 +229,7 @@ class HardcoverTest {
     }
 
     @After fun close() = runBlocking {
+        java.util.TimeZone.setDefault(defaultZone)
         server.close()
         vault.clear()
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
@@ -229,8 +238,81 @@ class HardcoverTest {
         closeWorkDatabase()
     }
 
-    private fun book(progress: String = "4723/10000", status: String = "1") = JSONObject().put("progress", JSONObject().put("state", "value").put("raw", progress))
+    private fun book(progress: String = "4723/10000", status: String = "1", lastAccess: String? = null) = JSONObject().put("progress", JSONObject().put("state", "value").put("raw", progress))
         .put("readingStatus", JSONObject().put("state", "value").put("raw", status))
+        .put("lastAccess", if (lastAccess == null) JSONObject().put("state", "null") else JSONObject().put("state", "value").put("raw", lastAccess))
+
+    // 2026-10-05T18:30Z is already 2026-10-06 in the Asia/Bangkok test zone.
+    private fun finished(lastAccess: String? = "1791225000000") = book("10000/10000", "2", lastAccess)
+
+    @Test fun finishedSourceCreatesReadBookWithFinishDateFromLastAccess() = runBlocking {
+        val result = HardcoverSync(auth).send(finished(), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertTrue(result.getBoolean("finished"))
+        assertEquals(502, result.getInt("progressPages"))
+        val read = server.mutations().first { it.getString("query").contains("insert_user_book_read(") }.getJSONObject("variables").getJSONObject("read")
+        assertEquals(setOf("edition_id", "progress_pages", "finished_at"), read.keys().asSequence().toSet())
+        assertEquals("2026-10-06", read.getString("finished_at"))
+        assertEquals(502, read.getInt("progress_pages"))
+        assertEquals(3, server.mutations().last().getJSONObject("variables").getJSONObject("object").getInt("status_id"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun finishedSourceCompletesExistingReadAndMarksBookRead() = runBlocking {
+        server.withRead(200)
+        assertTrue(HardcoverSync(auth).send(finished(), identifiers).getBoolean("finished"))
+        assertEquals(2, server.mutations().size)
+        val read = server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0)
+        assertEquals(502, read.getInt("progress_pages"))
+        assertEquals("2026-10-06", read.getString("finished_at"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun finishedSourceAgainstReadRemoteWritesNothing() = runBlocking {
+        server.withRead(502, status = 3, finished = true)
+        val result = HardcoverSync(auth).send(finished(), identifiers)
+        assertEquals("already_current", result.getString("outcome"))
+        assertTrue(result.getBoolean("finished"))
+        assertTrue(server.mutations().isEmpty())
+    }
+
+    @Test fun finishedStatusWithPartialProgressHolds() = runBlocking {
+        assertEquals("source_finish_progress_mismatch", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5000/10000", "2"), identifiers) } }.code)
+        assertTrue(server.mutations().isEmpty())
+    }
+
+    @Test fun finishDateFallsBackToReadTimeWithoutLastAccess() = runBlocking {
+        HardcoverSync(auth).send(finished(lastAccess = null), identifiers, readAt = "2026-10-05T15:46:00Z")
+        val read = server.mutations().first { it.getString("query").contains("insert_user_book_read(") }.getJSONObject("variables").getJSONObject("read")
+        assertEquals("2026-10-05", read.getString("finished_at"))
+    }
+
+    @Test fun interruptedCompletionRetryOnlyMarksTheBookRead() = runBlocking {
+        server.withRead(502, status = 2, finished = true, finishedAt = "2026-01-01")
+        val result = HardcoverSync(auth).send(finished(), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertTrue(server.mutations().single().getString("query").contains("FinishBook"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun finishedSourceCompletesRemoteReadAlreadyAtFullPages() = runBlocking {
+        server.withRead(502)
+        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals(2, server.mutations().size)
+        assertEquals("2026-10-06", server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).getString("finished_at"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun finishedSourceKeepsHigherRemotePagesWhileFinishing() = runBlocking {
+        server.withRead(600)
+        val result = HardcoverSync(auth).send(finished(), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertEquals(600, result.getInt("progressPages"))
+        val read = server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0)
+        assertEquals(600, read.getInt("progress_pages"))
+        assertEquals("2026-10-06", read.getString("finished_at"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
 
     @Test fun missingIsbnAutomaticallyMatchesUniqueTitleAndAuthor() = runBlocking {
         server.editionCount = 0
@@ -303,7 +385,8 @@ class HardcoverTest {
         server.withRead(200, edition = 99)
         assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(), identifiers) } }
         assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(status = "unrecognized"), identifiers) } }
-        assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book("10000/10000"), identifiers) } }
+        server.withRead(200)
+        assertEquals("source_status_not_finished", assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book("10000/10000"), identifiers) } }.code)
         assertTrue(server.mutations().isEmpty())
     }
 

@@ -9,8 +9,9 @@ Record your model, Android version, firmware, and Boox Tracker version from **Ac
 3. Open a known book in NeoReader, return to its library, then press **Sync Now**. Tap the title to inspect raw progress, saved last-access time, and query time.
 4. Turn **Hardcover On** and approve sign-in. Verify an exact edition match and the remote page equivalent in your account.
 5. Try a book without a matching ISBN edition. Verify book-only matching through another identifier or unique title and author. No selection dialog or catalogue edit should occur.
+6. Finish a book in NeoReader and return to its library. After a sync, the Hardcover row should show **Finished** and the book should be Read on Hardcover with the finish date of that day and one read entry.
 
-The provider fraction is not a physical page count. Saved library progress can lag page turns and differ from the in-book percentage. Font changes, a second book, and a finished book can help test those differences. Completed or reread records remain protected; unknown reading-status codes are not guessed.
+The provider fraction is not a physical page count. Saved library progress can lag page turns and differ from the in-book percentage. Font changes, a second book, and a finished book can help test those differences. Completed or reread records remain protected. Reading status codes `0`, `1`, and `2` mean not started, reading, and finished; other codes are not guessed.
 
 Book details show full ISBNs and other available identifiers. **Last Access** is NeoReader's saved timestamp; **Read At** is when Boox Tracker queried it. In About, **Change ebook folder** opens the picker. Pressing Back keeps the existing folder if its read permission is still valid.
 

@@ -1,6 +1,6 @@
 # Reading Sync diagnostic APK plan
 
-Approved on 2026-10-04. MIT; Kotlin Views/XML; mise and `.tool-versions`.
+Approved on 2026-10-04. Completed historical diagnostic milestone. MIT; Kotlin Views/XML; mise and `.tool-versions`. The current app is Boox Tracker 0.3.3; use [the automatic/offline plan](plan-20261006-automatic-offline-sync.md), not the removed controls below.
 
 - [x] Create one Android module, Gradle wrapper, and retain the approved mockup.
 - [x] Implement read-only provider discovery, explicit outcomes, raw metadata, and Diagnostics UI.
@@ -14,4 +14,10 @@ Query only the Metadata content provider through the ordinary app UID. No provid
 
 ## Later scope: 2026-10-06
 
-The user explicitly removed the source-book selector from all UI, including Diagnostics, and authorized the first Hardcover integration through APK delivery. The original selectable-list requirement above is historical and superseded. See [the first Hardcover plan](plan-20261006-hardcover-first.md). Diagnostic provider access, logs, and observation remain; only explicit enabled Hardcover sends write to a tracker, never to BOOX.
+The user explicitly removed the source-book selector from all UI, including Diagnostics, and authorized the first Hardcover integration through APK delivery. The original selectable-list requirement above is historical and superseded. See [the first Hardcover plan](plan-20261006-hardcover-first.md). At the first 0.2.0 handoff, provider access/logs/observation remained while enabled Hardcover writes were added. The later approved 0.3.0 plan removed observation, the book selector, Read now, and Background checks controls. Always-on local collection and separate network delivery are now built; BOOX access remains read-only.
+
+## Findings and current next step
+
+The installed ordinary-UID app read the Metadata library on the tested GoColor7 firmware. Controlled exits, font changes, finished books, observer callbacks, independent scheduled reads after boot/near wake, and retained logs were inspected. Null fields, normalized fractions, delayed lastAccess, provider/in-book discrepancies, irregular scheduling, and unknown interruption causes constrain conclusions. See [verification](verification.md#verified-on-physical-boox).
+
+Do not repeat completed sessions just to meet an old duration or generalize one firmware to the whole family. Manual Hardcover exact delivery now has user evidence on 0.3.1. The remaining test is current-package offline/hidden-app delivery and book-only matching, documented in [device testing](device-testing.md). Releases/prereleases are still held.

@@ -1,18 +1,24 @@
 # Approved visual direction
 
+Updated 2026-10-06 for 0.3.3. Use the implemented layout below as the current contract. The image and historical sections preserve the visual reference, not obsolete controls or fictional account states. See [verification](verification.md) for screenshots and physical evidence.
+
 The user selected the revised first concept: the first layout, the second concept's amber warning triangle, and coloured service icons. Other generated concepts were alternatives. The mockup is a visual direction, not proof of implemented services or signed-in accounts.
 
 ![Approved Reading Sync mockup](reading-sync-approved-mockup.png)
 
 ## Layout
 
-The intended product has a white background, large black Boox Tracker title, About at top right, Sync/Activity tabs, and a strong black underline under the active tab. A concise status and last-check area includes Sync now. Flat service rows use horizontal separators, an icon, bold name, status text, and toggle; Reconnect appears in the affected row. A latest-progress area shows the book, percentage, and NeoReader observation timestamp.
+The reference has a white background, large black title, About at top right, two tabs, an active-tab underline, separated service rows, and large controls. Its Reconnect button and lower latest-progress area are illustrative. Later user decisions remove both and put the book/progress/count/read time into the top section.
 
-The implemented 0.3.0 layout uses Sync/Activity. The header shows database title/progress, library count, and query time with a green circular check or amber warning triangle, plus black Sync Now. Tap the book for bordered metadata. Services show exact/book-only/error matching separately from delivery; coming services remain disabled. No book selector, standalone Read Now, lower diagnostic/progress sections, background toggle, or observation controls exist. About is bordered and includes folder replacement; Device Information is in Activity.
+The implemented 0.3.3 layout uses Sync/Activity. The header shows database title/progress, library count, and query time with a green circular check or amber warning triangle, plus black Sync Now with white text. Use Unknown title when the database has none, not the filename. Tap the book for bordered metadata. Services show exact/book-only/error matching separately from Pending/Synced at/specific failure; after a completed send the Synced at line shows Finished instead of a percentage. Coming services remain disabled. No source/destination selector, standalone Read Now, Connect button, lower diagnostic/progress sections, background toggle, or observation controls exist. About is bordered and includes folder replacement; Device Information is in Activity.
 
 The metadata popup uses bold Title Case labels, with ISBN and ASIN uppercase. Show the full ISBN and existing identifier tags from the same database/ebook reader used for sync; omit absent service-tag rows. NeoReader Database and Progress State show OK only when their checks pass, otherwise the specific state or error. Last Access is NeoReader's saved timestamp; Read At is our query timestamp. Format both with the device's date/time settings, retaining raw unsupported timestamps and explicit missing/unreadable states. Identifier file reads must stay off the main thread. Cancelling About's folder replacement keeps the existing grant when it is still readable; missing or revoked access still blocks the app.
 
 The shared reader is the single tag allowlist. UI labels do not filter tags separately. It accepts ISBN, ASIN, Goodreads, Hardcover edition/book/slug, and explicit `storygraph:`, `fable:`, `margins:` identifiers. The last three accept bounded opaque IDs for display only; no future tracker lookup or send is implemented. Unknown tags and unrelated metadata are discarded before display. ASIN remains useful for the implemented Hardcover edition lookup.
+
+Startup shows a bordered Ebook folder access explanation before opening the picker, with Exit / Choose folder. Explain the folder choice and metadata read access in plain words. Cancellation without an existing readable grant shows Exit / Allow again; cancelling About's replacement keeps valid access. Do not add a separate setup section. This folder gate is mandatory even though the provider itself needs no storage grant.
+
+Normal offline Pending is neutral. An enabled service's match/authentication/delivery issue or a current NeoReader read issue can warn; disabled services cannot. Keep last-success time/progress separately from the latest attempt and source book. Switching to a new book must not display the previous book's successful delivery. Turning a connected service On offline retains On and queues; first connection failure returns Off with an inline message. No Wi-Fi prompt or background approval.
 
 The approved mockup's service states are illustrative. Never add fabricated reading/account records to a distributable APK or claim a preview image is physical evidence. Signed emulator screenshots are under dist/screenshots; NeoReader is absent on that emulator.
 
@@ -45,8 +51,16 @@ References for later validation: [BOOX Go 7 series](https://shop.boox.com/produc
 
 ## Historical 0.2.1 service layout: 2026-10-06
 
+This section records the older screenshot. Do not restore its controls. The 0.3.x layout above supersedes it.
+
 The 0.2.1 UI uses the approved title/About header, static active-tab underline, status/action row, separated service rows, and latest saved progress summary. Tabs remain Diagnostics and Activity. Hardcover displays real connection and sync state, with a static opt-in switch. Turning it On enables an existing connection or starts sign-in; turning it Off cancels sign-in or stops sends. Disconnect remains in setup. Goodreads, StoryGraph, Fable, and Margins display Coming soon with disabled off switches. These rows do not imply API access or implemented connections.
 
 Service artwork is downloaded, unmodified Apple App Store artwork, bundled locally. Its colours and shapes differ from the concept icons. In particular, the published StoryGraph artwork is black on white; it is not recoloured. See [artwork sources and rights](../docs/service-artwork.md).
 
 Read now, provider outcome/count, expandable raw metadata and device information, EPUB folder setup, observation, and Background checks remain below the progress summary. Activity retains recycled rows and lazy details. No source-book selector, account fixtures, additional service integrations, or publication has been added. Service switches sit beside the service details; on narrow screens with large fonts, they move below the text to keep names readable. The header warns only for enabled services that need attention or a current NeoReader read issue. Disabled services do not cause a warning.
+
+## UI verification and remaining work
+
+Current metadata/startup/cancelled replacement have visual BOOX evidence. Native user-initiated exact match/delivery has user evidence. Other-service tag rows have synthetic automated coverage only. The 0.3.0 signed API 32 emulator screens verify rendering without NeoReader/account fixtures. There is no complete physical accessibility or timed performance audit. Preserve recycled Activity rows, lazy details, scroll/expanded state, and static transitions during further work.
+
+Tests must wait for rendered book state before tapping it; a provider call count can advance before the UI has a usable snapshot. Folder validation state belongs to the Activity, while picker-in-progress state survives recreation. These lessons prevent missing dialogs and early-tap races without changing product behavior.

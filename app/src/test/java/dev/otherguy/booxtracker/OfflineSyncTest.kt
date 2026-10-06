@@ -39,7 +39,7 @@ class OfflineSyncTest {
     private var online = false
     private val identifiers = BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author")
     private fun raw(value: String) = JSONObject().put("state", "value").put("raw", value)
-    private fun book(key: String = "first", progress: String = "42/100") = JSONObject().put("key", key).put("progress", raw(progress)).put("readingStatus", raw("1"))
+    private fun book(key: String = "first", progress: String = "42/100", status: String = "1") = JSONObject().put("key", key).put("progress", raw(progress)).put("readingStatus", raw(status))
         .put("title", raw("Synthetic Book")).put("authors", raw("Test Author")).put("ISBN", raw("9781398508255"))
     private fun check(book: JSONObject) = JSONObject().put("outcome", "success").put("timestamp", "2026-10-06T10:00:00Z").put("selected", book)
 
@@ -71,6 +71,19 @@ class OfflineSyncTest {
         assertFalse(connection.state().getBoolean("enabled"))
         assertEquals("", store.get("hardcover.account"))
         assertTrue(connection.state().getBoolean("connected"))
+    }
+
+    @Test fun finishedStatusDeliversCompletionAfterFullProgressWasHeld() = runBlocking {
+        online = true
+        store.put("lastCheck", check(book(progress = "100/100")).toString())
+        connection.send("manual", check(book(progress = "100/100")))
+        assertEquals("error", connection.state().getJSONObject("last").getString("delivery"))
+        assertEquals("source_status_not_finished", connection.state().getJSONObject("last").getString("reason"))
+        connection.send("manual", check(book(progress = "100/100", status = "2")))
+        val last = connection.state().getJSONObject("last")
+        assertEquals("synced", last.getString("delivery"))
+        assertTrue(last.getJSONObject("lastSuccess").getBoolean("finished"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
     }
 
     @Test fun successRemainsPerBookAndSurvivesALaterHeldAttempt() = runBlocking {

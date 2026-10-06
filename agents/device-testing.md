@@ -2,14 +2,15 @@
 
 Updated 2026-10-06 for installed 0.3.3/code 10. The [public guide](../docs/device-testing.md) gives normal setup; this file records personal test context and the remaining evidence. Report **Built**, **Automatically tested**, and **Verified on physical BOOX** separately.
 
-## Current 0.3.3 checks
+## Current 0.3.4 checks
 
-Signed 0.3.3 is installed over 0.3.2 on the GoColor7 with the same certificate/data directory. Hardcover remains On and connected. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
+Signed 0.3.4 (completion sync) is built but not installed; see [completion sync](#completion-sync) for its checks. Signed 0.3.3 is installed over 0.3.2 on the GoColor7 with the same certificate/data directory. Hardcover remains On and connected. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
 
 The user confirmed native approval, Exact edition matched, Synced at…, and progress reaching Hardcover on 0.3.1. Their In the Blood screenshots show Currently Reading, 240/480 pages (50%). Preserve this completed manual result. Actual edition ID, raw source fraction, and mutation sequence need an export; the 480-page display cannot prove the edition chosen.
 
 Remaining physical evidence:
 
+- One real finish on 0.3.4: Finished in the Hardcover row, status Read, single read with the last-access date.
 - Book-only fallback without selection or catalogue edits.
 - Offline multi-book collection and retained queue through restart/reboot.
 - Reconnection delivery with Boox Tracker hidden, before app-open sends.
@@ -17,6 +18,13 @@ Remaining physical evidence:
 - Normal sleep/reboot behavior under recorded settings; no exact timing guarantee.
 
 The last update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. No completed current-package offline/reconnect export has been inspected yet.
+
+## Completion sync
+
+1. Finish a book whose Hardcover record is Currently Reading or absent. Return to the NeoReader library so status `2` and the full fraction persist.
+2. Sync and inspect the export: one `hardcover_sync` event with `finished: true`, `finishedAt` equal to the local last-access date, a read mutation with `finished_at`, then a status update to 3. Note the `finished_at` format Hardcover returns in the Library query; the app only checks that it is non-null.
+3. On Hardcover, confirm exactly one read entry with that finish date and no duplicate read. This is the only evidence that inserting a read with `finished_at` does not duplicate a read Hardcover creates on its own.
+4. Reopen the finished book and page backwards. If NeoReader returns it to status `1`, the next sync must hold with a history conflict and leave the finished read unchanged.
 
 ## Offline collection and hidden-app delivery
 
