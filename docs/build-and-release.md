@@ -1,63 +1,65 @@
-# Build and release
+# Building Boox Tracker
 
-## Tools
+## Toolchain
 
-Install [mise](https://mise.jdx.dev/) if it is absent. This machine already has it. All project host dependencies are declared in `.tool-versions`; Homebrew and Android Studio are not required.
+Install [mise](https://mise.jdx.dev/). The repository's [.tool-versions](../.tool-versions) pins Java, the Android command-line tools, Gradle, and the check tools. Android Studio is optional.
+
+From the repository root:
 
 ```sh
 mise install
 mise exec -- android --no-metrics sdk install platforms/android-36 build-tools/35.0.0
-mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug
-mise exec -- ruff format --check scripts
-mise exec -- ruff check scripts
-mise exec -- ktlint '**/*.kt' '**/*.kts'
-mise exec -- markdownlint-cli2
-mise exec -- actionlint
 ```
 
-Use the [Android CLI SDK installer](https://developer.android.com/tools/agents/android-cli/commands/sdk_install) bundled with Command-line Tools 23. Review and accept any SDK license prompts during local installation. CI supplies confirmation during package installation. `--no-metrics` disables Android CLI usage metrics. AGP 8.13.2 can emit an SDK XML-version warning with these tools; it did not prevent the verified builds. Do not use `android init` to add unrelated agent skills.
+Review and accept the Android SDK licence prompts. Use the pinned Android CLI rather than the deprecated `sdkmanager`. Gradle downloads the pinned Kotlin plugin and application libraries; no separate Kotlin installation is needed.
 
-The Gradle wrapper is pinned to 8.13 with the official distribution SHA-256. Kotlin is 2.3.21; compile/target SDK is 36; Build Tools are 35.0.0. Bytecode target is Java 17, while mise provides JDK 21. Gradle manages pinned application libraries. No separate Kotlin installation is required.
+## Development build
 
-## Signing identity
+```sh
+mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug
+```
 
-Create a dedicated local diagnostic identity once:
+Install `app/build/outputs/apk/debug/app-debug.apk` through the BOOX file manager. It appears as **Boox Tracker (dev)**, uses package `dev.otherguy.booxtracker.debug`, and can be installed alongside the diagnostic app. It uses a development certificate and cannot update a diagnostic installation.
+
+See [CONTRIBUTING](../CONTRIBUTING.md#development-setup) for the formatting and other repository checks.
+
+## Signed diagnostic build
+
+To create your own signing identity, run this once:
 
 ```sh
 mise exec -- python scripts/create-diagnostic-key.py
-mise exec -- ./gradlew assembleDiagnostic
 ```
 
-The generator stores `diagnostic.jks` and `signing.properties` in `~/.config/reading-sync/`, with restricted permissions. It refuses to overwrite either file and never prints passwords. Keep a secure backup of both files. Reuse this key for every downloadable update. A replacement key cannot update an existing installation.
+The script creates `diagnostic.jks` and `signing.properties` in `~/.config/reading-sync/`. It restricts file permissions, refuses to overwrite an existing identity, and does not print passwords. Back up these files securely and reuse them for your updates.
 
-Gradle reads that properties file by default. Set `READING_SYNC_SIGNING_PROPERTIES` to use another external file with `storeFile`, `storePassword`, `keyAlias`, and `keyPassword` properties. Never pass passwords on a command line, enable shell tracing around secrets, or commit signing files. Missing configuration fails `assembleDiagnostic`.
+Version 0.3.0 uses a new package, `dev.otherguy.booxtracker`. It installs separately from `org.readingsync.diagnostic`; old logs remain in the old app. The external signing configuration path stays unchanged. Stop the old app’s observation/background activity and turn its service Off before enabling the new app.
 
-The diagnostic variant uses `org.readingsync.diagnostic` and is non-debuggable. Debug uses `org.readingsync.diagnostic.debug` and a development label. Its signing certificate is separate; it cannot update a diagnostic installation. Neither build receives privileged permissions.
+Gradle reads that configuration by default. To use another external properties file, set `READING_SYNC_SIGNING_PROPERTIES`; it must define `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`. Keep credentials outside the repository and out of command arguments and logs.
 
-## Artifact verification
+Build and package both variants:
 
 ```sh
 mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug assembleDiagnostic
 mise exec -- python scripts/package-artifacts.py
 ```
 
-The packaging script verifies APK signatures, records certificate SHA-256 fingerprints, and writes copies plus checksum files under `dist/`. `dist/build-info.json` records app versions, tool pins, artifact hashes, and certificate details. APK build outputs remain under `app/build/outputs/apk/`.
+The diagnostic APK uses package `dev.otherguy.booxtracker` and is not debuggable. Your own certificate cannot update an APK signed by the project. Use the debug variant for development alongside an existing diagnostic installation.
 
-Reproducible means the wrapper, tools, dependencies, source, and signing identity are pinned. A repeated build is not claimed to be byte-identical: signing/build metadata can affect bytes. Compare each delivered file with its own checksum.
+## Artifacts and updates
 
-## GitHub delivery
+The packaging script verifies signatures and writes versioned APKs, SHA-256 checksum files, and public build information to `dist/`. The diagnostic filename follows `boox-tracker-<version>-diagnostic.apk`. Build outputs also remain under `app/build/outputs/apk/`.
 
-The repository remote is [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). Use the manual workflow below to prepare a draft prerelease; a source push does not publish the diagnostic APK.
+Keep the same package and certificate for compatible updates, and increase `versionCode`. A local build can override it with `-PversionCode=<integer>`. Installing over the existing app preserves its data; uninstalling or clearing storage removes it.
 
-`android.yml` runs lint, tests, and debug assembly on pushes and pull requests. `prerelease.yml` is manual and creates a draft prerelease in the repository running the workflow. Review the draft and publish it in GitHub. Keep its signing secrets restricted to trusted maintainers. Never run signing on untrusted pull-request code.
+The toolchain, wrapper, and dependencies are pinned. Byte-identical builds are not guaranteed; verify each APK against its own checksum.
 
-Configure these repository secrets:
+Published downloads, when available, are listed on [GitHub Releases](https://github.com/otherguy/boox-tracker/releases). GitHub Actions produces development build artifacts on pushes and pull requests. Development artifacts use the debug package and certificate.
 
-- `READING_SYNC_KEYSTORE_BASE64`: base64 of the dedicated diagnostic keystore.
-- `READING_SYNC_STORE_PASSWORD`: its store password.
-- `READING_SYNC_KEY_ALIAS`: `diagnostic`, unless explicitly configured otherwise.
-- `READING_SYNC_KEY_PASSWORD`: its key password.
+## Hardcover development
 
-The workflow reconstructs signing files under runner temporary storage, with restrictive permissions. It uploads APK, checksums, and build information; never the key or properties file. Its release permission uses the repository's GitHub token. The workflow derives the repository from GitHub context and does not assume an account name.
+The native connector uses a public device-code OAuth client. The public client ID is not a secret. No client secret, account password, or token belongs in Gradle properties or GitHub Actions.
 
-Increase `versionCode` for each update. The workflow input passes `-PversionCode=<integer>` to Gradle. Local updates can use the same property. Preserve the application ID and certificate.
+For your own fork, register a public Mobile/Desktop/CLI app in Hardcover with Device Authorization Grant and scopes `read:catalog read:library write:library read:me:content`. Set your public client ID in `HardcoverAuth.kt`. Native device sign-in needs no redirect URI or hosted backend. See the [official OAuth guide source](https://github.com/hardcoverapp/hardcover-docs/blob/main/src/content/docs/api/OAuth.mdx).
+
+Unit tests use synthetic EPUBs and a local HTTP server. MockWebServer 4.12.0 is a test dependency only. Production networking uses Android HTTPS, with no runtime HTTP library. Account authorization and real mutations require physical validation; CI never receives account credentials or writes to an account.

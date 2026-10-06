@@ -1,8 +1,25 @@
 <resources>
-    <string name="title">Reading Sync</string>
-    <string name="diagnostics">Diagnostics</string>
+    <string name="about">About</string>
+    <string name="coming_soon">Coming soon</string>
+    <string name="switch_state">"  %1$s"</string>
+    <string name="service_switch">%1$s: %2$s</string>
+    <string name="title">Boox Tracker</string>
+    <string name="diagnostics">Sync</string>
     <string name="activity">Activity</string>
-    <string name="background_state">Background checks: %1$s</string>
     <string name="on">On</string>
     <string name="off">Off</string>
+    <string name="all_selected">All selected — show Issues</string>
+    <string name="issues_selected">Issues selected — show All</string>
+    <string name="export_diagnostics">Export diagnostics</string>
+    <string name="activity_limit">Latest 250 events. Export includes the full retained log.</string>
+    <string name="activity_empty">No retained entries for this filter.</string>
+    <string name="details">Details</string>
+    <string name="hide_details">Hide details</string>
+    <string name="event_title">%1$s · %2$s %3$s</string>
+    <string name="event_summary">%1$s\n%2$s %3$s%4$s</string>
+    <plurals name="unchanged_observations">
+        <item quantity="one">\n%1$d unchanged observation</item>
+        <item quantity="other">\n%1$d unchanged observations</item>
+    </plurals>
+    <string name="device_info">Device information</string>
 </resources>

@@ -1,0 +1,18 @@
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_enabled="false" android:state_checked="true"><layer-list>
+        <item android:gravity="center"><shape><solid android:color="#777777"/><corners android:radius="20dp"/><size android:width="58dp" android:height="32dp"/></shape></item>
+        <item android:right="5dp" android:gravity="center_vertical|right"><shape android:shape="oval"><solid android:color="#FFFFFF"/><size android:width="24dp" android:height="24dp"/></shape></item>
+    </layer-list></item>
+    <item android:state_enabled="false"><layer-list>
+        <item android:gravity="center"><shape><solid android:color="#FFFFFF"/><stroke android:width="2dp" android:color="#777777"/><corners android:radius="20dp"/><size android:width="58dp" android:height="32dp"/></shape></item>
+        <item android:left="5dp" android:gravity="center_vertical|left"><shape android:shape="oval"><solid android:color="#777777"/><size android:width="24dp" android:height="24dp"/></shape></item>
+    </layer-list></item>
+    <item android:state_checked="true"><layer-list>
+        <item android:gravity="center"><shape><solid android:color="#000000"/><corners android:radius="20dp"/><size android:width="58dp" android:height="32dp"/></shape></item>
+        <item android:right="5dp" android:gravity="center_vertical|right"><shape android:shape="oval"><solid android:color="#FFFFFF"/><size android:width="24dp" android:height="24dp"/></shape></item>
+    </layer-list></item>
+    <item><layer-list>
+        <item android:gravity="center"><shape><solid android:color="#FFFFFF"/><stroke android:width="2dp" android:color="#000000"/><corners android:radius="20dp"/><size android:width="58dp" android:height="32dp"/></shape></item>
+        <item android:left="5dp" android:gravity="center_vertical|left"><shape android:shape="oval"><solid android:color="#000000"/><size android:width="24dp" android:height="24dp"/></shape></item>
+    </layer-list></item>
+</selector>

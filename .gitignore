@@ -5,6 +5,7 @@ local.properties
 *.jks
 *.keystore
 *.apk
+*.epub
 *.sha256
 signing.properties
 .code-review-graph/

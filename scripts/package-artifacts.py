@@ -20,7 +20,9 @@ for variant in ("debug", "diagnostic"):
         text=True,
         check=True,
     )
-    target = destination / f"reading-sync-0.1.0-{variant}.apk"
+    metadata = json.loads((source.parent / "output-metadata.json").read_text())
+    version = metadata["elements"][0]["versionName"]
+    target = destination / f"boox-tracker-{version}-{variant}.apk"
     shutil.copyfile(source, target)
     checksum = hashlib.sha256(target.read_bytes()).hexdigest()
     target.with_suffix(".apk.sha256").write_text(f"{checksum}  {target.name}\n")
@@ -30,9 +32,7 @@ for variant in ("debug", "diagnostic"):
             "file": target.name,
             "sha256": checksum,
             "signature": result.stdout,
-            "outputMetadata": json.loads(
-                (source.parent / "output-metadata.json").read_text()
-            ),
+            "outputMetadata": metadata,
         }
     )
     print(f"{target.name}: {checksum}")

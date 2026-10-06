@@ -7,20 +7,20 @@ val signingFile =
     file(System.getenv("READING_SYNC_SIGNING_PROPERTIES") ?: "${System.getProperty("user.home")}/.config/reading-sync/signing.properties")
 val signingValues = Properties().apply { if (signingFile.exists()) signingFile.inputStream().use { load(it) } }
 android {
-    namespace = "org.readingsync.diagnostic"
+    namespace = "dev.otherguy.booxtracker"
     compileSdk = 36
     buildToolsVersion = "35.0.0"
     defaultConfig {
-        applicationId = "org.readingsync.diagnostic"
+        applicationId = "dev.otherguy.booxtracker"
         minSdk = 26
         targetSdk = 36
         versionCode =
             providers
                 .gradleProperty("versionCode")
-                .orElse("1")
+                .orElse("10")
                 .get()
                 .toInt()
-        versionName = "0.1.0"
+        versionName = "0.3.3"
     }
     signingConfigs {
         create("diagnostic") {
@@ -35,14 +35,14 @@ android {
     buildTypes {
         getByName("debug") {
             applicationIdSuffix = ".debug"
-            resValue("string", "app_name", "Reading Sync (dev)")
+            resValue("string", "app_name", "Boox Tracker (dev)")
         }
         create("diagnostic") {
             initWith(getByName("release"))
             signingConfig = signingConfigs.getByName("diagnostic")
             isDebuggable = false
             isMinifyEnabled = false
-            resValue("string", "app_name", "Reading Sync")
+            resValue("string", "app_name", "Boox Tracker")
         }
     }
     buildFeatures { buildConfig = true }
@@ -57,7 +57,7 @@ kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarg
 tasks.configureEach {
     if (name == "validateSigningDiagnostic") {
         doFirst {
-            check(signingValues.isNotEmpty()) { "Configure Reading Sync diagnostic signing; see docs/build-and-release.md" }
+            check(signingValues.isNotEmpty()) { "Configure Boox Tracker diagnostic signing; see docs/build-and-release.md" }
         }
     }
 }
@@ -69,6 +69,7 @@ dependencies {
     implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
     testImplementation("org.robolectric:robolectric:4.16.1")
     testImplementation("androidx.work:work-testing:2.11.2")
 }

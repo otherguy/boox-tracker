@@ -28,7 +28,7 @@ subprocess.run(
         "-validity",
         "10000",
         "-dname",
-        "CN=Reading Sync diagnostic",
+        "CN=Boox Tracker diagnostic",
         "-storepass:env",
         "READING_SYNC_KEY_PASSWORD",
         "-keypass:env",

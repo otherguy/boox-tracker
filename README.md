@@ -1,29 +1,76 @@
-# Reading Sync
+# Boox Tracker
 
-A read-only diagnostic Android companion for BOOX readers using NeoReader. This milestone collects evidence about provider access, metadata, progress persistence, foreground observation, and ordinary scheduled checks.
+Keep your reading progress up to date across your book-tracking services while you read in NeoReader on BOOX.
 
-Use **Diagnostics → Read now** to query NeoReader through the installed application's ordinary UID. Root, ADB privileges, storage access, and external accounts are not used.
+Boox Tracker is an open-source Android companion. Keep your preferred reader, connect your trackers, and let your reading progress follow you.
 
-- [Build and release](docs/build-and-release.md)
-- [Physical BOOX test checklist](docs/device-testing.md)
-- [Provider research and evidence limits](docs/research.md)
-- [Approved mockup](docs/reading-sync-approved-mockup.png)
-- [Implementation plan](agents/plan-20261004-reading-sync-poc.md)
+## Read on BOOX, track where you want
 
-## Behavior
+- **Automatic book detection.** Boox Tracker finds the latest saved book in your NeoReader library.
+- **Progress updates.** Send progress now or let background work collect it while you read.
+- **Simple provider controls.** Turn a provider On to connect it. Turn it Off to stop updates.
+- **Clear activity history.** See what was read, what was sent, and which updates need attention. Export diagnostics when you need help.
+- **Made for e-ink.** Large touch targets, high-contrast text, static controls, and service icons that work alongside clear labels.
 
-The app discovers provider columns. It preserves null, missing, unreadable, and raw field states. Reading-status codes stay raw. A calculated percentage is separate from the raw fraction; its units are not assumed to be physical pages.
+## Providers
 
-**Observation** is a ten-minute foreground service with a quiet Stop notification, a content observer, and five-second polling. It holds no wake lock. Sleep can delay callbacks and cleanup. The first callback after the deadline stops the session before another query.
+| Provider | Status | Available since |
+| --- | --- | --- |
+| [Hardcover](https://hardcover.app) | Enabled | 0.2.0 |
+| [Goodreads](https://www.goodreads.com) | Coming Soon | — |
+| [StoryGraph](https://www.thestorygraph.com) | Coming Soon | — |
+| [Fable](https://fable.co) | Coming Soon | — |
+| [Margins](https://margins.app) | Coming Soon | — |
 
-**Background checks** use unique periodic WorkManager work with a requested fifteen-minute interval. WorkManager retains its normal system-managed wake locks. The first check has a fifteen-minute requested delay. Execution is best-effort, requires no network, and can be delayed by Android or BOOX settings. The toggle defaults off; disabling it cancels future work.
+Each provider has its own switch. Coming Soon providers cannot be enabled. Reading information remains available without a tracker account.
 
-Events retain execution source, start/end context, timestamps, query duration, gaps, changes, and errors. Activity shows the latest 250 events and groups unchanged observations for display. Export retains the full log. Same-identity signed upgrades preserve app data; uninstalling or clearing storage deletes it.
+Hardcover matches automatically using identifiers or title and author. It converts saved progress to approximate edition pages, keeps higher remote progress, and protects completed reads and reading history. Offline updates stay queued across book changes and restarts. See the [Hardcover guide](docs/hardcover.md).
 
-Export uses the Android share sheet only on request. Full paths are replaced with filenames and digests. Arbitrary exception messages and unrelated provider blobs are omitted from export. The allowlisted extra-attribute position is a raw diagnostic value with no page interpretation. Cloud backup is disabled.
+## Download and get started
 
-See the [local verification record](docs/verification.md) for build, test, and signing results.
+[APK downloads and updates → GitHub Releases](https://github.com/otherguy/boox-tracker/releases)
 
-## Verification boundaries
+1. Open the APK on your BOOX. Allow installation from that source if Android asks.
+2. Allow read-only access to your ebook folder at startup.
+3. Open a book in NeoReader, return to its library, then turn Hardcover **On** in Boox Tracker. Approve the sign-in code if requested.
+4. Press **Sync Now** and check your tracker. Background collection is automatic; offline updates wait until delivery is possible.
 
-Compilation and local automated tests cannot establish BOOX compatibility. Provider fixtures exercise application code; they are not firmware evidence. A foreground-service success is not evidence that ordinary scheduled background execution works. No physical BOOX verification has been performed during development.
+Install updates over the existing app to keep settings and Activity history. Development builds install separately as **Boox Tracker (dev)**.
+
+## How it works
+
+Boox Tracker reads NeoReader's saved library information without changing it. It uses saved access times to detect the latest book and reads its progress from the library provider. The allowed ebook folder supplies additional EPUB metadata; other formats use NeoReader's database title, author, and identifiers.
+
+Saved library progress can lag behind page turns or differ from the percentage inside the book. Returning to NeoReader's library can help it save the latest state. Background checks request a fifteen-minute interval; Android and BOOX control when they run, especially during sleep.
+
+The **Sync** tab shows the detected book, saved progress, library count, and each service’s match and delivery state. Tap the book for metadata. **Activity** separates foreground reads, scheduled collection, and queued deliveries. See the [device-testing guide](docs/device-testing.md) for help with background behaviour.
+
+## Compatibility and privacy
+
+Requires Android 8.0 or later on a BOOX device with NeoReader. Access to saved reading information depends on the device's firmware. Root, ADB privileges, and broad storage access are not required.
+
+Your ebooks stay on your device. Connected, enabled providers receive the information needed to match and update the detected book; Boox Tracker does not upload your EPUBs or backfill your whole library.
+
+Hardcover credentials use Android Keystore encryption. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
+
+## Build from source
+
+Use [mise](https://mise.jdx.dev/) and the tools pinned in [.tool-versions](.tool-versions):
+
+```sh
+mise install
+mise exec -- android --no-metrics sdk install platforms/android-36 build-tools/35.0.0
+mise exec -- ./gradlew testDebugUnitTest lintDebug assembleDebug
+```
+
+Accept the Android SDK licence prompts when requested. The development APK is `app/build/outputs/apk/debug/app-debug.apk`.
+
+Boox Tracker uses Kotlin, native Android Views/XML, and AndroidX. The [build guide](docs/build-and-release.md) covers signing, diagnostic builds, and checksums.
+
+## Contributing
+
+Help add providers, improve the e-ink interface, fix bugs, or test another BOOX device. Open an [issue](https://github.com/otherguy/boox-tracker/issues) or [pull request](https://github.com/otherguy/boox-tracker/pulls), and read [CONTRIBUTING](CONTRIBUTING.md) for setup and checks.
+
+## Licence
+
+[MIT](LICENSE.md). [Service artwork](docs/service-artwork.md) and trademarks belong to their respective owners.

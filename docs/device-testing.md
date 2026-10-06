@@ -1,33 +1,48 @@
-# Physical BOOX testing
+# Testing Boox Tracker on a BOOX
 
-Record model, Android version, BOOX firmware/build, NeoReader version if visible, and current background settings. The app shows the device/build fields available through Android. Keep a short note of page turns, book exits, font changes, and screen transitions with clock times. The app cannot observe those user actions directly.
+Record your model, Android version, firmware, and Boox Tracker version from **Activity → Device Information**. Note action times so you can compare them with Activity. Test on your normal BOOX settings first.
 
-## Reading evidence
+## Install and manual sync
 
-1. Copy the diagnostic APK to the BOOX and open it through the normal file manager/installer. Allow installation from that source when Android requests it. Open Reading Sync, select a known book, and press **Read now**. Record the provider outcome, columns, raw fraction, status, and last access.
-2. Start **10-minute observation**. Allow its notification. Switch to NeoReader and turn several pages. Note the action times. Keep the visible Stop notification available.
-3. Leave the book. Return to Reading Sync and compare observation timestamps and changes. Do not conclude that progress persists on every page turn from a later manual query alone.
-4. Change font size in NeoReader. Repeat the observation and compare the raw numerator/denominator with the calculated percentage. The fraction may represent normalized units rather than physical pages.
+1. If an older Reading Sync diagnostic app is installed, turn its tracker and Background checks Off and stop observation. Keep it installed to retain its logs. Version 0.3.0 installs separately.
+2. Open Boox Tracker, read the ebook-folder explanation, and press **Choose folder**. Select the folder that contains your ebooks and allow read access. Cancelled or revoked access blocks setup until you allow a readable folder or exit.
+3. Open a known book in NeoReader, return to its library, then press **Sync Now**. Tap the title to inspect raw progress, saved last-access time, and query time.
+4. Turn **Hardcover On** and approve sign-in. Verify an exact edition match and the remote page equivalent in your account.
+5. Try a book without a matching ISBN edition. Verify book-only matching through another identifier or unique title and author. No selection dialog or catalogue edit should occur.
 
-## Background and retention evidence
+The provider fraction is not a physical page count. Saved library progress can lag page turns and differ from the in-book percentage. Font changes, a second book, and a finished book can help test those differences. Completed or reread records remain protected; unknown reading-status codes are not guessed.
 
-1. Repeat with a second book and a finished book. Inspect raw status values without assuming a code mapping. Select another record even if it has no stable identifier; such selection applies only to the displayed snapshot.
-2. Start a session, turn the screen off, and wake it. Repeat with sleep extending beyond ten minutes. Inspect actual gaps, late cleanup, and interruption entries. No wake lock or screen-on setting should be added to make the result look successful.
-3. Stop the observation session, enable **Background checks**, and leave Reading Sync out of the foreground for at least 30–60 minutes. Do not force-stop it. Inspect actual `scheduled` query events, start/end visibility, and observation-service flags. Repeat overnight if no execution appears. Enabling the toggle is not proof of execution.
-4. Reopen Reading Sync and export diagnostics from Activity. Check that earlier evidence remains in both files. For update testing, install a higher-version diagnostic APK with the same certificate without uninstalling first, then confirm the log remains.
+Book details show full ISBNs and other available identifiers. **Last Access** is NeoReader's saved timestamp; **Read At** is when Boox Tracker queried it. In About, **Change ebook folder** opens the picker. Pressing Back keeps the existing folder if its read permission is still valid.
+
+## Offline collection and reconnect
+
+1. After one successful manual sync, keep Hardcover On and disconnect Wi-Fi. Read the first book, return to the NeoReader library, and press Sync Now. Confirm **Pending** without a request to enable Wi-Fi.
+2. Read a second book and repeat. Both pending updates must remain. Close and reopen Boox Tracker; pending items and earlier Activity must remain.
+3. Return to NeoReader and leave Boox Tracker hidden. Reconnect to a working network. Do not open Boox Tracker or press Sync Now while delivery is being tested.
+4. Check Hardcover from another device. Then reopen Boox Tracker and export. Separate **delivery** entries that ran before app-open from the **foreground** query/sends caused by opening it.
+5. Test Off while pending, then On offline for the same account. Off pauses sends; On resumes. A first connection without internet must return Off with a short message.
+
+Account changes must not deliver another account's queue. If testing this, keep notes of which account owned each pending item. Do not share credentials or sign-in codes.
+
+## Independent background collection
+
+1. Keep Hardcover On. Stay in NeoReader for 30–60 minutes with Boox Tracker hidden. Keep the device awake for the first test; do not force-stop the new app.
+2. Reopen Boox Tracker and export. Opening it automatically collects and attempts delivery: only entries before that time establish independent work.
+3. Inspect **scheduled** query and **delivery** events. For local reads, `appVisibleAtStart` and `appVisible` must be false. For delivery, inspect its start/stop visibility and timestamps separately.
+4. Repeat during sleep, then cold boot. Record sleep, wake, power-off, boot, and app-open times. Reboot retention and execution timing are different questions.
+
+The fifteen-minute interval is a request, not a guarantee. Network availability, Android scheduling, sleep, and BOOX restrictions can delay work. A foreground sync, emulator result, or ADB provider query does not establish ordinary-app background execution.
 
 ## BOOX settings
 
-Firmware names and locations vary. Inspect app freeze/auto-freeze, App Startup, background-running restrictions, battery optimization, and notification settings for Reading Sync. Start with the existing settings and record them. If execution is blocked, change one relevant setting and repeat the test. Unfreeze the app if BOOX marks it frozen. Allow its quiet observation notification.
+Names vary by firmware. Check freeze/auto-freeze, App Startup, background-running restrictions, and battery optimization. Record settings before changing them. If work does not run, change one relevant setting and repeat the same test. These settings can affect execution; they do not guarantee it. A gap alone does not establish its cause.
 
-These controls may affect execution; they do not guarantee callbacks, progress persistence, or worker timing. Android force-stop and BOOX freeze can prevent jobs until the app is allowed to run again. Screen-off gaps alone do not establish why work was delayed.
+No observation service or app-managed wake lock is used in 0.3.0. WorkManager manages normal Android scheduling resources.
 
-## Interpretation
+## Logs and reports
 
-`success` with zero records means the provider returned an empty cursor. Permission denial, provider absence, null cursors, and query failure are different outcomes. Successful access with missing/unreadable progress still does not establish usable progress.
+Activity shows the latest 250 events; **Export diagnostics** includes the retained history as text and JSON. Use **All / Issues** and expandable details. Provider denial, unavailable provider, empty library, unknown progress, queued waiting, and tracker errors are separate results.
 
-Observer registration success does not prove NeoReader emits notifications. Polls can find changes that receive no observer callback. A query reads persisted provider state; it cannot reveal an unpersisted live reading position.
+Compatible signed updates preserve data. The 0.3.0 package change starts a new data store and leaves old logs in the old app. Do not uninstall or clear storage to test retention.
 
-A scheduled query counts as ordinary-background evidence only when Reading Sync was out of the foreground and its observation service was inactive throughout the test interval. Start and end flags help identify overlap, but cannot prove there was no brief overlap between samples. Use the separate test procedure.
-
-Report results under **Built**, **Automatically tested**, and **Verified on physical BOOX**. Include the exported evidence and exact firmware. ADB provider queries, emulator runs, and compilation do not establish ordinary-app access on the BOOX.
+Review exports before sharing: they can contain titles, identifiers, progress, tracker IDs, and device details. See [CONTRIBUTING](../CONTRIBUTING.md#issues-and-device-reports) for reports.

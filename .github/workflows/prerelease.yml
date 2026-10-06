@@ -66,4 +66,4 @@ jobs:
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ github.sha }}
         run: |
-          mise exec -- gh release create "$TAG" --target "$COMMIT" --draft --prerelease --title "Reading Sync $TAG" --notes "Diagnostic APK. Physical BOOX compatibility is unverified; follow docs/device-testing.md." dist/reading-sync-0.1.0-diagnostic.apk dist/reading-sync-0.1.0-diagnostic.apk.sha256 dist/build-info.json
+          mise exec -- gh release create "$TAG" --target "$COMMIT" --draft --prerelease --title "Boox Tracker $TAG" --notes "Diagnostic APK. See README.md for current features and service support, and docs/device-testing.md for compatibility testing." dist/boox-tracker-*-diagnostic.apk dist/boox-tracker-*-diagnostic.apk.sha256 dist/build-info.json

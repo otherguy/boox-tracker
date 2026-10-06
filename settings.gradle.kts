@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "ReadingSync"
+rootProject.name = "BooxTracker"
 include(":app")
