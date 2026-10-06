@@ -1,6 +1,6 @@
 # Project status and handoff
 
-Updated 2026-10-06 after the 0.3.4 completion-sync build; 0.3.3 is the last version installed on the device. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-06 after the 0.3.4 completion-sync USB update. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 

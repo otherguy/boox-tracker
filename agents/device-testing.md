@@ -4,7 +4,7 @@ Updated 2026-10-06 for installed 0.3.3/code 10. The [public guide](../docs/devic
 
 ## Current 0.3.4 checks
 
-Signed 0.3.4 (completion sync) is built but not installed; see [completion sync](#completion-sync) for its checks. Signed 0.3.3 is installed over 0.3.2 on the GoColor7 with the same certificate/data directory. Hardcover remains On and connected. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
+Signed 0.3.4 (completion sync) is installed over 0.3.3 on the GoColor7 with the same certificate/data directory; see [completion sync](#completion-sync) for its checks. 0.3.3 was installed over 0.3.2 with the same certificate/data directory. Hardcover remains On and connected. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
 
 The user confirmed native approval, Exact edition matched, Synced at…, and progress reaching Hardcover on 0.3.1. Their In the Blood screenshots show Currently Reading, 240/480 pages (50%). Preserve this completed manual result. Actual edition ID, raw source fraction, and mutation sequence need an export; the 480-page display cannot prove the edition chosen.
 
