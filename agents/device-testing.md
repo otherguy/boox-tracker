@@ -28,7 +28,7 @@ The last update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:3
 
 ## Fable sync
 
-Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md). Before step 2, move In the Blood back to Currently Reading on fable.co: the authorized API tests on 2026-10-06 left it on Finished at 50%. The UK paperback sibling has a stray 0% progress record and is on no list.
+Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md). In the Blood is on Currently Reading at 50% (checked 2026-10-07). The UK paperback sibling has a stray 0% progress record and is on no list.
 
 1. Turn Fable On, enter the Fable email and password, and press Sign in. Export and confirm the absence of the password, `idToken`, and refresh token. This is the first live check of the Firebase sign-in call.
 2. With In the Blood at 50.07% in NeoReader, Sync Now. Expect 50% on the US ebook edition the user shelved (`existingEditionPreserved` if the matched ISBN is another edition), Currently Reading, and no change to the UK sibling.

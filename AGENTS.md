@@ -118,7 +118,7 @@ Use the [public build guide](docs/build-and-release.md) and [testing guide](docs
 
 ## Resume point: 2026-10-07
 
-0.4.0/code 12 adds Fable as local uncommitted changes on `main`, package unchanged. `dist/boox-tracker-0.4.0-diagnostic.apk` (SHA-256 `6154bfce8cfd…`) is signed with the existing certificate and not installed. 121 tests, lint, ktlint, markdownlint, and both reviews passed. Next: install over 0.3.4 by USB, ask the user to move In the Blood back to Currently Reading on fable.co, then run the [Fable device checks](agents/device-testing.md#fable-sync). The Firebase sign-in and refresh calls are verified only by the first device sign-in and the first refresh after one hour. Publication remains on hold.
+0.4.0/code 12 adds Fable on branch `feat/fable-sync` (commit 0b435be, not pushed), package unchanged. `dist/boox-tracker-0.4.0-diagnostic.apk` (SHA-256 `6154bfce8cfd…`) is signed with the existing certificate and not installed. 121 tests, lint, ktlint, markdownlint, and both reviews passed. In the Blood is on Currently Reading at 50% on Fable. Next: install over 0.3.4 by USB, then run the [Fable device checks](agents/device-testing.md#fable-sync). The Firebase sign-in and refresh calls are verified only by the first device sign-in and the first refresh after one hour. Publication remains on hold.
 
 ## Previous resume point: 2026-10-06
 

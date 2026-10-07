@@ -110,7 +110,7 @@ The user signed in on fable.co in the built-in browser. Read-only probes and use
 | `GET /api/books/{id}/reading_progress` | `current_percentage`, `current_page`, `page_count`, `status` (`unread`, `reading`, `finished`), `selected_mode` |
 | `POST /api/books/{id}/reading_progress` with `status: reading`, `social_accounts: []`, integer `current_percentage`, `selected_mode: percentage` | 201. Decimals fail with 400. Fable derives pages from the edition. The write does not shelve the book, accepts lower values, and at 100% sets status `finished` and moves the book to Finished. A later lower write leaves it on Finished |
 | `GET /api/v2/users/{account}/book_lists…` and `/book_lists/{list}/books` | Four per-account system lists; list membership |
-| `POST /api/v2/users/{account}/book_lists/book` multiselect | 200. A move from Finished to Currently Reading did not show in book detail seconds later; lag or rejection is unresolved. Adding an unshelved book is not yet verified |
+| `POST /api/v2/users/{account}/book_lists/book` multiselect | 200. A move from Finished to Currently Reading applied, but book detail showed it only later; read shelves from list membership. Adding an unshelved book is not yet verified |
 | `RemoveFromLibrary` on the same endpoint | 200; the progress record remains |
 
 No rate-limit headers were observed.
