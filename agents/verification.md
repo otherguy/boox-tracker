@@ -1,13 +1,13 @@
 # Verification record
 
-Updated 2026-10-06 for Boox Tracker 0.3.4/code 11. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below and [device checklist](device-testing.md#current-033-checks). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.0/code 12 (Fable). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below and [device checklist](device-testing.md#current-033-checks). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.3.4 debug/signed APKs, new package, approved automatic matching/offline/UI scope, completion sync for the detected book | Other services, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 85 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.0 debug/signed APKs: Hardcover with completion sync, and Fable through its unofficial app API | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 121 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
 | Physical current UI/update | Signed 0.3.1–0.3.3 updates; prompt, merged identifiers, readable-grant cancellation checked | Future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
@@ -42,6 +42,22 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Fable sync 0.4.0
+
+**Built:** debug and signed diagnostic APKs, version 0.4.0/code 12, on `main` as local uncommitted changes. Package, diagnostic certificate (`678df89d…f4b420d`), app database/export schemas, ebook cache namespace, Hardcover vault file and Keystore alias, and OAuth client ID are unchanged. Artifact `dist/boox-tracker-0.4.0-diagnostic.apk`, 3,538,746 bytes, SHA-256:
+
+```text
+6154bfce8cfddcad667bed4d2eeb4a5dbccb69a3a807e1ee5fcd735180081679
+```
+
+Fable is the second tracker; see the [Fable plan](plan-20261006-fable-sync.md) and [contract](integrations.md#fable). The queue, delivery loop, and stored state moved to a shared `TrackerConnection`; Hardcover keys and event kinds are unchanged. `sync()` and the delivery worker isolate each service. A manual or scheduled send failure is now recorded as `<service>_sync` instead of `hardcover_operation`/`worker_failed`, and a scheduled run with such a failure stops as `failed`.
+
+**API evidence, 2026-10-06:** with the user's browser session, read-only calls confirmed profile, search, book detail, editions, list membership, and progress read-back. User-authorized writes on In the Blood established: decimal percentages fail with 400; an integer write returns 201 and is read back; writes do not shelve; lower values are accepted; 100% moves the book to Finished; a later 50% write keeps Finished. A multiselect move off Finished returned 200 without a visible change. The book was left on Finished at 50%, and the UK sibling has a 0% record on no list. Firebase sign-in and refresh were not exercised.
+
+**Automatically tested:** 121 tests, zero failures/errors/skips, empty stderr, including 36 new Fable tests against a local fake of the observed response shapes. Both builds and lint variants passed; lint has zero errors and ten dependency/tool notices per variant. ktlint and markdownlint passed. The code-reviewer and code-simplifier reviews both returned findings; all were applied with tests, as listed in the plan notes.
+
+**Verified on physical BOOX:** nothing yet. The 0.4.0 APK was not installed. See [Fable device checks](device-testing.md#fable-sync).
 
 ## Completion sync 0.3.4
 

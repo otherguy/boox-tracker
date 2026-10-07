@@ -42,8 +42,8 @@ class ScheduledCheckWorker(context: Context, parameters: WorkerParameters) : Cor
         val run = "$id:$runAttemptCount:${UUID.randomUUID()}"
         app.diagnostics.startRun("scheduled", run)
         try {
-            app.sync("scheduled", "periodic", run)
-            app.diagnostics.stopRun("scheduled", run, "completed")
+            val failed = app.sync("scheduled", "periodic", run)
+            app.diagnostics.stopRun("scheduled", run, if (failed) "failed" else "completed", failed)
             return Result.success()
         } catch (error: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) { app.diagnostics.stopRun("scheduled", run, "worker_cancelled", true) }
@@ -61,17 +61,33 @@ class DeliveryWorker(context: Context, parameters: WorkerParameters) : Coroutine
         val app = applicationContext as ReadingSyncApp
         val run = "$id:$runAttemptCount:${UUID.randomUUID()}"
         app.diagnostics.startRun("delivery", run)
+        var retry = false
+        var failed = false
+        val reasons = mutableSetOf<String>()
         try {
-            val retry = app.hardcover.drain("delivery")
-            app.diagnostics.stopRun("delivery", run, if (retry) "retry_pending" else "completed")
-            return if (retry) Result.retry() else Result.success()
+            for (connection in app.connections) {
+                try {
+                    retry = connection.drain("delivery") || retry
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    val temporary = temporaryFailure(error)
+                    // A shared cause such as a revoked ebook folder fails every service; record it once.
+                    if (reasons.add(failureReason(error))) app.diagnostics.event("delivery", "worker_failed", run, JSONObject().put("service", connection.service).put("reason", failureReason(error)), !temporary)
+                    retry = retry || temporary
+                    failed = true
+                }
+            }
         } catch (error: CancellationException) {
             withContext(NonCancellable + Dispatchers.IO) { app.diagnostics.stopRun("delivery", run, "worker_cancelled", true) }
             throw error
-        } catch (error: Exception) {
-            app.diagnostics.event("delivery", "worker_failed", run, JSONObject().put("reason", failureReason(error)), !temporaryFailure(error))
-            app.diagnostics.stopRun("delivery", run, "failed", true)
-            return if (temporaryFailure(error)) Result.retry() else Result.success()
         }
+        val outcome = when {
+            retry -> "retry_pending"
+            failed -> "failed"
+            else -> "completed"
+        }
+        app.diagnostics.stopRun("delivery", run, outcome, failed)
+        return if (retry) Result.retry() else Result.success()
     }
 }

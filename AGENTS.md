@@ -16,7 +16,7 @@ Use plain, concise, actionable English. Limit lists to five items and split long
 
 Boox Tracker is the app name selected by the user on 2026-10-06. Older evidence, plans, and artifacts use Reading Sync. Use Boox Tracker in visible labels/public docs. The implemented 0.3.0 plan changes package/namespace to `dev.otherguy.booxtracker` and starts fresh data. Preserve any old app/logs if present; the old package was absent during the USB handoff and no uninstall/data clear was issued. Preserve the external signer/configuration. Do not restore obsolete package/work names into the new app.
 
-Boox Tracker is an open-source Android companion that keeps NeoReader as the reader: saved metadata → companion → enabled trackers. Hardcover is implemented; Goodreads, StoryGraph, Fable, and Margins remain Coming Soon. Native device OAuth, read-only provider/EPUB identifiers, automatic exact/book-only matching, durable offline delivery, and conservative progress writes are built. The user confirmed native sign-in/manual exact sync on 0.3.1. Book-only, offline queue/reboot retention, and hidden-app delivery still need physical evidence. See [integration research](agents/integrations.md) and [current plan](agents/plan-20261006-automatic-offline-sync.md).
+Boox Tracker is an open-source Android companion that keeps NeoReader as the reader: saved metadata → companion → enabled trackers. Hardcover is implemented. Fable is implemented in 0.4.0 through Fable's unofficial app API; the user accepted the terms-of-use risk on 2026-10-06 (see [Fable plan](agents/plan-20261006-fable-sync.md)). Goodreads, StoryGraph, and Margins remain Coming Soon. Native device OAuth, read-only provider/EPUB identifiers, automatic exact/book-only matching, durable offline delivery, and conservative progress writes are built. The user confirmed native sign-in/manual exact sync on 0.3.1. Book-only, offline queue/reboot retention, and hidden-app delivery still need physical evidence. See [integration research](agents/integrations.md) and [current plan](agents/plan-20261006-automatic-offline-sync.md).
 
 The product sync flow detects the latest saved book automatically and updates its matched tracker record. Do not add a source-book selector, destination chooser, or match confirmation. Ignore obsolete saved selection state; missing/tied usable access times cannot select an arbitrary book. Detection uses stored `lastAccess`, which can lag and does not prove which book is currently open. A destination match does not remove that source limit.
 
@@ -42,7 +42,7 @@ Follow the [approved design](agents/design.md): white background, black labels, 
 
 Services already connected can enable offline and queue. First-time connection failure returns Off with an inline message. Normal offline waiting is neutral. Off pauses pending items; the same account can resume; another account cannot receive them. Service toggles start connection setup when needed. Do not add a separate Connect button. After approval, the user-requested On state enables sync; Off cancels pending sign-in or stops sends. Warn only for enabled services that need attention or current NeoReader read issues. Disabled services do not cause warnings.
 
-Keep one identifier-tag allowlist in `BookIdentifiers.kt`. The metadata popup displays the reader's results and supplies labels; do not add a second UI allowlist. Only ISBN, ASIN, Goodreads, Hardcover edition/ID/slug, and explicit StoryGraph/Fable/Margins identifier tags are accepted. Future-service tags are display-only until their integrations exist; do not claim API support from tag extraction.
+Keep one identifier-tag allowlist in `BookIdentifiers.kt`. The metadata popup displays the reader's results and supplies labels; do not add a second UI allowlist. Only ISBN, ASIN, Goodreads, Hardcover edition/ID/slug, and explicit StoryGraph/Fable/Margins identifier tags are accepted. Fable matching uses `fable:` values that are Fable book UUIDs. StoryGraph/Margins tags are display-only until their integrations exist; do not claim API support from tag extraction.
 
 Database metadata covers formats exposed by the provider; only EPUB has an embedded parser. A null database ISBN does not prove no ebook ISBN exists. The popup and sync must use the same identifier repository off the main thread. Show full available values, omit absent service tags, and use explicit OK/error states. `progressProblem: null` means no parse error. Last Access is provider time; Read At is query time. Do not restore the removed fraction-unit explanation in the popup.
 
@@ -74,7 +74,12 @@ Ask before replacing substantial working code or choosing a material product/arc
 | `HardcoverAuth.kt` | HTTPS, device OAuth, serialized refresh, Keystore token vault |
 | `HardcoverMatch.kt` | Automatic matching and bounded cache |
 | `HardcoverSync.kt` | Verified edition basis and conservative GraphQL updates |
-| `HardcoverConnection.kt` | Connection UI state, opt-in, fresh sends, safe tracker logs |
+| `TrackerConnection.kt` | Shared per-service queue, delivery loop, state, failure reasons |
+| `HardcoverConnection.kt` | Hardcover device sign-in, opt-in, disconnect |
+| `FableAuth.kt` | Firebase email/password sign-in, serialized refresh; tokens only, never the password |
+| `FableMatch.kt` | Fable matching within one edition family and bounded cache |
+| `FableSync.kt` | Shelf membership, floored percentage writes, read-back confirmation |
+| `FableConnection.kt` | Fable inline sign-in, opt-in, disconnect |
 
 Use `mise` and `.tool-versions` for project tools, including Java. Do not introduce Homebrew dependencies unless a concrete blocker requires one. Use the pinned Android CLI `android ... sdk install`, not the deprecated `sdkmanager`. See [build instructions](agents/build-and-release.md) for tool versions and setup.
 
@@ -106,11 +111,16 @@ README, CONTRIBUTING, and `docs/` are for users and contributors. Keep personal 
 | [Build and release](agents/build-and-release.md) | Signing, delivery workflow, and publication hold |
 | [Diagnostic plan](agents/plan-20261004-reading-sync-poc.md) | Approved first-milestone scope |
 | [First Hardcover plan](agents/plan-20261006-hardcover-first.md) | Historical connector scope; superseded matching/UI decisions |
-| [Automatic/offline plan](agents/plan-20261006-automatic-offline-sync.md) | Current completed implementation and remaining physical checks |
+| [Automatic/offline plan](agents/plan-20261006-automatic-offline-sync.md) | Completed implementation and remaining physical checks |
+| [Fable plan](agents/plan-20261006-fable-sync.md) | Fable connector, decisions, and pending physical checks |
 
 Use the [public build guide](docs/build-and-release.md) and [testing guide](docs/device-testing.md) for contributor-facing commands and instructions.
 
-## Resume point: 2026-10-06
+## Resume point: 2026-10-07
+
+0.4.0/code 12 adds Fable as local uncommitted changes on `main`, package unchanged. `dist/boox-tracker-0.4.0-diagnostic.apk` (SHA-256 `6154bfce8cfd…`) is signed with the existing certificate and not installed. 121 tests, lint, ktlint, markdownlint, and both reviews passed. Next: install over 0.3.4 by USB, ask the user to move In the Blood back to Currently Reading on fable.co, then run the [Fable device checks](agents/device-testing.md#fable-sync). The Firebase sign-in and refresh calls are verified only by the first device sign-in and the first refresh after one hour. Publication remains on hold.
+
+## Previous resume point: 2026-10-06
 
 The current implementation is 0.3.4/code 11 (completion sync, installed via USB on 2026-10-06, not yet exercised) on `main`, commits d418646 and 41d4370, package `dev.otherguy.booxtracker` (`.debug` for development). Read [project status](agents/project-status.md) and [verification](agents/verification.md#identifier-allowlist-033) for build/device evidence and remaining physical tests. The reader is the single identifier allowlist; the popup supplies labels only. Explicit StoryGraph/Fable/Margins tags can be displayed without implementing those integrations. Versioned ebook metadata caching rereads identifiers after this update. All 85 tests and required gates/reviews passed on 0.3.4; the 0.3.3 signed update and metadata popup were checked on the GoColor7. The prior 0.3.2 popup/folder-cancellation fixes remain. The user confirmed exact matching and remote progress on 0.3.1. Book-only fallback and hidden-app offline delivery remain unverified; do not infer them from foreground reads or app updates.
 

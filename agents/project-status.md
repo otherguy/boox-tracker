@@ -1,6 +1,6 @@
 # Project status and handoff
 
-Updated 2026-10-06 after the 0.3.4 completion-sync USB update. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after the 0.4.0 Fable build; 0.3.4 is the installed version. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
@@ -8,7 +8,7 @@ Implementation is complete for the approved automatic matching/offline milestone
 
 The checkout is `feat/automatic-offline-sync`. HEAD is `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0`, the original 0.1.0 commit. Later source, tests, and docs are local modified/untracked files. Preserve them and staged state. The remote is `git@github.com:otherguy/boox-tracker.git`. CI passed for 0.1.0; no current-source push or remote CI run is recorded. GitHub releases and prereleases remain on hold. A successful manual sync does not lift that hold.
 
-## Built: 0.3.4 / code 11
+## Built: 0.4.0 / code 12
 
 | Item | Current value |
 | --- | --- |
@@ -18,8 +18,8 @@ The checkout is `feat/automatic-offline-sync`. HEAD is `a795e98c0e77f8b9af61d303
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.3.4-diagnostic.apk`, 3,510,390 bytes |
-| Diagnostic APK SHA-256 | `78874fed5996db78bb34e5ea8db9676675946c4d2c0d7bb3e6eb0daec71e3ec5` |
+| Diagnostic APK | `dist/boox-tracker-0.4.0-diagnostic.apk`, 3,538,746 bytes |
+| Diagnostic APK SHA-256 | `6154bfce8cfddcad667bed4d2eeb4a5dbccb69a3a807e1ee5fcd735180081679` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -45,9 +45,13 @@ SQLite persists the latest queued revision per account/service/source book befor
 
 An already-connected account can enable offline. First-time connection failure returns Off. Enabled services stay On while offline; waiting is neutral. Off pauses pending work, and the same account resumes it. Account keys and authenticated identity checks prevent cross-account sends. Opening the app and Sync Now collect fresh data and attempt delivery.
 
+### Fable
+
+Fable is built in 0.4.0 through its unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md) and [contract](integrations.md#fable). Email/password sign-in stores only Firebase tokens. Matching, shelving, floored percentage writes with read-back, and holds use the same queue as Hardcover through `TrackerConnection`. No physical evidence exists yet; see [Fable device checks](device-testing.md#fable-sync).
+
 ### UI, folder access, and logs
 
-Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Other services show Coming Soon. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
+Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Goodreads, StoryGraph, and Margins show Coming Soon. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
 
 Startup requires a persisted readable read-only SAF ebook-folder grant. It explains the purpose before Choose folder opens the picker. No grant produces Exit / Allow again after cancellation. Cancelling About's replacement preserves a readable old grant; missing/revoked grants still block access. Workers log missing access without opening UI or sending.
 

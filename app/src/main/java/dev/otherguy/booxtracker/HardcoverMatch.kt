@@ -9,8 +9,12 @@ fun JSONObject.records(name: String): List<JSONObject> {
     return (0 until array.length()).map { array.getJSONObject(it) }
 }
 
-private fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
+internal fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Form.NFKC).lowercase(java.util.Locale.ROOT)
     .replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim()
+
+/** Normalized author names from a JSON array or a `;`/`|` separated list. */
+internal fun authorNames(author: String): Set<String> = runCatching { JSONArray(author).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrElse { author.split(Regex("[;|]")) }
+    .map(::normalized).toSet()
 
 class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONObject, private val store: DiagnosticsStore? = null, private val now: () -> Long = { System.currentTimeMillis() }) {
     suspend fun match(sourceKey: String?, metadata: BookIdentifiers): JSONObject {
@@ -64,7 +68,7 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
     private suspend fun titleMatch(metadata: BookIdentifiers): Int {
         val title = metadata.title?.takeIf { it.isNotBlank() } ?: throw SyncProblem("book_title_missing")
         val author = metadata.author?.takeIf { it.isNotBlank() } ?: throw SyncProblem("book_author_missing")
-        val names = runCatching { JSONArray(author).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrElse { author.split(Regex("[;|]")) }.map(::normalized).toSet()
+        val names = authorNames(author)
         val candidates = mutableSetOf<Int>()
         for (page in 1..4) {
             val response = query("query TitleSearch(\$text: String!, \$page: Int!) { search(query: \$text, query_type: \"Book\", fields: \"title,author_names,alternative_titles\", weights: \"5,3,2\", typos: \"0,0,0\", per_page: 25, page: \$page) { ids error } }", JSONObject().put("text", "$title $author").put("page", page)).optJSONObject("search") ?: throw SyncProblem("hardcover_search_failed")

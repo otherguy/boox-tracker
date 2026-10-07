@@ -9,7 +9,7 @@ Updated 2026-10-06 for Boox Tracker 0.3.3. The [automatic matching/offline plan]
 | Hardcover | Native device OAuth, automatic matching, conservative progress, durable queue; user confirmed manual exact matching and delivery on 0.3.1 |
 | Goodreads | IDs extracted and used through Hardcover mappings; no Goodreads connector/authentication/sends |
 | StoryGraph | Explicit identifier display only; Coming Soon, no connector |
-| Fable | Explicit identifier display only; Coming Soon, no connector |
+| Fable | 0.4.0 email/password sign-in, automatic matching, shelving, percentage progress, durable queue; unofficial app API; physical checks pending |
 | Margins | Explicit identifier display only; Coming Soon. Inquiry sent; no reply/access reported as of 2026-10-05 |
 
 Book-only fallback and hidden-app offline/reconnect delivery are built and automatically tested but lack current physical evidence. A read-only Personal Access Token lookup, local HTTP test, emulator screenshot, and real OAuth write are different kinds of evidence. Do not merge them.
@@ -46,7 +46,7 @@ Use an active remote read's edition first. Otherwise use exact matched edition, 
 
 Tag/URL types follow the inspected [Calibre conventions](https://github.com/RobBrazier/calibre-plugins/blob/main/plugins/hardcover/README.md): `hardcover-edition` is an edition ID, `hardcover-id` a numeric book ID, `hardcover-slug` a book slug. `hardcover` is normalized to a book ID for numeric values or a slug otherwise. Accept supported book/edition URLs. Never treat a Goodreads number as a Hardcover ID.
 
-`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Future explicit StoryGraph/Fable/Margins values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}` for display only. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for them. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
+`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Explicit StoryGraph/Fable/Margins values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}` for display only. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for them. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
 
 ### Local matching samples: 2026-10-06
 
@@ -83,9 +83,43 @@ Leads: [app](https://app.thestorygraph.com/), [storygraph-wrapper](https://githu
 
 ## Fable
 
-Historical ShelfSync research found email/password authentication followed by access/refresh tokens. An upstream description called it an official API; this does not establish public third-party access. No Fable authentication, mapping, progress, or token flow is implemented/tested here. The explicit `fable:` tag is display-only.
+Implemented in 0.4.0 under the [Fable plan](plan-20261006-fable-sync.md). Fable has no published developer API. The connector uses Fable's app API, as the MIT-licensed [ShelfSync](https://github.com/Lyfts/ShelfSync) KOReader plugin does. ShelfSync calls this an official API; that does not establish supported third-party access. Fable's [terms](https://fable.co/terms) prohibit access through automated means and scripts. The user accepted this risk on 2026-10-06. Public docs state that the connection is unofficial and can break.
 
-Leads: [Fable](https://fable.co/) and [ShelfSync](https://github.com/Lyfts/ShelfSync). Validate endpoints, supported access, progress/status, refresh, and expiry before implementing.
+Authentication is Firebase Identity Toolkit with Fable's public web API key, observed in Fable's site and kept in `FableAuth.kt`. It identifies Fable's Firebase project; it is not a credential.
+
+### From ShelfSync source and Firebase documentation
+
+These calls were not exercised in the 2026-10-06 browser session. The first device sign-in and the first refresh after one hour verify them.
+
+| Call | Documented behaviour |
+| --- | --- |
+| `POST https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=…` with email, password, `returnSecureToken` | `idToken`, `refreshToken`, `expiresIn` 3600; errors as `error.message`, for example `INVALID_LOGIN_CREDENTIALS`. Legacy path; the current equivalent is `identitytoolkit.googleapis.com/v1/accounts:signInWithPassword` |
+| `POST https://securetoken.googleapis.com/v1/token?key=…` with a form refresh grant | `id_token`, `refresh_token`, `expires_in`. Firebase refresh tokens have no timed expiry; they end on password/email change, disabled user, or revocation |
+
+### Verified with the user's account on 2026-10-06
+
+The user signed in on fable.co in the built-in browser. Read-only probes and user-authorized writes used that session. No account, list, or token values are recorded here.
+
+| Call | Verified behaviour |
+| --- | --- |
+| `https://api.fable.co` with `Authorization: JWT <idToken>` | 403 without a token |
+| `GET /api/settings/profile/` | `id` is the account UUID |
+| `GET /api/books/search/?auto=…&include=out_of_catalog&type=book&limit=20&offset=0` | ISBN-13, ISBN-10, and ASIN queries return the exact record with `isbn` equal to the query. Goodreads IDs return nothing. Title queries return other authors and editions |
+| `GET /api/books/{id}` | Includes `family_id` and the viewer's shelf `status`. Shelves are per edition |
+| `GET /api/books/{id}/editions/` | Every edition in the family with `display_isbn`, `page_count`, `is_current_book`, and `format.category` |
+| `GET /api/books/{id}/reading_progress` | `current_percentage`, `current_page`, `page_count`, `status` (`unread`, `reading`, `finished`), `selected_mode` |
+| `POST /api/books/{id}/reading_progress` with `status: reading`, `social_accounts: []`, integer `current_percentage`, `selected_mode: percentage` | 201. Decimals fail with 400. Fable derives pages from the edition. The write does not shelve the book, accepts lower values, and at 100% sets status `finished` and moves the book to Finished. A later lower write leaves it on Finished |
+| `GET /api/v2/users/{account}/book_lists…` and `/book_lists/{list}/books` | Four per-account system lists; list membership |
+| `POST /api/v2/users/{account}/book_lists/book` multiselect | 200. A move from Finished to Currently Reading did not show in book detail seconds later; lag or rejection is unresolved. Adding an unshelved book is not yet verified |
+| `RemoveFromLibrary` on the same endpoint | 200; the progress record remains |
+
+No rate-limit headers were observed.
+
+### Implemented Fable matching and progress policy
+
+Match an explicit `fable:` UUID, then exact ISBN-13, ISBN-10 (only if its ISBN-13 found nothing), ASIN (only without ISBN results), then title and author. Title matches compare normalized titles and word-order-independent author names. Several records are accepted only inside one family; the eBook edition with pages is preferred. Conflicts and ambiguity hold.
+
+Read shelves from system-list membership, because book detail status can lag. A family edition on Currently Reading, then Want to Read, receives progress (`existingEditionPreserved`). A Finished or Did Not Finish edition holds a reading source. Higher remote progress is kept. Page-mode progress holds. Writes shelve to Currently Reading first, post the floored percentage, and confirm it by reading it back. Completion posts 100% and confirms or sets the Finished shelf.
 
 ## Margins.app
 

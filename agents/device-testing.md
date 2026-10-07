@@ -1,6 +1,6 @@
 # Device-test handoff
 
-Updated 2026-10-06 for installed 0.3.3/code 10. The [public guide](../docs/device-testing.md) gives normal setup; this file records personal test context and the remaining evidence. Report **Built**, **Automatically tested**, and **Verified on physical BOOX** separately.
+Updated 2026-10-06 for 0.4.0/code 12 (Fable); installed build 0.3.4/code 11. The [public guide](../docs/device-testing.md) gives normal setup; this file records personal test context and the remaining evidence. Report **Built**, **Automatically tested**, and **Verified on physical BOOX** separately.
 
 ## Current 0.3.4 checks
 
@@ -25,6 +25,17 @@ The last update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:3
 2. Sync and inspect the export: one `hardcover_sync` event with `finished: true`, `finishedAt` equal to the local last-access date, a read mutation with `finished_at`, then a status update to 3. Note the `finished_at` format Hardcover returns in the Library query; the app only checks that it is non-null.
 3. On Hardcover, confirm exactly one read entry with that finish date and no duplicate read. This is the only evidence that inserting a read with `finished_at` does not duplicate a read Hardcover creates on its own.
 4. Reopen the finished book and page backwards. If NeoReader returns it to status `1`, the next sync must hold with a history conflict and leave the finished read unchanged.
+
+## Fable sync
+
+Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md). Before step 2, move In the Blood back to Currently Reading on fable.co: the authorized API tests on 2026-10-06 left it on Finished at 50%. The UK paperback sibling has a stray 0% progress record and is on no list.
+
+1. Turn Fable On, enter the Fable email and password, and press Sign in. Export and confirm the absence of the password, `idToken`, and refresh token. This is the first live check of the Firebase sign-in call.
+2. With In the Blood at 50.07% in NeoReader, Sync Now. Expect 50% on the US ebook edition the user shelved (`existingEditionPreserved` if the matched ISBN is another edition), Currently Reading, and no change to the UK sibling.
+3. Remove a test book from the Fable library on fable.co, read it in NeoReader, and sync. Expect Currently Reading plus progress. Adding an unshelved book through the multiselect call is not yet verified.
+4. Finish a book in NeoReader. Expect 100% and Finished on Fable. Reopen it in NeoReader; the next sync must hold with `fable_status_conflict`.
+5. Repeat the offline hidden-app test below with Fable and Hardcover both On. Each service must deliver its own queue.
+6. More than one hour after sign-in, sync again. The ID token must refresh without a new sign-in. This is the first live check of the refresh call.
 
 ## Offline collection and hidden-app delivery
 

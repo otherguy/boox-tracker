@@ -25,7 +25,7 @@ import org.json.JSONObject
 const val HARDCOVER_CLIENT_ID = "bc5f2c0f-79d7-42b5-b525-6293454d3934"
 const val HARDCOVER_SCOPES = "read:catalog read:library write:library read:me:content"
 
-class HttpProblem(val status: Int, val oauthError: String? = null) : Exception("http_$status")
+class HttpProblem(val status: Int, val oauthError: String? = null, val service: String = "hardcover") : Exception("${service}_http_$status")
 
 class HardcoverHttp(private val origin: String = "https://api.hardcover.app") {
     fun form(path: String, fields: Map<String, String>): JSONObject = request(
@@ -81,8 +81,8 @@ data class OAuthTokens(val access: String, val refresh: String, val expiresAt: L
     }
 }
 
-class TokenVault(context: Context, private val key: () -> SecretKey = ::credentialKey) {
-    private val file = AtomicFile(File(context.noBackupFilesDir, "hardcover.credentials"))
+class TokenVault(context: Context, service: String = "hardcover", private val key: () -> SecretKey = { credentialKey("reading-sync-$service") }) {
+    private val file = AtomicFile(File(context.noBackupFilesDir, "$service.credentials"))
 
     @Synchronized fun read(): OAuthTokens? {
         if (!file.baseFile.exists()) return null
@@ -111,8 +111,7 @@ class TokenVault(context: Context, private val key: () -> SecretKey = ::credenti
     @Synchronized fun clear() = file.delete()
 }
 
-private fun credentialKey(): SecretKey {
-    val alias = "reading-sync-hardcover"
+private fun credentialKey(alias: String): SecretKey {
     val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
     (store.getKey(alias, null) as? SecretKey)?.let { return it }
     return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").apply {

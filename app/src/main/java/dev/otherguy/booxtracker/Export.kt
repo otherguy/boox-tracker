@@ -17,7 +17,7 @@ fun buildExport(diagnostics: Diagnostics): JSONObject = JSONObject()
     .put("observations", safeExport(diagnostics.store.exportEvents()))
     .put(
         "notes",
-        "Local reads and optional Hardcover sends are separate events. Provider percentages may differ from NeoReader's in-book percentage. Fractions are not physical pages. Automatic detection uses saved lastAccess and may not identify the open book. Hardcover progress_pages is an approximate equivalent for the chosen positive-page-count edition. Matching and pending delivery are separate. Collection and delivery events with appVisibleAtStart or appVisible true do not prove independent background execution. Queues retain the latest observation for each account and source book. Credentials, sign-in codes, folder URIs, and full paths are omitted."
+        "Local reads and optional Hardcover and Fable sends are separate events. Provider percentages may differ from NeoReader's in-book percentage. Fractions are not physical pages. Automatic detection uses saved lastAccess and may not identify the open book. Hardcover progress_pages is an approximate equivalent for the chosen positive-page-count edition. Fable receives the whole percentage rounded down through its unofficial app API; Fable passwords are never stored. Matching and pending delivery are separate. Collection and delivery events with appVisibleAtStart or appVisible true do not prove independent background execution. Queues retain the latest observation for each account and source book. Credentials, sign-in codes, folder URIs, and full paths are omitted."
     )
 
 fun exportIntent(
@@ -49,6 +49,7 @@ fun exportIntent(
                         )
                         if (event.has("selected")) appendLine("Detected book: ${event.opt("selected")}")
                         if (event.optString("kind") == "hardcover_sync") appendLine("Hardcover: $event")
+                        if (event.optString("kind") == "fable_sync") appendLine("Fable: $event")
                         if (event.has("error")) appendLine("Error: ${event.opt("error")}")
                         if (event.has("changes")) appendLine("Changes: ${event.opt("changes")}")
                     }

@@ -4,11 +4,13 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.ImageView
@@ -20,6 +22,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.core.view.isGone
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.lifecycleScope
@@ -36,6 +39,11 @@ class ScreenModel : ViewModel() {
     var busy = false
     var pickerActive = false
     var gateAttempted = false
+
+    /** Fable sign-in drafts survive screen rebuilds; they are memory-only and never stored or logged. */
+    var fableEmail = ""
+    var fablePassword = ""
+    var focusedField = View.NO_ID
     val expanded = mutableSetOf<String>()
     var activityKeys: Map<String, String> = emptyMap()
 }
@@ -218,8 +226,9 @@ class MainActivity : AppCompatActivity() {
                 val check = withContext(Dispatchers.IO) { diagnostics.store.get("lastCheck")?.let(::JSONObject) }
                 val selected = mostRecentlyAccessedBook(snapshot)
                 val hardcover = withContext(Dispatchers.IO) { app.hardcover.state() }
+                val fable = withContext(Dispatchers.IO) { app.fable.state() }
                 content.removeAllViews()
-                showSync(snapshot, check, selected, hardcover)
+                showSync(snapshot, check, selected, hardcover, fable)
             }
         }
     }
@@ -261,10 +270,14 @@ class MainActivity : AppCompatActivity() {
             .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.parse(raw))
     }.getOrDefault("Unknown")
 
-    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject) {
-        val last = hardcover.optJSONObject("last")
+    private fun needsAttention(state: JSONObject): Boolean {
+        val last = state.optJSONObject("last")
+        return state.getBoolean("enabled") && (state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" || last?.optString("matchKind") == "book")
+    }
+
+    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val serviceIssue = hardcover.getBoolean("enabled") && (hardcover.getBoolean("credentialProblem") || !hardcover.getBoolean("connected") || last?.optString("delivery") == "error" || last?.optString("matchKind") == "book")
+        val serviceIssue = needsAttention(hardcover) || needsAttention(fable)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -307,7 +320,7 @@ class MainActivity : AppCompatActivity() {
         showHardcover(hardcover)
         serviceRow("Goodreads", R.drawable.service_goodreads, getString(R.string.coming_soon))
         serviceRow("StoryGraph", R.drawable.service_storygraph, getString(R.string.coming_soon))
-        serviceRow("Fable", R.drawable.service_fable, getString(R.string.coming_soon))
+        showFable(fable)
         serviceRow("Margins", R.drawable.service_margins, getString(R.string.coming_soon))
     }
 
@@ -384,6 +397,7 @@ class MainActivity : AppCompatActivity() {
         status: String,
         enabled: Boolean = false,
         available: Boolean = false,
+        details: (() -> Unit)? = null,
         changed: ((Boolean) -> Unit)? = null
     ) {
         val row = LinearLayout(this).apply {
@@ -406,7 +420,7 @@ class MainActivity : AppCompatActivity() {
             row.addView(this, LinearLayout.LayoutParams(0, -2, 1f))
         }
         label(name, true, body, 22f).setTextIsSelectable(false)
-        if (available) body.setOnClickListener { serviceDetails() }
+        if (available && details != null) body.setOnClickListener { details() }
         label(status, parent = body, size = 17f)
         val switchParent = if (resources.configuration.screenWidthDp < 480 && resources.configuration.fontScale > 1.15f) body else row
         switchParent.addView(
@@ -431,14 +445,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun JSONObject.rawProgressPercent(): String? = Progress.parse(optString("rawProgress")).percent?.let { " · $it%" }
 
-    private fun showHardcover(state: JSONObject) {
+    private fun connectionText(error: String): String = when {
+        listOf("_invalid_login_credentials", "_invalid_password", "_email_not_found").any(error::endsWith) -> "Email or password not accepted"
+        error.endsWith("_too_many_attempts_try_later") -> "Too many attempts, try again later"
+        else -> error.replace('_', ' ')
+    }
+
+    private fun serviceSummary(state: JSONObject, pending: String?, serviceName: String): String {
         val connected = state.getBoolean("connected")
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
         val savedProgress = if (success?.optBoolean("finished") == true) " · Finished" else success?.rawProgressPercent()
         val summary = when {
-            app.hardcover.signingIn -> "Sign-in pending"
-            !state.getBoolean("enabled") -> state.optString("connectionError").takeIf { it.isNotBlank() }?.replace('_', ' ') ?: if (!connected) "Off · Not connected" else "Off"
+            pending != null -> pending
+            !state.getBoolean("enabled") -> state.optString("connectionError").takeIf { it.isNotBlank() }?.let(::connectionText) ?: if (!connected) "Off · Not connected" else "Off"
             !connected || state.getBoolean("credentialProblem") -> "❌ Reconnect required"
             last?.optString("delivery") == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
             last?.optString("matchKind") == "edition" -> "✅ Exact edition matched"
@@ -454,14 +474,19 @@ class MainActivity : AppCompatActivity() {
         } else {
             ""
         }
-        val editionNote = if (last?.optBoolean("existingEditionPreserved") == true) "\nUsing your Hardcover edition" else ""
+        val editionNote = if (last?.optBoolean("existingEditionPreserved") == true) "\nUsing your $serviceName edition" else ""
         val queueNote = if (state.getBoolean("enabled") && state.optInt("pending") > 0) "\n${state.optInt("pending")} queued update(s)" else ""
+        return summary + editionNote + queueNote
+    }
+
+    private fun showHardcover(state: JSONObject) {
         serviceRow(
             "Hardcover",
             R.drawable.service_hardcover,
-            summary + editionNote + queueNote,
+            serviceSummary(state, if (app.hardcover.signingIn) "Sign-in pending" else null, "Hardcover"),
             state.getBoolean("enabled") || app.hardcover.signingIn,
             !model.busy,
+            details = { serviceDetails("Hardcover", app.hardcover::state, hardcoverReport) { app.hardcover.disconnect() } },
             changed = { checked ->
                 action {
                     app.hardcover.setEnabled(checked)
@@ -481,7 +506,93 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun action(block: suspend () -> Unit) {
+    private fun showFable(state: JSONObject) {
+        val fable = app.fable
+        val report: (Exception) -> Unit = { fable.recordFailure("manual", "fable_operation", it) }
+        val pending = when {
+            fable.signingIn -> "Signing in…"
+            fable.awaitingCredentials -> "Sign-in required"
+            else -> null
+        }
+        serviceRow(
+            "Fable",
+            R.drawable.service_fable,
+            serviceSummary(state, pending, "Fable"),
+            state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
+            !model.busy,
+            details = { serviceDetails("Fable", fable::state, report) { fable.disconnect() } },
+            changed = { checked ->
+                if (!checked) model.fablePassword = ""
+                action(report) {
+                    fable.setEnabled(checked)
+                    if (checked && fable.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
+                }
+            }
+        )
+        if (!fable.awaitingCredentials && !fable.signingIn) return
+        label("Sign in with your Fable email and password. Boox Tracker keeps only Fable's sign-in tokens on this device and never stores your password. Fable has no public API, so this connection may stop working if Fable changes.", size = 17f)
+        lateinit var submit: Button
+        fun ready() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !fable.signingIn
+        fun signIn() {
+            if (!ready()) return
+            val email = model.fableEmail.trim()
+            val password = model.fablePassword
+            model.fablePassword = ""
+            model.focusedField = View.NO_ID
+            action(report) { fable.signIn(email, password) }
+        }
+        val email = textField(R.id.fable_email, "Email", model.fableEmail, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_NEXT) {
+            model.fableEmail = it
+            submit.isEnabled = ready()
+        }
+        val password = textField(R.id.fable_password, "Password", model.fablePassword, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, View.AUTOFILL_HINT_PASSWORD, EditorInfo.IME_ACTION_DONE) {
+            model.fablePassword = it
+            submit.isEnabled = ready()
+        }.apply { isSaveEnabled = false }
+        password.setOnEditorActionListener { _, actionId, _ ->
+            (actionId == EditorInfo.IME_ACTION_DONE).also { if (it) signIn() }
+        }
+        submit = button("Sign in") { signIn() }.apply {
+            id = R.id.fable_sign_in
+            isEnabled = ready()
+        }
+        email.isEnabled = !fable.signingIn
+        password.isEnabled = !fable.signingIn
+    }
+
+    private fun textField(fieldId: Int, hint: String, value: String, type: Int, autofill: String, ime: Int, changed: (String) -> Unit): android.widget.EditText = android.widget.EditText(this).apply {
+        id = fieldId
+        this.hint = hint
+        inputType = type
+        imeOptions = ime
+        setAutofillHints(autofill)
+        textSize = 18f
+        setTextColor(Color.BLACK)
+        setHintTextColor(Color.rgb(85, 85, 85))
+        minHeight = dp(56)
+        setPadding(dp(12), dp(8), dp(12), dp(8))
+        background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(Color.WHITE)
+            setStroke(dp(2), Color.BLACK)
+        }
+        setText(value)
+        setSelection(value.length)
+        doAfterTextChanged { changed(it?.toString().orEmpty()) }
+        setOnFocusChangeListener { _, focused ->
+            if (focused) {
+                model.focusedField = fieldId
+            } else if (model.focusedField == fieldId) {
+                model.focusedField = View.NO_ID
+            }
+        }
+        content.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
+        // The Sync screen is rebuilt on every update, so the field that had focus takes it back.
+        if (model.focusedField == fieldId) post { requestFocus() }
+    }
+
+    private val hardcoverReport: (Exception) -> Unit = { app.hardcover.recordFailure("manual", "hardcover_operation", it) }
+
+    private fun action(report: (Exception) -> Unit = hardcoverReport, block: suspend () -> Unit) {
         if (model.busy) return
         model.busy = true
         refresh()
@@ -491,7 +602,7 @@ class MainActivity : AppCompatActivity() {
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Exception) {
-                withContext(Dispatchers.IO) { app.hardcover.recordFailure("manual", "hardcover_operation", error) }
+                withContext(Dispatchers.IO) { report(error) }
             } finally {
                 model.busy = false
                 refresh()
@@ -517,12 +628,12 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun serviceDetails() {
+    private fun serviceDetails(title: String, state: () -> JSONObject, report: (Exception) -> Unit, disconnect: suspend () -> Unit) {
         lifecycleScope.launch {
-            val state = withContext(Dispatchers.IO) { app.hardcover.state() }
+            val current = withContext(Dispatchers.IO) { state() }
             bordered(
-                AlertDialog.Builder(this@MainActivity).setTitle("Hardcover").setMessage(state.optJSONObject("last")?.toString(2) ?: state.optString("status"))
-                    .setPositiveButton("Close", null).setNegativeButton("Disconnect") { _, _ -> action { app.hardcover.disconnect() } }.create()
+                AlertDialog.Builder(this@MainActivity).setTitle(title).setMessage(current.optJSONObject("last")?.toString(2) ?: current.optString("status"))
+                    .setPositiveButton("Close", null).setNegativeButton("Disconnect") { _, _ -> action(report) { disconnect() } }.create()
             )
         }
     }

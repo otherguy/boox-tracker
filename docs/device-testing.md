@@ -15,6 +15,13 @@ The provider fraction is not a physical page count. Saved library progress can l
 
 Book details show full ISBNs and other available identifiers. **Last Access** is NeoReader's saved timestamp; **Read At** is when Boox Tracker queried it. In About, **Change ebook folder** opens the picker. Pressing Back keeps the existing folder if its read permission is still valid.
 
+## Fable
+
+1. Turn **Fable On**, enter your Fable email and password, and press **Sign in**. A wrong password must return the switch to Off with a short message.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Fable, the book must be on Currently Reading with the percentage rounded down. Higher progress on Fable must stay unchanged.
+3. Finish the book in NeoReader. After a sync, Fable must show 100% and the book on Finished.
+4. Export diagnostics and confirm that the export contains no password or token.
+
 ## Offline collection and reconnect
 
 1. After one successful manual sync, keep Hardcover On and disconnect Wi-Fi. Read the first book, return to the NeoReader library, and press Sync Now. Confirm **Pending** without a request to enable Wi-Fi.

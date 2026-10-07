@@ -18,6 +18,8 @@ The shared reader is the single tag allowlist. UI labels do not filter tags sepa
 
 Startup shows a bordered Ebook folder access explanation before opening the picker, with Exit / Choose folder. Explain the folder choice and metadata read access in plain words. Cancellation without an existing readable grant shows Exit / Allow again; cancelling About's replacement keeps valid access. Do not add a separate setup section. This folder gate is mandatory even though the provider itself needs no storage grant.
 
+Fable sign-in is an inline form below the Fable row, approved with the Fable plan on 2026-10-06. Turning Fable On without a session shows a plain explanation, bordered Email and Password fields (56 dp, black on white), and a black Sign in button that is enabled only when both fields are filled. While signing in, the fields are disabled and a static "Signing in…" status replaces the summary. No spinner. Drafts are memory-only and survive screen rebuilds; the password clears on submit and Off.
+
 Normal offline Pending is neutral. An enabled service's match/authentication/delivery issue or a current NeoReader read issue can warn; disabled services cannot. Keep last-success time/progress separately from the latest attempt and source book. Switching to a new book must not display the previous book's successful delivery. Turning a connected service On offline retains On and queues; first connection failure returns Off with an inline message. No Wi-Fi prompt or background approval.
 
 The approved mockup's service states are illustrative. Never add fabricated reading/account records to a distributable APK or claim a preview image is physical evidence. Signed emulator screenshots are under dist/screenshots; NeoReader is absent on that emulator.

@@ -27,6 +27,8 @@ open class ReadingSyncApp :
     Application.ActivityLifecycleCallbacks {
     lateinit var diagnostics: Diagnostics
     lateinit var hardcover: HardcoverConnection
+    lateinit var fable: FableConnection
+    val connections: List<TrackerConnection> get() = listOf(hardcover, fable)
 
     @Volatile var visible = false
 
@@ -36,6 +38,7 @@ open class ReadingSyncApp :
         super.onCreate()
         diagnostics = Diagnostics(this)
         hardcover = HardcoverConnection(this)
+        fable = FableConnection(this)
         registerActivityLifecycleCallbacks(this)
         diagnostics.scope.launch {
             diagnostics.ensureRecovered()
@@ -47,10 +50,23 @@ open class ReadingSyncApp :
         }
     }
 
-    suspend fun sync(source: String, trigger: String, runId: String? = null) = syncMutex.withLock {
+    /** Collects fresh state and sends it to every enabled service. Returns true when a service send failed. */
+    suspend fun sync(source: String, trigger: String, runId: String? = null): Boolean = syncMutex.withLock {
         requireEbookFolder(this, diagnostics.store)
         val fresh = diagnostics.collect(source, trigger, runId)
-        hardcover.send(source, fresh, runId)
+        var failed = false
+        // Each service records its own failure so one service cannot stop delivery to another.
+        for (connection in connections) {
+            try {
+                connection.send(source, fresh, runId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                connection.recordFailure(source, "${connection.service}_sync", error, runId)
+                failed = true
+            }
+        }
+        failed
     }
 
     override fun onActivityStarted(activity: Activity) {
@@ -196,10 +212,12 @@ class Diagnostics(
     }
 
     fun recover() {
-        store.get("hardcover.active")?.takeIf { it.isNotEmpty() }?.let { value ->
-            val active = JSONObject(value)
-            event(active.getString("source"), "hardcover_interruption_detected", active.getString("runId"), JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry."), true)
-            store.put("hardcover.active", "")
+        listOf("hardcover", "fable").forEach { service ->
+            store.get("$service.active")?.takeIf { it.isNotEmpty() }?.let { value ->
+                val active = JSONObject(value)
+                event(active.getString("source"), "${service}_interruption_detected", active.getString("runId"), JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry."), true)
+                store.put("$service.active", "")
+            }
         }
         listOf("scheduled", "delivery").forEach { source ->
             store.get("active.$source")?.takeIf { it.isNotEmpty() }?.let {

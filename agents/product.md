@@ -1,10 +1,10 @@
 # Product context
 
-Confirmed context as of 2026-10-06, current app 0.3.4/code 11. The [approved automatic/offline plan](plan-20261006-automatic-offline-sync.md) is implemented. [Verification](verification.md) separates implementation from physical evidence. Historical plans do not override these decisions.
+Confirmed context as of 2026-10-06, current app 0.4.0/code 12. The [approved automatic/offline plan](plan-20261006-automatic-offline-sync.md) is implemented. [Verification](verification.md) separates implementation from physical evidence. Historical plans do not override these decisions.
 
 ## Confirmed direction
 
-Boox Tracker is an open-source Android companion: NeoReader saved metadata → companion → enabled trackers. Keep NeoReader as the reader. Hardcover is implemented and user-confirmed manual exact sync works. Goodreads, StoryGraph, Fable, and Margins remain Coming Soon. No two-way NeoReader writes, hosted sync backend, source-book chooser, destination-match confirmation, or catalogue editing is approved.
+Boox Tracker is an open-source Android companion: NeoReader saved metadata → companion → enabled trackers. Keep NeoReader as the reader. Hardcover is implemented and user-confirmed manual exact sync works. Fable is implemented in 0.4.0 through its unofficial app API under the [Fable plan](plan-20261006-fable-sync.md); physical checks are pending. Goodreads, StoryGraph, and Margins remain Coming Soon. No two-way NeoReader writes, hosted sync backend, source-book chooser, destination-match confirmation, or catalogue editing is approved.
 
 The user expects the ebook reader to be offline most of the time. Collect and queue locally without asking for Wi-Fi. A connected account can enable offline and stays On during offline periods. First-time connection failure returns Off with an inline message. Off pauses sends without deleting pending items; the same account can resume. A different account must never receive earlier-account updates. Background work never launches approval UI.
 
@@ -16,7 +16,7 @@ Extract allowlisted identifiers from provider metadata for all formats and bound
 
 Resolve explicit Hardcover edition IDs, book IDs, slugs/URLs first, then ISBN-13/ISBN-10 and ASIN, accessible Goodreads mappings, then one normalized title/recorded alternative-title plus author match. Multiple matching editions of one book establish book identity. Conflicting IDs or ambiguous results hold the update with a visible error. Never ask the user to select or confirm a match. Revalidate changed source metadata; successful match caches expire after one hour.
 
-The shared identifier reader is the only tag allowlist. The UI labels its results. ISBN, ASIN, Goodreads, and Hardcover edition/book/slug values are used or displayed. Explicit StoryGraph/Fable/Margins tags are display-only bounded IDs; they do not establish future API support. Unknown tags are ignored. Keep ASIN because Hardcover can match editions with it, not because a Goodreads connector exists.
+The shared identifier reader is the only tag allowlist. The UI labels its results. ISBN, ASIN, Goodreads, and Hardcover edition/book/slug values are used or displayed. Fable matching uses `fable:` tags that hold a Fable book UUID. Explicit StoryGraph/Margins tags are display-only bounded IDs; they do not establish future API support. Unknown tags are ignored. Keep ASIN because Hardcover can match editions with it, not because a Goodreads connector exists.
 
 ### Progress and history
 
@@ -65,7 +65,7 @@ The next approved work is physical validation in [device testing](device-testing
 
 | Area | Missing implementation or decision |
 | --- | --- |
-| Other services | Supported APIs/authentication; no connectors built. Margins inquiry sent, no reply/access reported as of 2026-10-05 |
+| Other services | Fable built on an unofficial API. Goodreads/StoryGraph/Margins: supported APIs/authentication undecided. Margins inquiry sent, no reply/access reported as of 2026-10-05 |
 | Reading lifecycle | Rereads and any wider conflict policy. A Sync All backfill button was considered and rejected on 2026-10-06 in favour of completion sync for the detected book, which is now built |
 | Sources | Embedded non-EPUB metadata parsers and separately scoped statistics-provider access, if needed |
 | Website | Proposed project/download site under an unspecified otherguy.dev subdomain; hosting not selected |
