@@ -53,8 +53,8 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
             reads[0].optInt("edition_id") == reads[1].optInt("edition_id") && reads.single { it !== datedRead }.isNull("finished_at")
         // A finished source whose read is already finished on a not-yet-Read book only needs the status update, whoever wrote that read.
         val resumable = finished && existing != null && existing.getInt("status_id") in setOf(1, 2) &&
-            ((reads.size == 1 && reads[0].isNull("paused_at") && !reads[0].isNull("finished_at")) || (pair && !datedRead!!.isNull("finished_at")))
-        val duplicate = pair && datedRead!!.isNull("finished_at")
+            ((reads.size == 1 && reads[0].isNull("paused_at") && !reads[0].isNull("finished_at")) || (pair && !datedRead.isNull("finished_at")))
+        val duplicate = pair && datedRead.isNull("finished_at")
         if (existing != null && !resumable) {
             if (existing.getInt("status_id") !in setOf(1, 2)) throw SyncProblem("hardcover_status_conflict")
             if (!duplicate && (reads.any { !it.isNull("finished_at") || !it.isNull("paused_at") } || reads.size > 1)) throw SyncProblem("hardcover_read_history_conflict")

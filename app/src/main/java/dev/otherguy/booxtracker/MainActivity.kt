@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextUtils
 import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
@@ -22,6 +23,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isGone
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
@@ -280,18 +283,18 @@ class MainActivity : AppCompatActivity() {
             .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.parse(raw))
     }.getOrDefault("Unknown")
 
-    /** [warnOnBookMatch] is true for services whose progress depends on an exact edition, such as Hardcover's page count. */
-    private fun needsAttention(state: JSONObject, warnOnBookMatch: Boolean): Boolean {
+    /** A book matched on a different edition is a success, so only sign-in, held updates, and streak problems warn. */
+    private fun needsAttention(state: JSONObject): Boolean {
         val last = state.optJSONObject("last")
         return state.getBoolean("enabled") && (
             state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" ||
-                (warnOnBookMatch && last?.optString("matchKind") == "book") || !last?.optString("streakError").isNullOrBlank()
+                last?.text("streakError") != null
             )
     }
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val serviceIssue = needsAttention(hardcover, warnOnBookMatch = true) || needsAttention(fable, warnOnBookMatch = false)
+        val serviceIssue = needsAttention(hardcover) || needsAttention(fable)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -428,14 +431,26 @@ class MainActivity : AppCompatActivity() {
             row.addView(this, LinearLayout.LayoutParams(0, -2, 1f))
         }
         label(name, true, body, 22f).setTextIsSelectable(false)
-        if (available && details != null) body.setOnClickListener { details() }
-        label(status, parent = body, size = 17f)
+        // The icon, name, and status lines all open the details, also while a sync runs; the switch keeps its own tap.
+        if (details != null) {
+            row.setOnClickListener { details() }
+            ViewCompat.replaceAccessibilityAction(row, AccessibilityNodeInfoCompat.AccessibilityActionCompat.ACTION_CLICK, "Show $name details", null)
+        }
+        // Every status line is one row, so a provider row keeps the same height whatever its state.
+        val lines = status.lines()
+        lines.forEach { line ->
+            label(line, parent = body, size = 17f).apply {
+                setTextIsSelectable(false)
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+            }
+        }
         val switchParent = if (resources.configuration.screenWidthDp < 480 && resources.configuration.fontScale > 1.15f) body else row
         switchParent.addView(
             CheckBox(this).apply {
                 val state = getString(if (enabled) R.string.on else R.string.off)
                 text = getString(R.string.switch_state, state)
-                contentDescription = getString(R.string.service_switch, name, "$state. $status")
+                contentDescription = getString(R.string.service_switch, name, (listOf(state) + lines.filter { it != state }).joinToString(". "))
                 textSize = 18f
                 setTextColor(Color.BLACK)
                 minHeight = dp(48)
@@ -459,39 +474,49 @@ class MainActivity : AppCompatActivity() {
         else -> error.replace('_', ' ')
     }
 
-    private fun serviceSummary(state: JSONObject, pending: String?, bookMatch: String): String {
+    /**
+     * The two status lines under a provider's name: what is true about the current book, then how its sync stands.
+     * Details live in the provider's popup, so each line stays a single short sentence.
+     */
+    private fun serviceSummary(state: JSONObject, bookMatch: String): String {
+        val enabled = state.getBoolean("enabled")
         val connected = state.getBoolean("connected")
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
-        val savedProgress = if (success?.optBoolean("finished") == true) " · Finished" else success?.rawProgressPercent()
-        val summary = when {
-            pending != null -> pending
-            !state.getBoolean("enabled") -> state.optString("connectionError").takeIf { it.isNotBlank() }?.let(::connectionText) ?: if (!connected) "Off · Not connected" else "Off"
+        val streakError = last?.text("streakError")
+        val delivery = last?.optString("delivery")
+        val first = when {
+            !enabled -> "Off"
             !connected || state.getBoolean("credentialProblem") -> "❌ Reconnect required"
-            last?.optString("delivery") == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
+            delivery == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
+            streakError != null -> "⚠ Streak day not marked · ${streakError.replace('_', ' ')}"
             last?.optString("matchKind") == "edition" -> "✅ Exact edition matched"
             last?.optString("matchKind") == "book" -> bookMatch
-            else -> "Pending matching"
-        } + if (state.getBoolean("enabled")) {
-            "\n" + when {
-                last?.optString("delivery") == "pending" -> "Pending"
-                last?.optString("delivery") == "error" -> "Not sent"
-                success != null -> "Synced at ${time(success.optString("timestamp"))}${savedProgress.orEmpty()}"
-                else -> "Not synced yet"
-            } + (if (success != null && last.optString("delivery") == "pending") "\nLast synced ${time(success.optString("timestamp"))}${savedProgress.orEmpty()}" else "")
-        } else {
-            ""
+            else -> "Not matched yet"
         }
-        val streakNote = last?.optString("streakError")?.takeIf { it.isNotBlank() && state.getBoolean("enabled") }?.let { "\n⚠ Streak day not marked · ${it.replace('_', ' ')}" }.orEmpty()
-        val queueNote = if (state.getBoolean("enabled") && state.optInt("pending") > 0) "\n${state.optInt("pending")} queued update(s)" else ""
-        return summary + streakNote + queueNote
+        val synced = success?.let { time(it.optString("timestamp")) + (if (it.optBoolean("finished")) " · Finished" else it.rawProgressPercent().orEmpty()) }
+        val lastSynced = synced?.let { " · last synced $it" }.orEmpty()
+        val queued = state.optInt("pending")
+        // The queued count comes last: it is also in the details popup, so ellipsizing may hide it.
+        val second = when {
+            !enabled -> state.text("connectionError")?.let(::connectionText) ?: if (connected) "Not syncing" else "Not connected"
+            delivery == "pending" -> "Pending" + lastSynced + (if (queued > 1) " · $queued queued" else "")
+            delivery == "error" -> "Not sent$lastSynced"
+            else -> (synced?.let { "Synced at $it" } ?: "Not synced yet") + (if (queued > 0) " · $queued queued" else "")
+        }
+        return "$first\n$second"
     }
 
     private fun showHardcover(state: JSONObject) {
+        val signIn = when {
+            !app.hardcover.signingIn -> null
+            app.hardcover.device == null -> "Sign-in pending\nRequesting a sign-in code…"
+            else -> "Sign-in pending\nApprove the code in the popup"
+        }
         serviceRow(
             "Hardcover",
             R.drawable.service_hardcover,
-            serviceSummary(state, if (app.hardcover.signingIn) "Sign-in pending" else null, "⚠ Book matched"),
+            signIn ?: serviceSummary(state, "✅ Book matched · different edition"),
             state.getBoolean("enabled") || app.hardcover.signingIn,
             !model.busy,
             details = { showServiceDetails("Hardcover", app.hardcover, hardcoverReport) },
@@ -506,15 +531,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFable(state: JSONObject) {
         val fable = app.fable
-        val pending = when {
-            fable.signingIn -> "Signing in…"
-            fable.awaitingCredentials -> "Sign-in required"
+        val signIn = when {
+            fable.signingIn -> "Signing in…\nChecking your email and password"
+            fable.awaitingCredentials -> "Sign-in required\nEnter your email and password in the popup"
             else -> null
         }
         serviceRow(
             "Fable",
             R.drawable.service_fable,
-            serviceSummary(state, pending, "✅ Book matched"),
+            signIn ?: serviceSummary(state, "✅ Book matched"),
             state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
             !model.busy,
             details = { showServiceDetails("Fable", fable, fableReport) },
@@ -742,6 +767,7 @@ class MainActivity : AppCompatActivity() {
         val profile = state.optJSONObject("profile")
         if (!state.getBoolean("connected")) {
             field("Account", if (state.getBoolean("credentialProblem")) "Sign-in can no longer be read; log out and sign in again" else "Not signed in")
+            state.text("connectionError")?.let { field("Sign-in problem", connectionText(it)) }
         } else {
             field("Account", listOfNotNull(profile?.text("username")?.let { "@$it" }, profile?.text("name")).joinToString(" · ").ifEmpty { "Signed in" })
             profile?.text("email")?.let { field("Email", it) }
@@ -765,6 +791,9 @@ class MainActivity : AppCompatActivity() {
         val exact = if (name == "Hardcover") !result.isNull("sourceEditionId") else result.optString("matchKind") == "edition"
         val preserved = result.optBoolean("existingEditionPreserved")
         val pages = result.optInt("editionPages").takeIf { it > 0 }
+        // A provider keeps its own progress when it is ahead of NeoReader, so the popup shows what the provider holds.
+        val kept = result.optString("outcome") == "kept_higher_remote_progress"
+        val keptNote = if (kept) " · kept, higher than NeoReader" else ""
         if (name == "Hardcover") {
             field("Match", if (exact) "Exact edition" else "Book only; your ebook's edition was not found on Hardcover")
             field(
@@ -778,12 +807,12 @@ class MainActivity : AppCompatActivity() {
             if (result.optBoolean("finished")) {
                 field("Progress", "Finished" + (result.text("finishedAt")?.let { " on ${readableDay(it)}" } ?: ""))
             } else {
-                result.optInt("progressPages").takeIf { pages != null }?.let { field("Progress", "$it of $pages pages") }
+                pages?.let { field("Progress", "${result.optInt(if (kept) "remoteProgressPages" else "progressPages")} of $it pages$keptNote") }
             }
         } else {
             field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
             field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
-            field("Progress", if (result.optBoolean("finished")) "Finished" else "${result.optInt("percent")}%")
+            field("Progress", if (result.optBoolean("finished")) "Finished" else "${result.optInt(if (kept) "remotePercent" else "percent")}%$keptNote")
             result.text("shelfAfter")?.let { shelf ->
                 field("Shelf", mapOf("current_reading" to "Currently Reading", "want_to_read" to "Want to Read", "finished" to "Finished", "did_not_finish" to "Did Not Finish")[shelf] ?: shelf)
             }
@@ -798,10 +827,14 @@ class MainActivity : AppCompatActivity() {
         field("Last sync", syncText(last))
     }
 
-    private fun syncText(last: JSONObject): String = when (last.optString("delivery")) {
-        "pending" -> "Waiting to send"
-        "error" -> "Not sent: ${last.optString("reason").replace('_', ' ')}"
-        else -> last.optJSONObject("lastSuccess")?.text("timestamp")?.let { "Sent at ${time(it)}" } ?: "Sent"
+    private fun syncText(last: JSONObject): String {
+        val sent = last.optJSONObject("lastSuccess")?.text("timestamp")?.let(::time)
+        val lastSent = sent?.let { " · last sent at $it" }.orEmpty()
+        return when (last.optString("delivery")) {
+            "pending" -> "Waiting to send$lastSent"
+            "error" -> "Not sent: ${last.optString("reason").replace('_', ' ')}$lastSent"
+            else -> sent?.let { "Sent at $it" } ?: "Sent"
+        }
     }
 
     override fun onDestroy() {

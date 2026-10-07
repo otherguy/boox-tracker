@@ -1,13 +1,13 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.4/code 16 (Hardcover duplicate reads). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.5/code 17 (provider rows and CI diagnostics). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.3 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 144 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.5 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 145 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
 | Physical current UI/update | Signed 0.3.1–0.4.4 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
@@ -42,6 +42,24 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Provider rows and CI diagnostics 0.4.5
+
+**Built:** debug and signed diagnostic APKs, version 0.4.5/code 17. Package, certificate, and schemas are unchanged. Artifact `dist/boox-tracker-0.4.5-diagnostic.apk`, 3,550,778 bytes, SHA-256:
+
+```text
+71d432b094d746144ab5f109af5e91bd751fdeb92dffcfe22c58beea3ea9585f
+```
+
+On the GoColor7, the Fable row showed "Pending matching" and then "Pending" on a separate line after the user changed the book's ISBN, so the row grew to four lines. Every implemented provider row now has exactly three lines (user decision): the name, one status line, and one sync line. Each line is a single ellipsized row. The status line is sign-in state, Off, a reconnect or held reason, a rejected streak day, the match, or "Not matched yet". The sync line is the sign-in hint, Off's reason, "Pending" or "Not sent" with the last sync, or "Synced at …" / "Not synced yet", with queued updates last. The whole row (icon, name, and status lines) opens the details popup (user request); before, only the text column did, the status line was selectable, and no part of the row accepted taps while a sync ran, including the sync that starts each time the app opens. The row now accepts taps during a sync and names its action for TalkBack.
+
+On 0.4.4 the Hardcover row showed "⚠ Book matched" with the amber header warning after the user changed the ebook's ISBN to 9781982181680. The popup showed that the 14:01 sync matched that ISBN to an exact Hardcover edition and kept the different edition already on the user's Hardcover read. The user then switched their Hardcover edition; at 14:45 the website's page data showed the user book and read 7080312 both on Kindle edition 30462394 (ISBN 9781982181680, 480 pages, 254 pages read). The row stays on the 14:01 result because the app sends only when NeoReader's progress or the book's identifiers change. A book matched on another edition is now a success: "✅ Book matched · different edition", with no warning (user decision). When Hardcover or Fable keeps higher remote progress, the popup now shows the remote value; it showed NeoReader's lower 248 pages.
+
+GitHub CI failed on `a72c541` with a 10-second timeout in the Hardcover details-popup test, twice on the same runner image. The test passed locally with UTC and C locale, CPU load, four visible processors, and a forced class order. An emulated x86-64 Linux container failed unrelated socket shutdowns, so it could not reproduce CI. The code review found a race: the test waited for stored account details, then tapped a row drawn while the app-open sync still ran, and that row had no tap handler. A 300 ms delay on the fake account-details response reproduced the same timeout every time; what slows that step on CI is not known. The row now accepts taps during a sync, which removes the race. The test names the wait that times out and prints the rows, stored state, popup, and requests, and CI uploads test results after a failed run, so a different cause would show in the next failed run.
+
+**Automatically tested:** 145 tests, zero failures/errors/skips, empty stderr, in three full runs. Fable UI tests assert the three lines for a book that is not matched yet and for a synced book, and open the popup by touching the icon and a status line through the window. The Hardcover popup test asserts the new match text, no warning, and kept remote progress. A new test holds the sync's last request, taps the Hardcover row while the screen is busy, and expects the popup; it failed before the fix. Both builds and lint variants passed with zero lint errors and ten existing notices. Both required reviews ran twice. Applied: the whole-row tap, last sent time and sign-in problem in the popup, the code-request text, the switch description, the during-sync tap fix with its test, the TalkBack action name, a fast failure in the test tap helper, stale amber wording, and the simplifications. Not applied: showing the kept remote value on the row, because the row reports the NeoReader value that was read and the popup explains the kept value.
+
+**Verified on physical BOOX:** not installed yet. The 0.4.4 screenshots above were taken by ADB on 2026-10-07 at 14:43; opening the app sent nothing because the book was unchanged.
 
 ## Hardcover duplicate reads 0.4.4
 

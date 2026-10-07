@@ -5,8 +5,13 @@ import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.ProviderInfo
 import android.database.MatrixCursor
+import android.graphics.Rect
 import android.net.Uri
+import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.view.MotionEvent
+import android.view.View
+import org.junit.Assert.assertTrue
 import org.robolectric.shadows.ShadowContentResolver
 
 class TestFolderProvider : ContentProvider() {
@@ -58,4 +63,18 @@ class TestReadingSyncApp : ReadingSyncApp() {
 
 fun closeWorkDatabase() {
     androidx.work.testing.WorkManagerTestInitHelper.closeWorkDatabase()
+}
+
+/** Scrolls [view] onto the screen and touches its centre through the window, so the touch reaches whichever view handles it on a device. */
+internal fun tap(view: View) {
+    assertTrue("nothing handles a tap here", generateSequence(view) { it.parent as? View }.any { it.isClickable })
+    view.requestRectangleOnScreen(Rect(0, 0, view.width, view.height), true)
+    assertTrue("view is not on screen", view.getGlobalVisibleRect(Rect()))
+    val location = IntArray(2).also(view::getLocationInWindow)
+    val time = SystemClock.uptimeMillis()
+    listOf(MotionEvent.ACTION_DOWN, MotionEvent.ACTION_UP).forEach { action ->
+        val event = MotionEvent.obtain(time, time, action, location[0] + view.width / 2f, location[1] + view.height / 2f, 0)
+        view.rootView.dispatchTouchEvent(event)
+        event.recycle()
+    }
 }

@@ -26,10 +26,12 @@ Tap the book title to see available identifiers. `asin:` and `amazon:` values ca
 | Result | Meaning |
 | --- | --- |
 | ✅ Exact edition matched | Progress uses the matched source edition. |
-| ⚠ Book matched | The book is identified; another valid Hardcover edition supplies the page basis. Tap the row for the edition and page count used. |
+| ✅ Book matched · different edition | The book is identified, and another Hardcover edition supplies the page basis, for example the edition already on your Hardcover read. Tap the row for the edition and page count used. |
 | ❌ Specific error | Matching, account access, or safe progress delivery cannot proceed. |
 
 An existing Hardcover read's edition is preserved. Otherwise, the app uses the exact matched edition with pages, the default ebook edition, then the default physical edition. It verifies that the edition belongs to the matched book. Missing usable page counts hold the update.
+
+The row shows the result of the last update Boox Tracker sent. If you change the edition on Hardcover, the row changes after the next update, which starts when your NeoReader progress changes.
 
 ## Progress and offline delivery
 

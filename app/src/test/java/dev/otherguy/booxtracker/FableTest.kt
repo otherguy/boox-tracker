@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
+import androidx.core.view.children
 import androidx.work.testing.TestListenableWorkerBuilder
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.spec.SecretKeySpec
@@ -758,8 +759,14 @@ class FableTest {
         try {
             awaitUi { toggle()?.contentDescription?.contains("Exact edition matched") == true && !screen.busy }
             assertFalse(toggle()!!.contentDescription.contains("Using your"))
+            val rowBody = views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.parent as ViewGroup
+            val rowLines = rowBody.children.filterNot { it is CheckBox }.map { (it as TextView).text.toString() }.toList()
+            assertEquals(3, rowLines.size)
+            assertEquals("✅ Exact edition matched", rowLines[1])
+            assertTrue(rowLines[2], rowLines[2].startsWith("Synced at "))
             assertNull(activity.findViewById<View>(R.id.access_warning))
-            views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.let { (it.parent as View).performClick() }
+            // The provider icon opens the details popup as well as the text.
+            tap((rowBody.parent as ViewGroup).getChildAt(0))
             awaitUi { latestDialog()?.findViewById<TextView>(android.R.id.message)?.text?.contains("@reader") == true }
             val details = latestDialog()!!.findViewById<TextView>(android.R.id.message)!!.text.toString()
             listOf("Test Reader", "reader@example.com", "Connected since", "Membership: Free", "Synthetic Book", "The edition you shelved on Fable", "Shelf: Currently Reading").forEach { assertTrue(it, details.contains(it)) }
@@ -800,7 +807,10 @@ class FableTest {
         try {
             // Offline, the app-open sync queues the book without reaching Fable.
             awaitUi { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Fable:") == true && it.contentDescription.contains("Pending") } }
-            views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.let { (it.parent as View).performClick() }
+            // The row is the name plus exactly two status lines.
+            val rowBody = views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.parent as ViewGroup
+            assertEquals(listOf("Fable", "Not matched yet", "Pending"), rowBody.children.filterNot { it is CheckBox }.map { (it as TextView).text.toString() }.toList())
+            tap(rowBody.getChildAt(2))
             awaitUi { message()?.contains("Current book") == true }
             val text = message()!!
             assertTrue(text, text.contains("No update has been sent for the current book yet."))

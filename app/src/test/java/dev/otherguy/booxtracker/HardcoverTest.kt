@@ -18,7 +18,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -28,7 +30,6 @@ import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -78,6 +79,8 @@ class HardcoverServer : AutoCloseable {
     var identityRelease: CountDownLatch? = null
     var libraryEntered: CountDownLatch? = null
     var libraryRelease: CountDownLatch? = null
+    var profileEntered: CountDownLatch? = null
+    var profileRelease: CountDownLatch? = null
     private val server = MockWebServer().apply {
         dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
@@ -97,6 +100,10 @@ class HardcoverServer : AutoCloseable {
                 if (path == "/oauth2/token" && request.optString("grant_type").contains("device_code")) {
                     tokenEntered?.countDown()
                     tokenRelease?.await(10, TimeUnit.SECONDS)
+                }
+                if (request.optString("query").startsWith("query Profile {")) {
+                    profileEntered?.countDown()
+                    profileRelease?.await(10, TimeUnit.SECONDS)
                 }
                 val response = when {
                     failConnection || (failIdentity && request.optString("query").startsWith("query Identity")) || (failProfile && request.optString("query").startsWith("query Profile")) -> 503 to JSONObject()
@@ -372,7 +379,7 @@ class HardcoverTest {
         assertEquals(236, result.getInt("progressPages"))
     }
 
-    @Test fun existingEditionForTheSameBookIsPreservedWithAmberMatch() = runBlocking {
+    @Test fun existingEditionForTheSameBookIsPreservedAsABookMatch() = runBlocking {
         server.withRead(200, edition = 21)
         val result = HardcoverSync(auth).send(book(), identifiers)
         assertEquals(21, result.getInt("editionId"))
@@ -810,12 +817,58 @@ class HardcoverTest {
     @LooperMode(LooperMode.Mode.PAUSED)
     fun theDetailsPopupExplainsAKeptHardcoverEdition() = capturingStderr {
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
-        // The user already reads edition 21; the ebook's ISBN matches edition 20 exactly.
-        server.withRead(100, edition = 21)
+        // The user already reads edition 21 and is further ahead on it; the ebook's ISBN matches edition 20 exactly.
+        server.withRead(300, edition = 21)
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
         app.hardcover = HardcoverConnection(app, auth) { true }
         app.hardcover.setEnabled(true)
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun views() = descendants(controller.get().findViewById(android.R.id.content))
+        fun message() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }?.findViewById<android.widget.TextView>(android.R.id.message)?.text?.toString()
+
+        // A timeout names the wait and shows the row, the stored state, the popup, and the requests sent so far.
+        suspend fun awaitState(label: String, predicate: () -> Boolean) {
+            withTimeoutOrNull(10_000) {
+                while (!predicate()) {
+                    shadowOf(Looper.getMainLooper()).idle()
+                    delay(10)
+                }
+            } ?: run {
+                val row = views().filterIsInstance<CheckBox>().map { it.contentDescription }
+                val sent = server.requests.map { it.optString("query").substringBefore(" {").ifEmpty { it.optString("path") } }
+                throw AssertionError("Timed out waiting for $label. Rows: $row. State: ${app.hardcover.state()}. Popup: ${message()}. Requests: $sent")
+            }
+        }
+        try {
+            awaitState("the book-only match on the row") { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Hardcover:") == true && it.contentDescription.contains("✅ Book matched · different edition") } }
+            // A different edition is a successful match, so there is no warning.
+            assertNull(controller.get().findViewById(R.id.access_warning))
+            assertFalse(views().filterIsInstance<CheckBox>().any { it.contentDescription.contains("Using your") })
+            awaitState("the account details") { !app.hardcover.state().isNull("profile") }
+            tap(views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" })
+            awaitState("the details popup") { message()?.contains("Current book") == true }
+            val text = message()!!
+            listOf("@hardcover-reader · Test Reader", "Membership: Pro", "Match: Exact edition", "Your existing Hardcover edition, not the one your ebook matched · 502 pages", "Progress: 300 of 502 pages · kept, higher than NeoReader").forEach { assertTrue(text, text.contains(it)) }
+            assertFalse(text, text.contains("Email"))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun theRowOpensItsDetailsWhileTheAppOpenSyncRuns() = capturingStderr {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        // The account-details request is the last step of the sync; holding it keeps the screen busy.
+        server.profileEntered = CountDownLatch(1)
+        server.profileRelease = CountDownLatch(1)
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.hardcover = HardcoverConnection(app, auth) { true }
+        app.hardcover.setEnabled(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val screen = androidx.lifecycle.ViewModelProvider(controller.get())[ScreenModel::class.java]
         fun descendants(view: View): List<View> = listOf(view) +
             if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
         fun views() = descendants(controller.get().findViewById(android.R.id.content))
@@ -827,16 +880,16 @@ class HardcoverTest {
             }
         }
         try {
-            awaitState { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Hardcover:") == true && it.contentDescription.contains("⚠ Book matched") } }
-            assertNotNull(controller.get().findViewById(R.id.access_warning))
-            assertFalse(views().filterIsInstance<CheckBox>().any { it.contentDescription.contains("Using your") })
-            awaitState { !app.hardcover.state().isNull("profile") }
-            views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" }.let { (it.parent as View).performClick() }
+            assertTrue(withContext(Dispatchers.IO) { server.profileEntered!!.await(10, TimeUnit.SECONDS) })
+            awaitState { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Hardcover:") == true && it.contentDescription.contains("Synced at") } }
+            assertTrue(screen.busy)
+            tap(views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" })
             awaitState { message()?.contains("Current book") == true }
-            val text = message()!!
-            listOf("@hardcover-reader · Test Reader", "Membership: Pro", "Match: Exact edition", "Your existing Hardcover edition, not the one your ebook matched · 502 pages").forEach { assertTrue(text, text.contains(it)) }
-            assertFalse(text, text.contains("Email"))
+            // The sync writes the account details last; it must finish before the test closes the database.
+            server.profileRelease!!.countDown()
+            awaitState { !screen.busy && !app.hardcover.state().isNull("profile") }
         } finally {
+            server.profileRelease!!.countDown()
             controller.pause().stop().destroy()
         }
     }
