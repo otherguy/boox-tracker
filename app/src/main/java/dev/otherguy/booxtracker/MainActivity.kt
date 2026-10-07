@@ -8,6 +8,7 @@ import android.text.InputType
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.ImageSpan
 import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
@@ -22,6 +23,7 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
@@ -284,15 +286,61 @@ class MainActivity : AppCompatActivity() {
     }.getOrDefault("Unknown")
 
     /**
-     * A book matched on a different edition is a success. Sign-in and held updates warn, and so do a rejected streak day
-     * and a tracker that keeps higher progress than NeoReader's.
+     * The full text of each issue an enabled service has. A book matched on a different edition is a success. Sign-in
+     * and held updates are issues, and so are a rejected streak day and a tracker that keeps higher progress than NeoReader's.
      */
-    private fun needsAttention(state: JSONObject): Boolean {
+    private fun serviceIssues(name: String, state: JSONObject): List<String> {
+        if (!state.getBoolean("enabled")) return emptyList()
         val last = state.optJSONObject("last")
-        return state.getBoolean("enabled") && (
-            state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" ||
-                last?.text("streakError") != null || last?.keptHigherProgress() == true
-            )
+        return buildList {
+            when {
+                state.getBoolean("credentialProblem") -> add("$name sign-in can no longer be read. Log out and sign in again.")
+                !state.getBoolean("connected") -> add("$name is not signed in. Turn $name off and on again to sign in.")
+            }
+            if (last == null) return@buildList
+            if (last.optString("delivery") == "error") add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
+            last.text("streakError")?.let { add("$name did not mark the streak day: ${it.replace('_', ' ')}.") }
+            if (last.keptHigherProgress()) {
+                // Each tracker compares in its own unit: Hardcover in pages, Fable in whole percent rounded down.
+                val (held, compared) = if (last.has("remoteProgressPages")) {
+                    "${last.optInt("remoteProgressPages")} of ${last.optInt("editionPages")} pages" to "${last.optInt("progressPages")} pages"
+                } else {
+                    "${last.optInt("remotePercent")}%" to "${last.optInt("percent")}% in whole percent"
+                }
+                add("$name has $held; NeoReader's ${Progress.parse(last.optString("rawProgress")).percent}% is $compared. Boox Tracker does not lower progress on a tracker.")
+            }
+        }
+    }
+
+    /** The full text of the NeoReader read issue that the header warns about, if there is one. */
+    private fun readIssue(check: JSONObject?): String? {
+        if (check?.optBoolean("issue") != true) return null
+        val outcome = check.optString("outcome")
+        val book = check.optJSONObject("selected")
+        return when {
+            outcome != "success" -> "NeoReader's library could not be read: ${outcome.replace('_', ' ')}."
+            book == null -> "No single latest book: no book has a usable last access time, or two books share the latest one."
+            else -> "NeoReader's progress for this book is unknown: ${progressState(book).lowercase()}."
+        }
+    }
+
+    /** Each issue on its own line after ⚠, then a blank line; nothing when there is no issue. */
+    private fun SpannableStringBuilder.appendIssues(issues: List<String>): SpannableStringBuilder = apply {
+        issues.forEach { append("⚠ ").append(it).append('\n') }
+        if (issues.isNotEmpty()) append('\n')
+    }
+
+    /** Draws each ⚠ in [view] as the amber triangle the header shows, at the size of the text. */
+    private fun drawWarnings(view: TextView) {
+        if ('⚠' !in view.text) return
+        val text = SpannableStringBuilder(view.text)
+        val size = view.textSize.toInt()
+        for (index in text.indices) {
+            if (text[index] != '⚠') continue
+            val triangle = ContextCompat.getDrawable(this, R.drawable.warning)!!.apply { setBounds(0, 0, size, size) }
+            text.setSpan(ImageSpan(triangle), index, index + 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        view.text = text
     }
 
     /**
@@ -311,7 +359,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val serviceIssue = needsAttention(hardcover) || needsAttention(fable)
+        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Fable", fable)
+        val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -321,9 +370,9 @@ class MainActivity : AppCompatActivity() {
         if (check != null) {
             row.addView(
                 ImageView(this).apply {
-                    id = if (providerIssue || serviceIssue) R.id.access_warning else R.id.status_icon
-                    setImageResource(if (providerIssue || serviceIssue) R.drawable.warning else R.drawable.success)
-                    contentDescription = if (providerIssue || serviceIssue) "Needs attention" else "OK"
+                    id = if (attention) R.id.access_warning else R.id.status_icon
+                    setImageResource(if (attention) R.drawable.warning else R.drawable.success)
+                    contentDescription = if (attention) "Needs attention" else "OK"
                 },
                 LinearLayout.LayoutParams(dp(40), dp(44)).apply { marginEnd = dp(12) }
             )
@@ -341,7 +390,7 @@ class MainActivity : AppCompatActivity() {
         summary.setOnClickListener {
             lifecycleScope.launch {
                 val details = withContext(Dispatchers.IO) { metadataDetails(selected, snapshot, check) }
-                if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) notice(details)
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) notice(SpannableStringBuilder().appendIssues(issues).append(details))
             }
         }
         button("Sync Now", row) { action { app.sync("manual", "sync_now") } }.apply {
@@ -405,18 +454,19 @@ class MainActivity : AppCompatActivity() {
             field("Raw Progress", value(book, "progress"))
             field("Calculated Progress", book.optString("percentage").takeUnless { it.isBlank() || it == "null" }?.let { "$it%" } ?: "Unknown")
             field("Reading Status", value(book, "readingStatus"))
-            val progressState = when (book.optJSONObject("progress")?.optString("state")) {
-                "missing" -> "Missing Column"
-                "null" -> "Not Provided"
-                "unreadable" -> "Unreadable"
-                "value" -> if (book.isNull("progressProblem")) "OK" else book.optString("progressProblem").replaceFirstChar { it.uppercase() }
-                else -> "Unknown"
-            }
-            field("Progress State", progressState)
+            field("Progress State", progressState(book))
             field("Last Access", accessTime(book)?.let { readableDate(it) } ?: value(book, "lastAccess"))
         }
         field("Read At", readableDate(runCatching { java.time.Instant.parse(snapshot?.optString("readAt")).toEpochMilli() }.getOrNull()))
         check?.optJSONObject("error")?.let { field("Read Error", it.toString(2)) }
+    }
+
+    private fun progressState(book: JSONObject): String = when (book.optJSONObject("progress")?.optString("state")) {
+        "missing" -> "Missing Column"
+        "null" -> "Not Provided"
+        "unreadable" -> "Unreadable"
+        "value" -> if (book.isNull("progressProblem")) "OK" else book.optString("progressProblem").replaceFirstChar { it.uppercase() }
+        else -> "Unknown"
     }
 
     private fun serviceRow(
@@ -460,6 +510,7 @@ class MainActivity : AppCompatActivity() {
                 setTextIsSelectable(false)
                 maxLines = 1
                 ellipsize = TextUtils.TruncateAt.END
+                drawWarnings(this)
             }
         }
         val switchParent = if (resources.configuration.screenWidthDp < 480 && resources.configuration.fontScale > 1.15f) body else row
@@ -472,7 +523,7 @@ class MainActivity : AppCompatActivity() {
                 setTextColor(Color.BLACK)
                 minHeight = dp(48)
                 minWidth = dp(96)
-                buttonDrawable = androidx.core.content.ContextCompat.getDrawable(this@MainActivity, R.drawable.service_toggle)
+                buttonDrawable = ContextCompat.getDrawable(this@MainActivity, R.drawable.service_toggle)
                 compoundDrawablePadding = dp(12)
                 isChecked = enabled
                 isEnabled = available
@@ -785,6 +836,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun serviceDetailsText(name: String, state: JSONObject): CharSequence = SpannableStringBuilder().apply {
+        appendIssues(serviceIssues(name, state))
         val profile = state.optJSONObject("profile")
         if (!state.getBoolean("connected")) {
             field("Account", if (state.getBoolean("credentialProblem")) "Sign-in can no longer be read; log out and sign in again" else "Not signed in")
@@ -866,10 +918,12 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 
+    /** Shows [dialog] with a black border and no animation, with each ⚠ in its message drawn as the amber triangle. */
     private fun bordered(dialog: AlertDialog): AlertDialog {
         dialogs.add(dialog)
         dialog.setOnDismissListener { dialogs.remove(dialog) }
         dialog.show()
+        dialog.findViewById<TextView>(android.R.id.message)?.let(::drawWarnings)
         dialog.window?.setBackgroundDrawable(
             android.graphics.drawable.GradientDrawable().apply {
                 setColor(Color.WHITE)

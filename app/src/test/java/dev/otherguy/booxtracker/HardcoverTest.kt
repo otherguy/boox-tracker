@@ -830,7 +830,7 @@ class HardcoverTest {
         fun descendants(view: View): List<View> = listOf(view) +
             if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
         fun views() = descendants(controller.get().findViewById(android.R.id.content))
-        fun message() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }?.findViewById<android.widget.TextView>(android.R.id.message)?.text?.toString()
+        fun message() = popupMessage()?.toString()
 
         // A timeout names the wait and shows the row, the stored state, the popup, and the requests sent so far.
         suspend fun awaitState(label: String, predicate: () -> Boolean) {
@@ -847,12 +847,29 @@ class HardcoverTest {
         }
         try {
             awaitState("the different-edition match on the row") { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Hardcover:") == true && it.contentDescription.contains("✅ Book matched · different edition") } }
-            // Hardcover is ahead of NeoReader and keeps its progress, so the sync line and the header warn.
-            assertTrue(views().filterIsInstance<android.widget.TextView>().any { it.text.startsWith("⚠ Synced at ") })
+            // Hardcover is ahead of NeoReader and keeps its progress, so the sync line and the header warn with the amber triangle.
+            assertTrue(warningsDrawn(views().filterIsInstance<android.widget.TextView>().single { it.text.startsWith("⚠ Synced at ") }.text))
             assertNotNull(controller.get().findViewById(R.id.access_warning))
             awaitState("the account details") { !app.hardcover.state().isNull("profile") }
+            // Fable is On without a session, so the book popup lists both services' issues, in row order.
+            app.diagnostics.store.put("fable.enabled", "true")
+            app.diagnostics.updates.value++
+            awaitState("the Fable reconnect row") { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Fable:") == true && it.contentDescription.contains("Reconnect required") } }
+            tap(controller.get().findViewById(R.id.book_summary))
+            awaitState("the book popup") { message()?.contains("NeoReader Database") == true }
+            val book = popupMessage()!!
+            assertTrue(warningsDrawn(book))
+            val bookIssues = issueLines(book)
+            assertEquals(book.toString(), 2, bookIssues.size)
+            assertTrue(bookIssues[0], bookIssues[0].startsWith("Hardcover") && bookIssues[0].contains("300 of 502 pages"))
+            assertTrue(bookIssues[1], bookIssues[1].startsWith("Fable"))
+            org.robolectric.shadows.ShadowDialog.getLatestDialog().dismiss()
             tap(views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" })
             awaitState("the details popup") { message()?.contains("Current book") == true }
+            // The Hardcover popup shows only Hardcover's issue, just below its title.
+            val details = popupMessage()!!
+            assertTrue(warningsDrawn(details))
+            assertEquals(listOf(bookIssues[0]), issueLines(details))
             val text = message()!!
             listOf("@hardcover-reader · Test Reader", "Membership: Pro", "Match: Exact edition", "Your existing Hardcover edition, not the one your ebook matched · 502 pages", "Progress: 300 of 502 pages · kept, higher than NeoReader").forEach { assertTrue(text, text.contains(it)) }
             assertFalse(text, text.contains("Email"))
@@ -927,6 +944,9 @@ class HardcoverTest {
             assertNull(controller.get().findViewById(R.id.access_warning))
             tap(views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" })
             awaitState { message()?.contains("Current book") == true }
+            // Without an issue the popup has no issue section.
+            val text = message()!!
+            assertFalse(text, text.contains("⚠") || text.startsWith("\n"))
             // The sync writes the account details last; it must finish before the test closes the database.
             server.profileRelease!!.countDown()
             awaitState { !screen.busy && !app.hardcover.state().isNull("profile") }

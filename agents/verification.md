@@ -1,13 +1,13 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.6/code 18 (edition notes and kept-progress warning), installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.7/code 19 (issues in popups). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.6 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows with edition notes and a kept-progress warning | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 147 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.7 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows with edition notes and a kept-progress warning, every current issue named in full at the top of the book and provider popups | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 148 tests, zero failures/errors; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
 | Physical current UI/update | Signed 0.3.1–0.4.6 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
@@ -26,6 +26,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Reader extraction is the single tag allowlist; UI labels do not add another. Tags for services without an integration are display-only. Fable matches `fable:` UUIDs, and Hardcover and Fable both use ASIN.
 - Ebook cache namespace changes invalidate parsed metadata without deleting settings/logs. Application, database/export, and cache versions are separate.
 - Stored lastAccess can lag book switches; provider/library percentages can differ from in-book display. No source selector or percentage offset resolves that uncertainty.
+- When an ebook file is replaced at the same path, NeoReader keeps the old Metadata record and adds a new one with its own progress. On the GoColor7 on 2026-10-07, a rewrite that added 151 bytes left the old record at 5293/10000 and the new one at 5194/10000. Boox Tracker had already sent the old value, so both trackers kept it, and the app warned. This was correct behaviour, not a sync defect. The program that replaced the file is unknown.
 
 ### Queue, permissions, and lifecycle
 
@@ -42,6 +43,20 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Issues in popups 0.4.7
+
+**Built:** debug and signed diagnostic APKs, version 0.4.7/code 19. Package, certificate, and schemas are unchanged. Artifact `dist/boox-tracker-0.4.7-diagnostic.apk`, 3,551,830 bytes, SHA-256:
+
+```text
+cf82be850325a0be1dc5f4c5ef5d76b1b45346ae128cd1414521aae269c9058c
+```
+
+Every warning now names its issue in full (user decision): the book popup lists every current issue first, and a provider popup lists its own just below its title. Each issue starts with the amber triangle; without an issue the section is absent. Every ⚠ on a row is drawn as the header's amber triangle, and the row text is unchanged. One issue list drives the header triangle and both popups.
+
+**Automatically tested:** 148 tests, zero failures/errors. UI tests cover the drawn row triangle; two issues in the book popup and only Hardcover's in its popup; Fable's sign-in, streak, and kept-progress issues; a NeoReader permission failure and an undetected book; and no issue section without an issue. Each new expectation failed before the change. Both builds and lint variants, ktlint, and markdownlint passed. Both required reviews ran. Applied: the Fable kept text names the whole percent that Fable compared, so it cannot read "46%, more than 46%"; simpler issue code; one shared test helper; behaviour-based no-issue checks. Not applied: changing the sign-in popups, which have no ⚠.
+
+**Verified on physical BOOX:** not yet; the triangle size and position in one-line rows need a device check.
 
 ## Edition notes and kept-progress warning 0.4.6
 

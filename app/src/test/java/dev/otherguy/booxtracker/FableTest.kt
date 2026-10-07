@@ -736,6 +736,14 @@ class FableTest {
             store.put("fable.enabled", "true")
             app.diagnostics.updates.value++
             awaitUi { activity.findViewById<View>(R.id.access_warning) != null && toggle()?.contentDescription?.contains("Reconnect required") == true }
+            // The details popup names the sign-in issue first, with the amber triangle.
+            tap(descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().single { it.text.toString() == "Fable" })
+            awaitUi { popupMessage()?.contains("Current book") == true }
+            val details = popupMessage()!!
+            assertTrue(warningsDrawn(details))
+            val issues = issueLines(details)
+            assertEquals(details.toString(), 1, issues.size)
+            assertTrue(issues[0], issues[0].startsWith("Fable"))
         } finally {
             controller.pause().stop().destroy()
         }
@@ -833,6 +841,36 @@ class FableTest {
 
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
+    fun aFableAheadOfNeoReaderNamesBothValuesInItsPopup() = capturingStderr {
+        // Fable holds 52%; NeoReader's 42% is lower, so Fable keeps its progress.
+        server.progress[FABLE_EBOOK] = JSONObject().put("current_percentage", 52).put("current_page", 250).put("page_count", 480).put("status", "reading").put("selected_mode", "percentage")
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.fable = FableConnection(app, auth) { true }
+        app.fable.setEnabled(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            awaitUi { activity.findViewById<View>(R.id.access_warning) != null && descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().any { it.text.startsWith("⚠ Synced at ") } }
+            assertTrue(server.progressWrites().isEmpty())
+            tap(descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().single { it.text.toString() == "Fable" })
+            awaitUi { popupMessage()?.contains("Current book") == true }
+            val issues = issueLines(popupMessage()!!)
+            assertEquals(1, issues.size)
+            assertTrue(issues[0], issues[0].contains("52%") && issues[0].contains("42%"))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
     fun aRejectedStreakDayWarnsOnAnEnabledFable() = capturingStderr {
         server.streakStatus = 400
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
@@ -852,6 +890,13 @@ class FableTest {
             // Opening the app syncs the detected book; Fable accepts progress but rejects the streak day.
             awaitUi { toggle()?.contentDescription?.contains("Streak day not marked · fable http 400") == true && activity.findViewById<View>(R.id.access_warning) != null }
             assertEquals(1, server.progressWrites().size)
+            // The popup names the rejected streak day with its reason.
+            tap(descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().single { it.text.toString() == "Fable" })
+            awaitUi { popupMessage()?.contains("Current book") == true }
+            val issues = issueLines(popupMessage()!!)
+            assertEquals(1, issues.size)
+            assertTrue(issues[0], issues[0].startsWith("Fable") && issues[0].contains("fable http 400"))
+            org.robolectric.shadows.ShadowDialog.getLatestDialog().dismiss()
             app.fable.setEnabled(false)
             app.diagnostics.updates.value++
             awaitUi { activity.findViewById<View>(R.id.access_warning) == null && toggle()?.contentDescription?.contains("Streak day") == false }

@@ -9,8 +9,11 @@ import android.graphics.Rect
 import android.net.Uri
 import android.os.SystemClock
 import android.provider.DocumentsContract
+import android.text.Spanned
+import android.text.style.ImageSpan
 import android.view.MotionEvent
 import android.view.View
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.robolectric.shadows.ShadowContentResolver
 
@@ -77,4 +80,23 @@ internal fun tap(view: View) {
         view.rootView.dispatchTouchEvent(event)
         event.recycle()
     }
+}
+
+/** The message of the popup on screen, with its spans. */
+internal fun popupMessage(): CharSequence? = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)
+    ?.takeIf { it.isShowing }?.findViewById<android.widget.TextView>(android.R.id.message)?.text
+
+/** The issues at the top of a popup message: one line each, starting with ⚠, then a blank line before the details. */
+internal fun issueLines(message: CharSequence): List<String> {
+    val lines = message.lines()
+    val issues = lines.takeWhile { it.startsWith("⚠ ") }
+    if (issues.isNotEmpty()) assertEquals(message.toString(), "", lines[issues.size])
+    return issues.map { it.removePrefix("⚠ ") }
+}
+
+/** Whether [text] has a ⚠ and each one is drawn as an image, the amber warning triangle. */
+internal fun warningsDrawn(text: CharSequence): Boolean {
+    val spanned = text as? Spanned ?: return false
+    val marks = text.indices.filter { text[it] == '⚠' }
+    return marks.isNotEmpty() && marks.all { spanned.getSpans(it, it + 1, ImageSpan::class.java).isNotEmpty() }
 }

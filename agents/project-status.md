@@ -1,12 +1,12 @@
 # Project status and handoff
 
-Updated 2026-10-07 after the 0.4.6 edition notes and kept-progress warning and its USB install over 0.4.5. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after building 0.4.7, which names every current issue at the top of the book and provider popups. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
 State on 2026-10-07:
 
-- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`, pushed at `fe9c924` (0.4.6). [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37598390114) for that commit; they [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
+- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`. 0.4.7 is committed locally and not pushed; the last push is `fe9c924` (0.4.6). [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37598390114) for that commit; they [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
 - **Device:** signed 0.4.6/code 18 is installed over 0.4.5 on the GoColor7 by USB at 16:12 on 2026-10-07 and was opened by ADB. Hardcover and Fable both show In the Blood synced at 14:01 at 51.66% with ⚠, because Hardcover keeps 254 pages and Fable keeps 52%.
 - **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. The app row still shows the 14:01 result until NeoReader's progress changes. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
@@ -21,7 +21,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.6 / code 18
+## Built: 0.4.7 / code 19
 
 | Item | Current value |
 | --- | --- |
@@ -31,8 +31,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.4.6-diagnostic.apk`, 3,550,962 bytes |
-| Diagnostic APK SHA-256 | `426180200693bb350b07323a3676b2e4c96140e9778c3b49f394776f8fe20339` |
+| Diagnostic APK | `dist/boox-tracker-0.4.7-diagnostic.apk`, 3,551,830 bytes |
+| Diagnostic APK SHA-256 | `cf82be850325a0be1dc5f4c5ef5d76b1b45346ae128cd1414521aae269c9058c` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -64,7 +64,7 @@ Fable is built in 0.4.0 through its unofficial app API; see the [Fable plan](pla
 
 ### UI, folder access, and logs
 
-Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Goodreads, StoryGraph, and Margins show Coming Soon. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
+Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Goodreads, StoryGraph, and Margins show Coming Soon. When the header warns, the book popup lists every current issue in full first, and each provider popup starts with its own issues; every ⚠ is drawn as the amber triangle. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
 
 Startup requires a persisted readable read-only SAF ebook-folder grant. It explains the purpose before Choose folder opens the picker. No grant produces Exit / Allow again after cancellation. Cancelling About's replacement preserves a readable old grant; missing/revoked grants still block access. Workers log missing access without opening UI or sending.
 
@@ -74,7 +74,7 @@ Activity uses recycled rows and lazy details, shows the latest 250 events, and r
 
 ## Automatically tested
 
-The 0.4.6 reports contain **147 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings; the applied ones have tests, and one suggestion was declined (see [verification](verification.md#edition-notes-and-kept-progress-warning-046)). Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.7 reports contain **148 tests, zero failures/errors**. Both APKs and both Android lint variants passed. ktlint and Markdown checks passed. Both required reviews returned findings; the applied ones have tests (see [verification](verification.md#issues-in-popups-047)). Packaging verified signatures; delivered APK hashes were checked separately.
 
 Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 

@@ -148,6 +148,14 @@ class MainActivityTest {
             descendants(content).filterIsInstance<Button>().single { it.id == R.id.sync_now }.performClick()
             awaitUi { activity.findViewById<View>(R.id.access_warning) != null }
             assertEquals("permission_denied", JSONObject(app.diagnostics.store.get("lastCheck")!!).getString("outcome"))
+            // The book popup names the read failure first, with the amber triangle.
+            activity.findViewById<View>(R.id.book_summary).performClick()
+            awaitUi { popupMessage() != null }
+            val text = popupMessage()!!
+            assertTrue(warningsDrawn(text))
+            val issues = issueLines(text)
+            assertEquals(text.toString(), 1, issues.size)
+            assertTrue(issues[0], issues[0].contains("permission denied"))
         } finally {
             controller.pause().stop().destroy()
         }
@@ -172,6 +180,8 @@ class MainActivityTest {
             awaitUi { org.robolectric.shadows.ShadowDialog.getLatestDialog()?.isShowing == true }
             val popup = org.robolectric.shadows.ShadowDialog.getLatestDialog()
             val text = popup.findViewById<TextView>(android.R.id.message).text
+            // Without an issue the popup has no issue section.
+            assertFalse(text.toString(), text.contains("⚠") || text.startsWith("\n"))
             assertTrue(text.toString(), text.toString().contains("9781398508255"))
             assertTrue(text.toString().contains("58438630"))
             assertTrue(text.toString().contains("in-the-blood-2022"))
@@ -213,6 +223,10 @@ class MainActivityTest {
             assertEquals(2, check.getInt("recordCount"))
             assertTrue(check.isNull("selected"))
             assertTrue(check.getBoolean("issue"))
+            // The book popup explains why no book was detected.
+            controller.get().findViewById<View>(R.id.book_summary).performClick()
+            awaitUi { popupMessage() != null }
+            assertEquals(1, issueLines(popupMessage()!!).size)
         } finally {
             controller.pause().stop().destroy()
         }
