@@ -1,6 +1,6 @@
 # Project status and handoff
 
-Updated 2026-10-07 after the 0.4.5 provider-row and CI fix and its USB install over 0.4.4. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after the 0.4.6 edition notes and kept-progress warning build. 0.4.5 is the installed version. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
@@ -21,7 +21,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.5 / code 17
+## Built: 0.4.6 / code 18
 
 | Item | Current value |
 | --- | --- |
@@ -31,8 +31,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.4.5-diagnostic.apk`, 3,550,778 bytes |
-| Diagnostic APK SHA-256 | `71d432b094d746144ab5f109af5e91bd751fdeb92dffcfe22c58beea3ea9585f` |
+| Diagnostic APK | `dist/boox-tracker-0.4.6-diagnostic.apk`, 3,550,962 bytes |
+| Diagnostic APK SHA-256 | `426180200693bb350b07323a3676b2e4c96140e9778c3b49f394776f8fe20339` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -74,7 +74,7 @@ Activity uses recycled rows and lazy details, shows the latest 250 events, and r
 
 ## Automatically tested
 
-The 0.4.5 reports contain **145 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings; the applied ones have tests, and one suggestion was declined (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)). Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.6 reports contain **147 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings; the applied ones have tests, and one suggestion was declined (see [verification](verification.md#edition-notes-and-kept-progress-warning-046)). Packaging verified signatures; delivered APK hashes were checked separately.
 
 Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 

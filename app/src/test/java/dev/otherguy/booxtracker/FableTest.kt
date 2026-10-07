@@ -399,6 +399,15 @@ class FableTest {
         assertTrue(server.writes().isEmpty())
     }
 
+    @Test fun aFinishedSiblingEditionHoldsTheFinishedBook() = runBlocking {
+        server.shelf[FABLE_PAPERBACK] = "finished"
+        val result = sync().send(book("10000/10000", "2"), identifiers, "account-1")
+        assertEquals("already_current", result.getString("outcome"))
+        assertEquals(FABLE_PAPERBACK, result.getString("bookId"))
+        assertTrue(result.getBoolean("existingEditionPreserved"))
+        assertTrue(server.writes().isEmpty())
+    }
+
     @Test fun completionWritesFullProgressAndConfirmsTheFinishedShelf() = runBlocking {
         server.shelf[FABLE_EBOOK] = "current_reading"
         val result = sync().send(book("10000/10000", "2"), identifiers, "account-1")
@@ -757,12 +766,12 @@ class FableTest {
             }
         }
         try {
-            awaitUi { toggle()?.contentDescription?.contains("Exact edition matched") == true && !screen.busy }
-            assertFalse(toggle()!!.contentDescription.contains("Using your"))
+            awaitUi { toggle()?.contentDescription?.contains("Book matched") == true && !screen.busy }
             val rowBody = views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.parent as ViewGroup
             val rowLines = rowBody.children.filterNot { it is CheckBox }.map { (it as TextView).text.toString() }.toList()
             assertEquals(3, rowLines.size)
-            assertEquals("✅ Exact edition matched", rowLines[1])
+            // Progress goes to the shelved paperback, not the ebook's edition; that is a success without a warning.
+            assertEquals("✅ Book matched · different edition", rowLines[1])
             assertTrue(rowLines[2], rowLines[2].startsWith("Synced at "))
             assertNull(activity.findViewById<View>(R.id.access_warning))
             // The provider icon opens the details popup as well as the text.

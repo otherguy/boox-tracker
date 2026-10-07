@@ -79,7 +79,8 @@ class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore
 
         val shelved = membership()
         // An edition the user already shelved stays the progress record, as with Hardcover's existing edition.
-        val target = shelved.entries.firstOrNull { it.value == "current_reading" }?.key ?: shelved.entries.firstOrNull { it.value == "want_to_read" }?.key ?: matched
+        // A sibling on Finished only ever leads to "already current" or a held update, so naming it as the record writes nothing.
+        val target = listOf("current_reading", "want_to_read", "finished").firstNotNullOfOrNull { shelf -> shelved.entries.firstOrNull { it.value == shelf }?.key } ?: matched
         val shelfBefore = shelved[target]
         val detail = JSONObject().put("bookId", target).put("matchedBookId", matched).put("title", editions.firstOrNull { it.optString("id") == target }?.optString("title").orEmpty())
             .put("matchKind", match.getString("matchKind")).put("existingEditionPreserved", target != matched)

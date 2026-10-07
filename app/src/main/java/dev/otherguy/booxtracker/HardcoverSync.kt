@@ -44,6 +44,7 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
         val reads = existing?.records("user_book_reads") ?: emptyList()
         if (finished && existing?.getInt("status_id") == 3) {
             return@authorized JSONObject().put("bookId", bookId).put("title", catalog.optString("title")).put("matchKind", match.optString("matchKind"))
+                .put("sourceEditionId", match.optInt("exactEditionId").takeIf { it > 0 } ?: JSONObject.NULL).putOpt("editionId", existing.optInt("edition_id").takeIf { it > 0 })
                 .put("rawProgress", book.raw("progress")).put("finished", true).put("outcome", "already_current").put("unchanged", true)
         }
         // Hardcover adds a dated read when a book becomes Currently Reading. A second, undated open read on the same edition

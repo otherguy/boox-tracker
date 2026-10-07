@@ -283,14 +283,31 @@ class MainActivity : AppCompatActivity() {
             .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.parse(raw))
     }.getOrDefault("Unknown")
 
-    /** A book matched on a different edition is a success, so only sign-in, held updates, and streak problems warn. */
+    /**
+     * A book matched on a different edition is a success. Sign-in and held updates warn, and so do a rejected streak day
+     * and a tracker that keeps higher progress than NeoReader's.
+     */
     private fun needsAttention(state: JSONObject): Boolean {
         val last = state.optJSONObject("last")
         return state.getBoolean("enabled") && (
             state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" ||
-                last?.text("streakError") != null
+                last?.text("streakError") != null || last?.keptHigherProgress() == true
             )
     }
+
+    /**
+     * Whether progress goes to the ebook's own edition, or null when the ebook's edition is unknown. Hardcover knows it
+     * when the ebook's identifiers matched an edition exactly; Fable knows it from an identifier match, and then a
+     * shelved sibling edition receives progress instead.
+     */
+    private fun JSONObject.sameEdition(name: String): Boolean? = if (name == "Hardcover") {
+        if (isNull("sourceEditionId") || isNull("editionId")) null else getInt("editionId") == getInt("sourceEditionId")
+    } else {
+        if (optString("matchKind") == "edition") !optBoolean("existingEditionPreserved") else null
+    }
+
+    /** The latest update found the tracker ahead of NeoReader and left its progress unchanged. */
+    private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
@@ -478,20 +495,24 @@ class MainActivity : AppCompatActivity() {
      * The two status lines under a provider's name: what is true about the current book, then how its sync stands.
      * Details live in the provider's popup, so each line stays a single short sentence.
      */
-    private fun serviceSummary(state: JSONObject, bookMatch: String): String {
+    private fun serviceSummary(state: JSONObject, name: String): String {
         val enabled = state.getBoolean("enabled")
         val connected = state.getBoolean("connected")
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
         val streakError = last?.text("streakError")
         val delivery = last?.optString("delivery")
+        val edition = when (last?.sameEdition(name)) {
+            true -> " · same edition"
+            false -> " · different edition"
+            null -> ""
+        }
         val first = when {
             !enabled -> "Off"
             !connected || state.getBoolean("credentialProblem") -> "❌ Reconnect required"
             delivery == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
             streakError != null -> "⚠ Streak day not marked · ${streakError.replace('_', ' ')}"
-            last?.optString("matchKind") == "edition" -> "✅ Exact edition matched"
-            last?.optString("matchKind") == "book" -> bookMatch
+            last?.optString("matchKind") in setOf("edition", "book") -> "✅ Book matched$edition"
             else -> "Not matched yet"
         }
         val synced = success?.let { time(it.optString("timestamp")) + (if (it.optBoolean("finished")) " · Finished" else it.rawProgressPercent().orEmpty()) }
@@ -502,7 +523,7 @@ class MainActivity : AppCompatActivity() {
             !enabled -> state.text("connectionError")?.let(::connectionText) ?: if (connected) "Not syncing" else "Not connected"
             delivery == "pending" -> "Pending" + lastSynced + (if (queued > 1) " · $queued queued" else "")
             delivery == "error" -> "Not sent$lastSynced"
-            else -> (synced?.let { "Synced at $it" } ?: "Not synced yet") + (if (queued > 0) " · $queued queued" else "")
+            else -> (if (last?.keptHigherProgress() == true) "⚠ " else "") + (synced?.let { "Synced at $it" } ?: "Not synced yet") + (if (queued > 0) " · $queued queued" else "")
         }
         return "$first\n$second"
     }
@@ -516,7 +537,7 @@ class MainActivity : AppCompatActivity() {
         serviceRow(
             "Hardcover",
             R.drawable.service_hardcover,
-            signIn ?: serviceSummary(state, "✅ Book matched · different edition"),
+            signIn ?: serviceSummary(state, "Hardcover"),
             state.getBoolean("enabled") || app.hardcover.signingIn,
             !model.busy,
             details = { showServiceDetails("Hardcover", app.hardcover, hardcoverReport) },
@@ -539,7 +560,7 @@ class MainActivity : AppCompatActivity() {
         serviceRow(
             "Fable",
             R.drawable.service_fable,
-            signIn ?: serviceSummary(state, "✅ Book matched"),
+            signIn ?: serviceSummary(state, "Fable"),
             state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
             !model.busy,
             details = { showServiceDetails("Fable", fable, fableReport) },
@@ -796,14 +817,17 @@ class MainActivity : AppCompatActivity() {
         val keptNote = if (kept) " · kept, higher than NeoReader" else ""
         if (name == "Hardcover") {
             field("Match", if (exact) "Exact edition" else "Book only; your ebook's edition was not found on Hardcover")
-            field(
-                "Edition",
-                when {
-                    preserved -> "Your existing Hardcover edition, not the one your ebook matched"
-                    exact -> "Your ebook's edition"
-                    else -> "A Hardcover edition of this book"
-                } + (pages?.let { " · $it pages" } ?: "")
-            )
+            // Without an existing edition, only a missing page count sends progress past the ebook's own edition.
+            val edition = if (preserved) {
+                "Your existing Hardcover edition, not the one your ebook matched"
+            } else {
+                when (result.sameEdition(name)) {
+                    true -> "Your ebook's edition"
+                    false -> "Another Hardcover edition; your ebook's edition has no page count"
+                    null -> "A Hardcover edition of this book"
+                }
+            }
+            field("Edition", edition + (pages?.let { " · $it pages" } ?: ""))
             if (result.optBoolean("finished")) {
                 field("Progress", "Finished" + (result.text("finishedAt")?.let { " on ${readableDay(it)}" } ?: ""))
             } else {

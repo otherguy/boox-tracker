@@ -59,7 +59,7 @@ Sleep and power-off are different states. Queue retention across reboot does not
 
 The supplied Savage Son EPUB contains ISBN `9781471197376`, Goodreads `58895717`, and Amazon value `1471197379`. In read-only API research, that ISBN/Goodreads pair had no match. The separately supplied ASIN `B07THCSQ27` matched book `484869`, ebook edition `31807724`, 429 pages. Do not substitute that ASIN into the source file to claim the untouched EPUB matched exactly.
 
-Use the untouched source to test unique title/author fallback. A book-only result should show "✅ Book matched · different edition" without a warning, with the edition and page basis in the row's details popup. No selection dialog or catalogue edit is allowed. If the source has different metadata on BOOX, record it and use the actual identifiers when interpreting the result. See [integration samples](integrations.md#local-matching-samples-2026-10-06).
+Use the untouched source to test unique title/author fallback. A title/author result should show "✅ Book matched" without an edition note or warning, with the edition and page basis in the row's details popup. No selection dialog or catalogue edit is allowed. If the source has different metadata on BOOX, record it and use the actual identifiers when interpreting the result. See [integration samples](integrations.md#local-matching-samples-2026-10-06).
 
 ## BOOX settings and USB pitfalls
 

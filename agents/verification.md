@@ -1,13 +1,13 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.5/code 17 (provider rows and CI diagnostics), installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.6/code 18 (edition notes and kept-progress warning). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.5 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 145 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.6 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows with edition notes and a kept-progress warning | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 147 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
 | Physical current UI/update | Signed 0.3.1–0.4.5 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
@@ -42,6 +42,24 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Edition notes and kept-progress warning 0.4.6
+
+**Built:** debug and signed diagnostic APKs, version 0.4.6/code 18. Package, certificate, and schemas are unchanged. Artifact `dist/boox-tracker-0.4.6-diagnostic.apk`, 3,550,962 bytes, SHA-256:
+
+```text
+426180200693bb350b07323a3676b2e4c96140e9778c3b49f394776f8fe20339
+```
+
+The match line now tells whether progress goes to the ebook's own edition (user decision): "✅ Book matched · same edition", "✅ Book matched · different edition", or "✅ Book matched" when the ebook's edition is unknown. "✅ Exact edition matched" is gone. Hardcover knows the ebook's edition from an exact identifier match; Fable knows it from an identifier match, and a shelved sibling edition is a different edition. Row and popup use one rule. The Hardcover popup now names "Another Hardcover edition; your ebook's edition has no page count" for that fallback, where it said "Your ebook's edition". When the latest sent update found the tracker ahead of NeoReader, the sync line starts with ⚠ and the header shows the amber triangle (user decision); the popup shows the kept value.
+
+Two sync results gained edition facts. A finished book already Read on Hardcover now reports the exact source edition and the user's edition. A Fable book whose sibling edition is on Finished now names that sibling as the record, so it shows "different edition"; this changes no write, because that case returns "already current" or holds.
+
+The local `dist/boox-tracker-0.4.5-diagnostic.apk` was overwritten by an interim build of this change that still carried version 0.4.5. The APK installed on the GoColor7 was pulled back over ADB and still matches the 0.4.5 hash recorded below.
+
+**Automatically tested:** 147 tests, zero failures/errors/skips, empty stderr. UI tests cover "same edition" with no warning, "different edition" for a shelved Fable paperback with no warning, ⚠ and the header warning for kept Hardcover progress, and the popup's no-page-count edition text. Sync tests cover the edition facts for an already-Read Hardcover book and a Finished Fable sibling. Each new expectation failed before its change. Both builds and lint variants passed with zero lint errors and ten existing notices. Both required reviews ran. Applied: one edition rule for row and popup, the two sync results, stale doc wording, a test label, and removal of two checks for text the app no longer has. Not applied: showing the kept value on the row, by the user's decision to warn only.
+
+**Verified on physical BOOX:** pending.
 
 ## Provider rows and CI diagnostics 0.4.5
 
