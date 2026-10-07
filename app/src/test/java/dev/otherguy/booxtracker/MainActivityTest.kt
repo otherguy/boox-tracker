@@ -56,17 +56,35 @@ class MainActivityTest {
         assertEquals("Unexpected UI test diagnostics", emptyList<String>(), unexpected)
     }
 
+    private val base = System.currentTimeMillis() - 7_200_000
+
+    /** A check event [index] seconds after a recent base time, so retention keeps it. */
     private fun event(index: Int, unchanged: Boolean = false, issue: Boolean = false): JSONObject = JSONObject()
-        .put("timestamp", java.time.Instant.ofEpochSecond(index.toLong()).toString())
+        .put("timestamp", java.time.Instant.ofEpochMilli(base + index * 1000L).toString())
+        .put("wallMs", base + index * 1000L)
         .put("source", "scheduled")
         .put("kind", "query")
         .put("trigger", "periodic")
         .put("runId", JSONObject.NULL)
         .put("outcome", "success")
         .put("recordCount", 786)
-        .put("selected", JSONObject().put("key", if (unchanged) "same-book" else "book-$index"))
+        .put("selected", JSONObject().put("key", if (unchanged) "same-book" else "book-$index").put("title", "Book $index").put("percentage", 42))
         .put("unchanged", unchanged)
         .put("issue", issue)
+        .put("appVisible", false)
+
+    /** The event popup on screen; the folder prompt these tests leave open is never it. */
+    private fun popup() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)
+        ?.takeIf { it.isShowing && it.findViewById<View>(R.id.event_details) != null }
+
+    private fun openActivity(controller: org.robolectric.android.controller.ActivityController<MainActivity>, count: Int): ListView {
+        val activity = controller.get()
+        activity.findViewById<Button>(R.id.activity).performClick()
+        val list = activity.findViewById<ListView>(R.id.activity_entries)
+        runBlocking { awaitUi { list.adapter.count == count } }
+        layout(activity)
+        return list
+    }
 
     private fun descendants(view: View): List<View> = listOf(view) +
         if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
@@ -347,51 +365,91 @@ class MainActivityTest {
         }
     }
 
-    @Test fun fullActivityLogBoundsViewWorkAndDefersCollapsedDetails() = runBlocking {
+    @Test fun theActivityLogShowsEveryRetainedEventAndFormatsNothingBeforeATap() = runBlocking {
         repeat(275) { app.diagnostics.store.append(event(it)) }
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
-            val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 250 }
-            layout(activity)
+            val list = openActivity(controller, 275)
             assertTrue(list.childCount > 0)
-            val views = descendants(activity.findViewById(android.R.id.content))
-            val buttons = views.filterIsInstance<Button>().size
-            assertTrue("250 entries created $buttons buttons before scrolling", buttons < 32)
-            val hiddenDetails = views.filterIsInstance<TextView>().count { it.id == R.id.event_details && it.visibility == View.GONE && it.text.isNotEmpty() }
-            assertTrue("Collapsed entries formatted $hiddenDetails detail blocks", hiddenDetails == 0)
+            assertTrue(descendants(list).none { it is Button })
+            assertTrue((list.adapter as ActivityLogAdapter).entries.none { it.json != null })
+            val row = list.getChildAt(0)
+            assertTrue(row.isClickable)
+            assertEquals("Checked NeoReader", row.findViewById<TextView>(R.id.event_title).text.toString())
+            assertTrue(row.contentDescription.toString().startsWith("Checked NeoReader. Background · Book 274 · 42%"))
             assertEquals(275, buildExport(app.diagnostics).getJSONArray("observations").length())
         } finally {
             controller.pause().stop().destroy()
         }
     }
 
-    @Test fun groupedDetailsAndIssueFilterKeepEveryUnderlyingEvent() = runBlocking {
+    @Test fun tappingARowOpensASummaryTabAndAMonospaceJsonTab() = runBlocking {
+        repeat(3) { app.diagnostics.store.append(event(it, unchanged = true)) }
+        app.diagnostics.store.append(event(3, issue = true))
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val list = openActivity(controller, 2)
+            val adapter = list.adapter as ActivityLogAdapter
+            val group = adapter.getItem(1)
+            list.getChildAt(1).performClick()
+            awaitUi { popup() != null }
+            val dialog = popup()!!
+            assertTrue(dialog.window!!.decorView.background is android.graphics.drawable.GradientDrawable)
+            val summary = dialog.findViewById<TextView>(R.id.event_summary_text)!!.text as android.text.Spanned
+            val labels = summary.getSpans(0, summary.length, android.text.style.StyleSpan::class.java).filter { it.style == android.graphics.Typeface.BOLD }
+                .map { summary.subSequence(summary.getSpanStart(it), summary.getSpanEnd(it)).toString() }
+            assertTrue(labels.isNotEmpty() && labels.all { it.endsWith(": ") })
+            assertTrue(summary.toString().contains("Checks: 3 since"))
+            assertTrue(summary.toString().contains("App visible: No, for all 3"))
+            val json = dialog.findViewById<TextView>(R.id.event_json)!!
+            assertEquals("", json.text.toString())
+            assertEquals(null, group.json)
+            val body = dialog.findViewById<View>(R.id.event_details)!!
+            val panes = dialog.findViewById<View>(R.id.event_panes)!!
+            fun paneHeight(): Int {
+                body.measure(View.MeasureSpec.makeMeasureSpec(1000, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(1400, View.MeasureSpec.AT_MOST))
+                return panes.measuredHeight
+            }
+            val summaryHeight = paneHeight()
+            dialog.findViewById<Button>(R.id.event_tab_json)!!.performClick()
+            awaitUi { json.text.isNotEmpty() }
+            assertTrue(summaryHeight > 0)
+            assertEquals(summaryHeight, paneHeight())
+            assertEquals(View.GONE, dialog.findViewById<View>(R.id.event_summary_pane)!!.visibility)
+            assertTrue(dialog.findViewById<Button>(R.id.event_tab_json)!!.isSelected)
+            assertEquals(android.graphics.Typeface.MONOSPACE, json.typeface)
+            assertEquals(group.events.first().getString("timestamp"), JSONObject(json.text.toString()).getString("timestamp"))
+            assertEquals("Newest of 3 events. The export contains all of them.", dialog.findViewById<TextView>(R.id.event_json_note)!!.text.toString())
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            awaitUi { popup() == null }
+            list.getChildAt(1).performClick()
+            awaitUi { popup() != null }
+            popup()!!.findViewById<Button>(R.id.event_tab_json)!!.performClick()
+            assertEquals(group.json, popup()!!.findViewById<TextView>(R.id.event_json)!!.text.toString())
+            popup()!!.dismiss()
+            awaitUi { popup() == null }
+            list.getChildAt(0).performClick()
+            awaitUi { popup() != null }
+            assertEquals(View.GONE, popup()!!.findViewById<View>(R.id.event_json_note)!!.visibility)
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test fun theIssuesFilterShowsOnlyIssuesAndKeepsEveryEvent() = runBlocking {
         repeat(3) { app.diagnostics.store.append(event(it, unchanged = true)) }
         app.diagnostics.store.append(event(3, issue = true))
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 2 }
-            layout(activity)
-            val adapter = list.adapter as ActivityLogAdapter
-            val row = adapter.getView(1, null, list)
-            val details = row.findViewById<TextView>(R.id.event_details)
-            row.findViewById<Button>(R.id.event_expand).performClick()
-            awaitUi { details.text.isNotEmpty() }
-            assertEquals(View.VISIBLE, details.visibility)
-            repeat(3) { assertTrue(details.text.toString().contains(event(it, unchanged = true).toString(2))) }
-            row.findViewById<Button>(R.id.event_expand).performClick()
-            assertEquals(View.GONE, details.visibility)
-            assertEquals("", details.text.toString())
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
+            val list = openActivity(controller, 2)
+            assertTrue(activity.findViewById<Button>(R.id.activity_filter_all).isSelected)
+            activity.findViewById<Button>(R.id.activity_filter_issues).performClick()
             awaitUi { list.adapter.count == 1 }
-            assertTrue(adapter.getItem(0).events.single().getBoolean("issue"))
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
+            assertTrue(activity.findViewById<Button>(R.id.activity_filter_issues).isSelected)
+            assertFalse(activity.findViewById<Button>(R.id.activity_filter_all).isSelected)
+            assertTrue((list.adapter as ActivityLogAdapter).getItem(0).events.single().getBoolean("issue"))
+            activity.findViewById<Button>(R.id.activity_filter_all).performClick()
             awaitUi { list.adapter.count == 2 }
             assertEquals(4, app.diagnostics.store.events().size)
         } finally {
@@ -399,95 +457,75 @@ class MainActivityTest {
         }
     }
 
-    @Test fun recycledRowsAndLiveUpdatesKeepDetailsAndScrollPosition() = runBlocking {
+    @Test fun recycledRowsAndLiveUpdatesKeepTheScrollPositionAndTheOpenPopup() = runBlocking {
         repeat(250) { app.diagnostics.store.append(event(it)) }
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 250 }
-            layout(activity)
+            val list = openActivity(controller, 250)
             list.setSelectionFromTop(100, 0)
             layout(activity)
             val adapter = list.adapter as ActivityLogAdapter
             val anchor = adapter.getItem(list.firstVisiblePosition).key
             val row = adapter.getView(100, null, list)
-            val details = row.findViewById<TextView>(R.id.event_details)
-            row.findViewById<Button>(R.id.event_expand).performClick()
-            awaitUi { details.text.isNotEmpty() }
-            assertEquals("book-149", JSONObject(details.text.toString()).getJSONObject("selected").getString("key"))
+            row.performClick()
+            awaitUi { popup() != null }
+            val dialog = popup()!!
+            dialog.findViewById<Button>(R.id.event_tab_json)!!.performClick()
+            val json = dialog.findViewById<TextView>(R.id.event_json)!!
+            awaitUi { json.text.isNotEmpty() }
+            assertEquals("book-149", JSONObject(json.text.toString()).getJSONObject("selected").getString("key"))
             assertTrue(row === adapter.getView(0, row, list))
-            assertEquals("", details.text.toString())
-            adapter.getView(100, row, list)
-            awaitUi { details.text.isNotEmpty() }
-            assertEquals("book-149", JSONObject(details.text.toString()).getJSONObject("selected").getString("key"))
+            assertEquals("Book 249 · 42%", row.findViewById<TextView>(R.id.event_summary).text.toString().substringAfter(" · "))
+            val summary = dialog.findViewById<TextView>(R.id.event_summary_text)!!.text.toString()
             app.diagnostics.event("manual", "selection", detail = event(250))
-            awaitUi { adapter.getItem(0).key != event(249).getString("timestamp") }
+            awaitUi { adapter.getItem(0).key != eventKey(event(249)) }
             layout(activity)
             assertEquals(anchor, adapter.getItem(list.firstVisiblePosition).key)
-            assertTrue(descendants(list).filterIsInstance<Button>().size < 32)
+            assertTrue(dialog.isShowing)
+            assertEquals(summary, dialog.findViewById<TextView>(R.id.event_summary_text)!!.text.toString())
         } finally {
             controller.pause().stop().destroy()
         }
     }
 
-    @Test fun expandedUnchangedGroupSurvivesGrowthAndTheEventLimit() = runBlocking {
+    @Test fun anUnchangedGroupKeepsGrowingAndItsPopupClosesOnRecreation() = runBlocking {
         repeat(250) { app.diagnostics.store.append(event(it, unchanged = true)) }
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
-            val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 1 }
-            layout(activity)
+            val list = openActivity(controller, 1)
             val adapter = list.adapter as ActivityLogAdapter
             val before = adapter.getItem(0).events.first().getString("timestamp")
-            list.getChildAt(0).findViewById<Button>(R.id.event_expand).performClick()
-            awaitUi { list.getChildAt(0).findViewById<TextView>(R.id.event_details).text.isNotEmpty() }
+            list.getChildAt(0).performClick()
+            awaitUi { popup() != null }
             app.diagnostics.event("scheduled", "query", detail = event(250, unchanged = true))
             awaitUi { adapter.getItem(0).events.first().getString("timestamp") != before }
-            layout(activity)
-            val details = list.getChildAt(0).findViewById<TextView>(R.id.event_details)
-            assertEquals(View.VISIBLE, details.visibility)
-            val newest = adapter.getItem(0).events.first().toString(2)
-            awaitUi { details.text.toString().contains(newest) }
-            assertEquals(250, adapter.getItem(0).events.size)
+            assertEquals(251, adapter.getItem(0).events.size)
             assertEquals(251, app.diagnostics.store.events().size)
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
-            awaitUi { list.adapter.count == 0 }
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
-            awaitUi { list.adapter.count == 1 }
-            layout(activity)
-            assertEquals(View.VISIBLE, list.getChildAt(0).findViewById<View>(R.id.event_details).visibility)
+            assertTrue(popup()!!.findViewById<TextView>(R.id.event_summary_text)!!.text.toString().contains("Checks: 250 since"))
             val recreated = controller.recreate().get()
             val recreatedList = recreated.findViewById<ListView>(R.id.activity_entries)
             awaitUi { recreatedList.adapter.count == 1 }
-            layout(recreated)
-            val retainedDetails = recreatedList.getChildAt(0).findViewById<TextView>(R.id.event_details)
-            assertEquals(View.VISIBLE, retainedDetails.visibility)
-            awaitUi { retainedDetails.text.toString().contains(newest) }
+            assertEquals(null, popup())
         } finally {
             controller.pause().stop().destroy()
         }
     }
 
     @Test fun changingFilterAfterScrollingStartsAtTheFirstMatchingEntry() = runBlocking {
-        repeat(250) { app.diagnostics.store.append(event(it, issue = it % 10 == 0)) }
+        // Each issue has its own reason, so the Issues view shows one row per issue instead of one grouped row.
+        repeat(250) { app.diagnostics.store.append(event(it, issue = it % 10 == 0).put("reason", "case $it")) }
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 250 }
-            layout(activity)
+            val list = openActivity(controller, 250)
             list.setSelectionFromTop(100, 0)
             layout(activity)
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
+            activity.findViewById<Button>(R.id.activity_filter_issues).performClick()
             awaitUi { list.adapter.count == 25 }
             layout(activity)
             assertEquals(0, list.firstVisiblePosition)
-            assertEquals(event(240, issue = true).getString("timestamp"), (list.adapter as ActivityLogAdapter).getItem(0).key)
+            assertEquals(eventKey(event(240, issue = true)), (list.adapter as ActivityLogAdapter).getItem(0).key)
         } finally {
             controller.pause().stop().destroy()
         }
@@ -498,13 +536,13 @@ class MainActivityTest {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
-            activity.findViewById<Button>(R.id.activity).performClick()
-            val list = activity.findViewById<ListView>(R.id.activity_entries)
-            awaitUi { list.adapter.count == 1 }
-            activity.findViewById<Button>(R.id.activity_filter).performClick()
+            val list = openActivity(controller, 1)
+            activity.findViewById<Button>(R.id.activity_filter_issues).performClick()
             awaitUi { list.adapter.count == 0 }
             layout(activity)
-            assertEquals(View.VISIBLE, activity.findViewById<View>(R.id.activity_empty).visibility)
+            val empty = activity.findViewById<TextView>(R.id.activity_empty)
+            assertEquals(View.VISIBLE, empty.visibility)
+            assertEquals("No issues in the retained activity.", empty.text.toString())
             assertEquals(1, app.diagnostics.store.events().size)
         } finally {
             controller.pause().stop().destroy()

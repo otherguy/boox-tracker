@@ -161,6 +161,28 @@ class OfflineSyncTest {
         assertEquals(3, store.events().count { it.optString("kind") == "queued" })
     }
 
+    @Test fun anUnchangedBookWaitingOfflineIsQueuedOnce() = runBlocking {
+        repeat(3) { connection.send("scheduled", check(book())) }
+        assertEquals(1, store.events().count { it.optString("kind") == "queued" })
+        connection.send("scheduled", check(book(progress = "43/100")))
+        assertEquals(2, store.events().count { it.optString("kind") == "queued" })
+    }
+
+    @Test fun aSuccessfulDeliveryPrunesOlderRoutineEvents() = runBlocking {
+        val old = System.currentTimeMillis() - 72 * 3_600_000L
+        store.append(JSONObject().put("kind", "query").put("wallMs", old).put("issue", false))
+        store.append(JSONObject().put("kind", "hardcover_sync").put("outcome", "held").put("wallMs", old).put("issue", true))
+        online = true
+        store.put("lastCheck", check(book()).toString())
+        connection.send("manual", check(book()))
+        assertEquals("synced", connection.state().getJSONObject("last").getString("delivery"))
+        assertTrue(store.get("lastSyncMs")!!.toLong() > old)
+        val events = store.events()
+        assertFalse(events.any { it.optLong("wallMs") == old && it.optString("kind") == "query" })
+        assertTrue(events.any { it.optLong("wallMs") == old && it.optString("outcome") == "held" })
+        assertFalse(events.any { it.optString("kind").endsWith("_sync_start") })
+    }
+
     @Test fun acknowledgementCannotRemoveANewerRevisionOrAnotherAccount() {
         val old = store.enqueue("1", book(), identifiers, "before")
         val newer = store.enqueue("1", book(progress = "45/100"), identifiers, "after")

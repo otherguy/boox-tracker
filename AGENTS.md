@@ -38,6 +38,7 @@ Current state, versions, device results, and next steps are in [project status](
 - Local collection is unique fifteen-minute WorkManager work without a network constraint. Separate network-constrained delivery work (`APPEND_OR_REPLACE`) drains the queue. Opening the app and Sync Now also collect and attempt delivery.
 - The queue holds the latest observation per account, service, and source book. Acknowledge only the revision that was sent. Read remote state before retrying an uncertain write. Another account never receives a queue.
 - Do not add an observation service, observer polling, a background toggle, an app-managed wake lock, or forced screen-on.
+- The event log is diagnostics only and bounded: at most 1,000 events, none older than 30 days, and routine events (finished runs, unchanged or changed checks, queue entries, waiting sends) from before the last successful sync are pruned once they are 48 hours old. Issues and sync results stay until the caps, and the count cap removes the oldest routine events first. `DiagnosticsStore.prune` never touches the `state` table, which holds the queue, snapshot, results, and settings. Write one `run` event per worker run, not start and stop markers, and keep the provider's column list out of check events. Only an issue check keeps the full book record; other checks keep a six-field summary.
 - A worker result is independent background evidence only if the app was hidden for the whole interval. Check the visibility flags and compare with app-open times. A foreground sync, an app-open run, or an ADB query is not that evidence. No exact interval or post-boot timing is guaranteed.
 
 ## Upgrades, privacy, and signing
@@ -59,7 +60,7 @@ One native Kotlin module with Android Views/XML and AndroidX. Keep it small. Use
 | Storage and export | `DiagnosticsStore.kt` (SQLite `events` and `state` tables), `Export.kt` |
 | App and workers | `ReadingSyncApp.kt`, `Background.kt` |
 | Trackers | `TrackerConnection.kt` (shared queue and delivery), then `<Service>Auth.kt`, `<Service>Match.kt`, `<Service>Sync.kt`, `<Service>Connection.kt` per service |
-| UI | `MainActivity.kt`, `ActivityLogAdapter.kt`; follow the [design](agents/design.md) |
+| UI | `MainActivity.kt`, `ActivityLogAdapter.kt` (row text in `eventText`, grouping in `activityEntries`); follow the [design](agents/design.md) |
 
 A new tracker uses the same four files and extends `TrackerConnection`. Tests run on Robolectric with one `MockWebServer` fake per service, such as `HardcoverServer` and `FableServer`, and never use the real network. UI tests capture stderr and allow only Robolectric's `Invalid ID 0x00000000.` line.
 

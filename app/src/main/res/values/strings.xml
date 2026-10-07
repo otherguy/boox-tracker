@@ -8,18 +8,18 @@
     <string name="activity">Activity</string>
     <string name="on">On</string>
     <string name="off">Off</string>
-    <string name="all_selected">All selected — show Issues</string>
-    <string name="issues_selected">Issues selected — show All</string>
-    <string name="export_diagnostics">Export diagnostics</string>
-    <string name="activity_limit">Latest 250 events. Export includes the full retained log.</string>
-    <string name="activity_empty">No retained entries for this filter.</string>
-    <string name="details">Details</string>
-    <string name="hide_details">Hide details</string>
-    <string name="event_title">%1$s · %2$s %3$s</string>
-    <string name="event_summary">%1$s\n%2$s %3$s%4$s</string>
-    <plurals name="unchanged_observations">
-        <item quantity="one">\n%1$d unchanged observation</item>
-        <item quantity="other">\n%1$d unchanged observations</item>
+    <string name="filter_all">All</string>
+    <string name="filter_issues">Issues</string>
+    <string name="export_diagnostics">Export</string>
+    <string name="activity_empty">No activity yet.</string>
+    <string name="activity_no_issues">No issues in the retained activity.</string>
+    <string name="chevron">›</string>
+    <string name="event_open_details">Show event details</string>
+    <string name="event_tab_summary">Summary</string>
+    <string name="event_tab_json">JSON</string>
+    <plurals name="event_json_note">
+        <item quantity="one">The newest event. The export contains it.</item>
+        <item quantity="other">Newest of %1$d events. The export contains all of them.</item>
     </plurals>
     <string name="device_info">Device information</string>
 </resources>

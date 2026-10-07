@@ -98,7 +98,72 @@ class DiagnosticsStore(
     }
 
     fun exportEvents() = JSONArray(events().reversed())
+
+    /**
+     * Keeps the event log bounded: no event older than [MAX_AGE_MS], no routine event from before the last successful
+     * sync unless it is younger than [RECENT_MS], and at most [MAX_EVENTS] events, removing the oldest routine events
+     * before any other. Rows that cannot be read are kept until the count limit. The `state` table is never touched.
+     * Returns how many events were deleted.
+     */
+    @Synchronized fun prune(nowMs: Long, lastSyncMs: Long?): Int {
+        val db = writableDatabase
+        val routineBefore = lastSyncMs?.coerceAtMost(nowMs - RECENT_MS)
+        db.beginTransaction()
+        val deleted = try {
+            val doomed = mutableListOf<Long>()
+            val kept = mutableListOf<Pair<Long, Boolean>>()
+            // A row too large for a cursor window is read as null instead of failing the whole query.
+            db.rawQuery("SELECT id, CASE WHEN length(payload) < $MAX_READ_CHARS THEN payload END FROM events ORDER BY id", null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(0)
+                    val event = cursor.getString(1)?.let { runCatching { JSONObject(it) }.getOrNull() }
+                    val time = event?.let(::eventMillis)
+                    val routine = event != null && routine(event)
+                    if (time != null && (time < nowMs - MAX_AGE_MS || (routineBefore != null && routine && time < routineBefore))) doomed += id else kept += id to routine
+                }
+            }
+            val excess = kept.size - MAX_EVENTS
+            if (excess > 0) doomed += (kept.filter { it.second } + kept.filterNot { it.second }).take(excess).map { it.first }
+            doomed.chunked(500).forEach { ids -> db.delete("events", "id IN (${ids.joinToString(",")})", null) }
+            db.setTransactionSuccessful()
+            doomed.size
+        } finally {
+            db.endTransaction()
+        }
+        // VACUUM needs free space about the size of the database; without it the file only stops growing.
+        if (deleted > VACUUM_AFTER) {
+            try {
+                db.execSQL("VACUUM")
+            } catch (_: android.database.sqlite.SQLiteException) {
+            }
+        }
+        return deleted
+    }
+
+    companion object {
+        const val MAX_EVENTS = 1_000
+        const val MAX_AGE_MS = 30 * 24 * 3_600_000L
+        const val RECENT_MS = 48 * 3_600_000L
+        private const val VACUUM_AFTER = 500
+        private const val MAX_READ_CHARS = 500_000
+
+        /** Checks, runs, queue entries, and waiting sends. `start`, `stop`, and `*_sync_start` are kinds older versions wrote. */
+        private fun routine(event: JSONObject): Boolean {
+            if (event.optBoolean("issue")) return false
+            val kind = event.optString("kind")
+            return runMarker(kind) || kind == "query" || kind == "queued" || (kind.endsWith("_sync") && event.optString("outcome") == "pending")
+        }
+    }
 }
+
+/** An ISO instant in epoch milliseconds; null when it does not parse. */
+fun isoMillis(value: String?): Long? = runCatching { java.time.Instant.parse(value).toEpochMilli() }.getOrNull()
+
+/** When an event was recorded: its wall-clock milliseconds, else its ISO timestamp; null when it has neither. */
+fun eventMillis(event: JSONObject): Long? = event.optLong("wallMs").takeIf { it > 0 } ?: isoMillis(event.optString("timestamp"))
+
+/** A worker run's own event, or the start and send markers older versions wrote. */
+fun runMarker(kind: String) = kind in setOf("run", "start", "stop") || kind.endsWith("_sync_start")
 
 fun sourceState(book: JSONObject, identifiers: BookIdentifiers) = digest(
     JSONObject().put("progress", book.opt("progress"))

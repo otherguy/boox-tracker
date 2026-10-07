@@ -1,13 +1,13 @@
 # Project status and handoff
 
-Updated 2026-10-07 after 0.4.7, which names every current issue at the top of the book and provider popups, and its USB install over 0.4.6. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after 0.4.8, which redesigns the Activity tab and bounds the event log, and its USB install over 0.4.7. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
 State on 2026-10-07:
 
-- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
-- **Device:** signed 0.4.7/code 19 is installed over 0.4.6 on the GoColor7 by USB at 17:37 on 2026-10-07 and was opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
+- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`. 0.4.8 is committed and pushed on `main`; its CI result is not yet recorded. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
+- **Device:** signed 0.4.8/code 20 is installed over 0.4.7 on the GoColor7 by USB at 18:15 on 2026-10-07 and was started by ADB; its process ran with no crash logged. The user then checked the new Activity tab and popup on the device and reported that it looks right. Before that, 0.4.7/code 19 was installed at 17:37 and opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
 - **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
@@ -21,7 +21,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.7 / code 19
+## Built: 0.4.8 / code 20
 
 | Item | Current value |
 | --- | --- |
@@ -31,8 +31,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.4.7-diagnostic.apk`, 3,551,830 bytes |
-| Diagnostic APK SHA-256 | `cf82be850325a0be1dc5f4c5ef5d76b1b45346ae128cd1414521aae269c9058c` |
+| Diagnostic APK | `dist/boox-tracker-0.4.8-diagnostic.apk`, 3,564,938 bytes |
+| Diagnostic APK SHA-256 | `f7adf2654ad458ee5cbabd27b075236dec54a55db75291374905f0e266624732` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -70,11 +70,11 @@ Startup requires a persisted readable read-only SAF ebook-folder grant. It expla
 
 The popup merges database and ebook identifiers off the main thread. It shows full values, bold Title Case keys, ISBN/ASIN, explicit OK/error states, and distinct human-readable Last Access/Read At. Absent service tags are omitted. `progressProblem: null` in diagnostic JSON means no parse error; it is not unknown progress.
 
-Activity uses recycled rows and lazy details, shows the latest 250 events, and retains full history for safe user-requested JSON/text export. All/Issues, expansion, scroll retention, and compatible upgrade retention remain. No retention/deletion policy is approved. The app's observation service, explicit permissions/actions, Read Now, diagnostic sections, and background toggle were removed in 0.3.0. The merged APK still inherits WorkManager's generic foreground-service declaration and scheduling permissions; current workers are not promoted to foreground work. See [permission details](research.md#android-references).
+Activity uses recycled, fully tappable rows in plain words with grouped repeats, an All/Issues segmented filter, and a two-tab popup (Summary with bold labels, monospaced JSON formatted on first open). The event log is bounded (user decision, 2026-10-07): at most 1,000 events, none older than 30 days, and routine events from before the last successful sync removed after 48 hours; the count cap removes routine events first, and sync state is never pruned. Estimated size is about 2 MB after one month and after one year, against about 8 MB and 86 MB without the bound (see [verification](verification.md#activity-redesign-and-bounded-log-048)). The app's observation service, explicit permissions/actions, Read Now, diagnostic sections, and background toggle were removed in 0.3.0. The merged APK still inherits WorkManager's generic foreground-service declaration and scheduling permissions; current workers are not promoted to foreground work. See [permission details](research.md#android-references).
 
 ## Automatically tested
 
-The 0.4.7 reports contain **148 tests, zero failures/errors**. Both APKs and both Android lint variants passed. ktlint and Markdown checks passed. Both required reviews returned findings; the applied ones have tests (see [verification](verification.md#issues-in-popups-047)). Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.8 reports contain **181 tests, zero failures/errors, and empty stderr**. Both APKs and both Android lint variants passed. ktlint, ruff, actionlint, and Markdown checks passed. Both required reviews returned findings; the applied ones have tests (see [verification](verification.md#activity-redesign-and-bounded-log-048)). Packaging verified signatures; delivered APK hashes were checked separately.
 
 Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 
@@ -88,7 +88,7 @@ One device: ONYX GoColor7, Android 12/API 32, build `2026-05-19_23-44_4.2-rel_05
 | Independent local scheduling | Historical app-hidden reads, including cold boot and wake; no exact cadence or regular sleep guarantee |
 | Historical logs/Activity | Reboot/update/export retention and much faster scrolling reported on 0.1.2 |
 | Native sign-in and manual exact sync | User confirmed on 0.3.1: Exact edition matched, Synced at…, progress reached Hardcover; In the Blood screenshot shows 240/480 pages, 50% |
-| Current updates/UI | Signed 0.3.1–0.4.6 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked; 0.4.7 amber row triangle and the issue sections of the book, Hardcover, and Fable popups checked |
+| Current updates/UI | Signed 0.3.1–0.4.6 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked; 0.4.7 amber row triangle and the issue sections of the book, Hardcover, and Fable popups checked; 0.4.8 Activity tab and popup checked by the user |
 
 The remote screenshots do not prove a selected edition ID, exact raw fraction, or mutation sequence. Those need an export. The 0.3.3 metadata screenshot is `dist/screenshots/boox-tracker-0.3.3-boox-metadata.png`. Future-service tags were absent from this book, so their rendering/rejection has automatic proof only. Data inode `129824` stayed unchanged across the new-package updates; this alone does not prove reboot queue retention.
 
@@ -105,7 +105,7 @@ Foreground checks around 22:03–22:04 and 22:31–22:32 local time on 2026-10-0
 - Inspect a current export for matching/page-basis/delivery evidence. Keep private exports and ebook files outside Git.
 - Continue ordinary use under recorded BOOX settings. Treat sleep/reboot gaps as evidence, without guessing their cause.
 
-Goodreads, StoryGraph, and Margins connectors, rereads, additional embedded-format parsers, statistics-provider access, website, updater, and history-retention policy are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
+Goodreads, StoryGraph, and Margins connectors, rereads, additional embedded-format parsers, statistics-provider access, website, and updater are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
 
 ## Documentation map
 

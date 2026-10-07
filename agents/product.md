@@ -32,7 +32,7 @@ Fable's reading streak counts days, not progress, so a progress write alone does
 
 ### Durable collection and delivery
 
-Persist the latest observation per account/service/source book before delivery, while retaining full observation logs. Switching books cannot replace another book's pending item. Acknowledge only the revision sent; retain newer observations. Read remote state before retrying an uncertain write to avoid duplicate reads or reduced progress. Retry transient network/server failures with backoff.
+Persist the latest observation per account/service/source book before delivery. The event log is diagnostics only and is bounded for months of offline use (user decision, 2026-10-07): at most 1,000 events and nothing older than 30 days; after a successful sync, routine events from before it are removed once they are 48 hours old, while sync results and issues stay within those limits. Check events carry a six-field book summary instead of the column list and full record; an issue check keeps the full record so unusable progress stays explained. The count cap removes the oldest routine events first. Sync state is never pruned. Switching books cannot replace another book's pending item. Acknowledge only the revision sent; retain newer observations. Read remote state before retrying an uncertain write to avoid duplicate reads or reduced progress. Retry transient network/server failures with backoff.
 
 Local collection is always on: unique fifteen-minute WorkManager requests without a network constraint. Separate unique network-constrained work serializes delivery. Opening the app and pressing Sync Now collect fresh state and attempt delivery. Timing is best-effort; no exact fifteen-minute, sleep, or post-boot execution guarantee is established. The observation service and user Background checks toggle are removed.
 
@@ -46,7 +46,7 @@ Readable persisted read-only SAF ebook-folder access is mandatory. Explain what 
 
 The popup shows full available identifier values and omits absent service tags. Labels are bold Title Case, with ISBN/ASIN unchanged. NeoReader Database and Progress State show OK only for successful checks. Diagnostic `progressProblem: null` means no parsing error. Last Access is provider metadata; Read At is the query timestamp, formatted with local date/time preferences. Unsupported timestamps retain their raw value/state.
 
-Package/namespace changed in 0.3.0/code 7 to `dev.otherguy.booxtracker`; development adds `.debug`. This intentionally starts fresh data and does not migrate old credentials/logs. Preserve any old app/data if present and disable its sends before running both. The old package was absent during the USB handoff; no agent uninstall/data clear was issued. Reuse the external diagnostic signer and shared public OAuth client ID. Compatible updates retain settings/logs. SQLite and export schemas are version 1; ebook cache namespace is separately versioned at 2. Activity displays 250 recent events, export retains all history, and no deletion policy is approved.
+Package/namespace changed in 0.3.0/code 7 to `dev.otherguy.booxtracker`; development adds `.debug`. This intentionally starts fresh data and does not migrate old credentials/logs. Preserve any old app/data if present and disable its sends before running both. The old package was absent during the USB handoff; no agent uninstall/data clear was issued. Reuse the external diagnostic signer and shared public OAuth client ID. Compatible updates retain settings/logs. SQLite and export schemas are version 1; ebook cache namespace is separately versioned at 2. Activity and export show the retained events under the bounded log policy above.
 
 ## Findings that constrain the product
 
@@ -73,6 +73,6 @@ The order of open physical checks is in [project status](project-status.md#resum
 | Reading lifecycle | Rereads and any wider conflict policy. A Sync All backfill button was considered and rejected on 2026-10-06 in favour of completion sync for the detected book, which is now built |
 | Sources | Embedded non-EPUB metadata parsers and separately scoped statistics-provider access, if needed |
 | Website | Proposed project/download site under an unspecified otherguy.dev subdomain; hosting not selected |
-| History and distribution | Retention/deletion policy, updater, optional Obtainium/store channels |
+| Distribution | Updater, optional Obtainium/store channels |
 
 GitHub Releases is the eventual APK channel. Create a release or prerelease only when the user explicitly asks. A pushed commit and its CI result do not publish anything. Use mise and `.tool-versions` for all host tools, including Java; no Homebrew dependency is required.

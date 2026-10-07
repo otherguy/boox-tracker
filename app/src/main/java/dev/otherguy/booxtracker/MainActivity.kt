@@ -16,9 +16,11 @@ import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
@@ -28,6 +30,7 @@ import androidx.core.net.toUri
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.core.view.isGone
+import androidx.core.view.isInvisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModel
@@ -49,7 +52,6 @@ class ScreenModel : ViewModel() {
     /** Fable sign-in drafts survive activity recreation; they are memory-only and never stored or logged. */
     var fableEmail = ""
     var fablePassword = ""
-    val expanded = mutableSetOf<String>()
     var activityKeys: Map<String, String> = emptyMap()
 }
 
@@ -64,6 +66,9 @@ class MainActivity : AppCompatActivity() {
     private var gateDialog: AlertDialog? = null
     private var gateChecking = false
     private val dialogs = mutableSetOf<AlertDialog>()
+
+    /** The Activity filter segments and whether each shows only issues. */
+    private val filters = listOf(R.id.activity_filter_all to false, R.id.activity_filter_issues to true)
 
     /**
      * Sign-in popups, kept until their connection stops signing in. A popup the user cancelled stays here closed,
@@ -165,16 +170,20 @@ class MainActivity : AppCompatActivity() {
             insets
         }
         content = findViewById(R.id.content)
-        activityLog = ActivityLogAdapter(this, lifecycleScope, model)
+        activityLog = ActivityLogAdapter(this, model, ::showEventDetails)
         findViewById<ListView>(R.id.activity_entries).apply {
             adapter = activityLog
-            itemsCanFocus = true
             emptyView = this@MainActivity.findViewById(R.id.activity_empty)
         }
-        findViewById<Button>(R.id.activity_filter).setOnClickListener {
-            model.issues = !model.issues
-            resetActivityScroll = true
-            refresh()
+        filters.forEach { (id, issues) ->
+            findViewById<Button>(id).select(issues == model.issues)
+            findViewById<Button>(id).setOnClickListener {
+                if (model.issues != issues) {
+                    model.issues = issues
+                    resetActivityScroll = true
+                    refresh()
+                }
+            }
         }
         findViewById<Button>(R.id.export).setOnClickListener {
             lifecycleScope.launch {
@@ -221,7 +230,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.activity).typeface = android.graphics.Typeface.create("sans", if (activity) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
         refreshJob = lifecycleScope.launch {
             if (activity) {
-                val entries = withContext(Dispatchers.IO) { activityEntries(diagnostics.store.events(250)) }
+                // The Issues view groups issues among themselves, so checks between repeats never split them.
+                val entries = withContext(Dispatchers.IO) { activityEntries(diagnostics.store.events(DiagnosticsStore.MAX_EVENTS).filter { !issues || it.optBoolean("issue") }) }
                 val list = findViewById<ListView>(R.id.activity_entries)
                 val position = list.firstVisiblePosition
                 val anchor = if (position > 0) activityLog.entries.getOrNull(position)?.key else null
@@ -234,7 +244,8 @@ class MainActivity : AppCompatActivity() {
                     val retained = activityLog.entries.indexOfFirst { it.key == anchor }
                     list.setSelectionFromTop(if (retained >= 0) retained else position.coerceAtMost(activityLog.entries.lastIndex), top)
                 }
-                findViewById<Button>(R.id.activity_filter).setText(if (issues) R.string.issues_selected else R.string.all_selected)
+                filters.forEach { (id, showsIssues) -> findViewById<Button>(id).select(showsIssues == issues) }
+                findViewById<TextView>(R.id.activity_empty).setText(if (issues) R.string.activity_no_issues else R.string.activity_empty)
             } else {
                 val snapshot = withContext(Dispatchers.IO) { diagnostics.snapshot() }
                 val check = withContext(Dispatchers.IO) { diagnostics.store.get("lastCheck")?.let(::JSONObject) }
@@ -787,7 +798,7 @@ class MainActivity : AppCompatActivity() {
     private fun showAbout() {
         bordered(
             AlertDialog.Builder(this).setTitle("Boox Tracker ${BuildConfig.VERSION_NAME}")
-                .setMessage("Reading progress from NeoReader to your enabled trackers.\n\nOffline updates stay on this device until they can be sent. Android and BOOX can delay background work.\n\nRead-only book access. Logs stay local until exported.\n\nMIT licence · ${BuildConfig.BUILD_TYPE} build")
+                .setMessage("Reading progress from NeoReader to your enabled trackers.\n\nOffline updates stay on this device until they can be sent. Android and BOOX can delay background work.\n\nRead-only book access. Logs stay local until exported. Activity keeps up to 1,000 events for 30 days; routine checks from before the last successful sync are removed after two days.\n\nMIT licence · ${BuildConfig.BUILD_TYPE} build")
                 .setPositiveButton("Close", null).setNeutralButton("GitHub") { _, _ -> startActivity(Intent(Intent.ACTION_VIEW, "https://github.com/otherguy/boox-tracker".toUri())) }
                 .setNegativeButton("Change ebook folder") { _, _ -> chooseFolder() }.create()
         )
@@ -859,6 +870,12 @@ class MainActivity : AppCompatActivity() {
             last?.let { field("Last sync", syncText(it)) }
             return@apply
         }
+        resultFields(name, result)
+        field("Last sync", syncText(last))
+    }
+
+    /** What a tracker reported for a send: the book, how it matched, the edition, and the progress it holds. */
+    private fun SpannableStringBuilder.resultFields(name: String, result: JSONObject) {
         field("Book", result.text("title") ?: "Unknown title")
         // Hardcover reports a book-only match when it keeps your existing edition; the source edition shows the match itself.
         val exact = if (name == "Hardcover") !result.isNull("sourceEditionId") else result.optString("matchKind") == "edition"
@@ -900,7 +917,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         result.text("rawProgress")?.let { raw -> Progress.parse(raw).percent?.let { field("NeoReader progress", "$it%") } }
-        field("Last sync", syncText(last))
     }
 
     private fun syncText(last: JSONObject): String {
@@ -913,15 +929,178 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Event popup: a Summary tab of labelled fields and a JSON tab with the newest event's stored record. */
+    private fun showEventDetails(entry: ActivityEntry, text: EventText) {
+        var formatting: Job? = null
+        val body = LinearLayout(this).apply {
+            id = R.id.event_details
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val tabs = LinearLayout(this).apply { body.addView(this) }
+        fun tab(id: Int?, label: Int): Pair<Button, View> {
+            val column = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                tabs.addView(this)
+            }
+            val button = Button(this, null, 0, R.style.TextButton).apply {
+                id?.let { this.id = it }
+                setText(label)
+                column.addView(this, LinearLayout.LayoutParams(-2, dp(56)))
+            }
+            val underline = View(this).apply { setBackgroundColor(Color.BLACK) }
+            column.addView(underline, LinearLayout.LayoutParams(-1, dp(4)))
+            return button to underline
+        }
+        val (summaryTab, summaryLine) = tab(null, R.string.event_tab_summary)
+        val (jsonTab, jsonLine) = tab(R.id.event_tab_json, R.string.event_tab_json)
+        body.addView(View(this).apply { setBackgroundColor(Color.BLACK) }, LinearLayout.LayoutParams(-1, dp(1)))
+        // The panes take a fixed share of the screen, or less when the popup has less room, whatever each tab holds,
+        // so switching tabs never resizes the popup and the Close button stays visible.
+        val panes = object : FrameLayout(this) {
+            override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+                val target = (resources.displayMetrics.heightPixels * 0.55f).toInt()
+                val height = if (MeasureSpec.getMode(heightSpec) == MeasureSpec.UNSPECIFIED) target else minOf(target, MeasureSpec.getSize(heightSpec))
+                super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+            }
+        }.apply {
+            id = R.id.event_panes
+            body.addView(this, LinearLayout.LayoutParams(-1, -2))
+        }
+        val summaryPane = ScrollView(this).apply {
+            id = R.id.event_summary_pane
+            overScrollMode = View.OVER_SCROLL_NEVER
+            panes.addView(this, FrameLayout.LayoutParams(-1, -1))
+        }
+        TextView(this).apply {
+            id = R.id.event_summary_text
+            this.text = eventSummary(entry, text)
+            textSize = 17f
+            setTextColor(Color.BLACK)
+            setLineSpacing(dp(6).toFloat(), 1f)
+            setPadding(0, dp(12), 0, dp(12))
+            setTextIsSelectable(true)
+            summaryPane.addView(this)
+        }
+        val jsonPane = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            panes.addView(this, FrameLayout.LayoutParams(-1, -1))
+        }
+        TextView(this).apply {
+            id = R.id.event_json_note
+            this.text = resources.getQuantityString(R.plurals.event_json_note, entry.events.size, entry.events.size)
+            textSize = 16f
+            setTextColor(Color.BLACK)
+            setPadding(0, dp(12), 0, 0)
+            isGone = entry.events.size < 2
+            jsonPane.addView(this)
+        }
+        val jsonScroll = ScrollView(this).apply {
+            overScrollMode = View.OVER_SCROLL_NEVER
+            jsonPane.addView(this, LinearLayout.LayoutParams(-1, 0, 1f))
+        }
+        val json = TextView(this).apply {
+            id = R.id.event_json
+            typeface = Typeface.MONOSPACE
+            textSize = 14f
+            setTextColor(Color.BLACK)
+            setPadding(0, dp(12), 0, dp(12))
+            setTextIsSelectable(true)
+            jsonScroll.addView(this)
+        }
+        fun select(showJson: Boolean) {
+            summaryPane.isGone = showJson
+            jsonPane.isGone = !showJson
+            summaryLine.isInvisible = showJson
+            jsonLine.isInvisible = !showJson
+            summaryTab.select(!showJson)
+            jsonTab.select(showJson)
+            // The record is formatted the first time its tab opens, off the main thread, and kept on the entry.
+            if (showJson && json.text.isEmpty() && formatting?.isActive != true) {
+                formatting = lifecycleScope.launch {
+                    json.text = entry.json ?: withContext(Dispatchers.Default) { entry.events.first().toString(2) }.also { entry.json = it }
+                }
+            }
+        }
+        summaryTab.setOnClickListener { select(false) }
+        jsonTab.setOnClickListener { select(true) }
+        select(false)
+        bordered(AlertDialog.Builder(this).setTitle(text.title).setView(body).setPositiveButton("Close", null).create()) { formatting?.cancel() }
+    }
+
+    /** Marks a tab or filter segment as chosen: selected state for TalkBack and the drawable, bold text. */
+    private fun Button.select(selected: Boolean) {
+        isSelected = selected
+        typeface = Typeface.create("sans", if (selected) Typeface.BOLD else Typeface.NORMAL)
+    }
+
+    private fun duration(millis: Long) = if (millis < 1000) "$millis ms" else String.format(java.util.Locale.getDefault(), "%.1f s", millis / 1000.0)
+
+    /** The Summary tab: the event's important fields with bold labels, and counts for a grouped row. */
+    private fun eventSummary(entry: ActivityEntry, text: EventText): CharSequence = SpannableStringBuilder().apply {
+        fun bookFields(book: JSONObject?) {
+            book?.let(::bookTitle)?.let { field("Book", it) }
+            book?.text("percentage")?.let { field("Progress", "$it%") }
+        }
+        val event = entry.events.first()
+        val kind = event.optString("kind")
+        val size = entry.events.size
+        field("Time", readableDate(eventMillis(event)))
+        field("Source", sourceText(event) + (event.text("trigger")?.let { " · ${triggerText(it)}" } ?: ""))
+        field("Event", text.title)
+        if (size > 1) {
+            field(if (kind == "query" && !event.optBoolean("issue")) "Checks" else "Times", "$size since ${readableDate(eventMillis(entry.events.last()))}")
+            val gaps = entry.events.mapNotNull { it.optLong("gapMs").takeIf { gap -> gap > 0 }?.let { gap -> (gap + 30_000) / 60_000 } }
+            if (gaps.isNotEmpty()) field("Time between checks", if (gaps.min() == gaps.max()) "${gaps.min()} min" else "${gaps.min()}–${gaps.max()} min")
+        }
+        event.text("outcome")?.let { field("Outcome", words(it)) }
+        event.text("reason")?.let { field("Reason", words(it)) }
+        when {
+            kind == "query" -> {
+                bookFields(event.optJSONObject("selected"))
+                if (event.has("recordCount") && !event.isNull("recordCount")) field("Library", "${event.optInt("recordCount")} books")
+                changeCount(event)?.takeIf { it > 0 }?.let { field("Changes", it.toString()) }
+            }
+
+            kind == "queued" -> bookFields(event)
+
+            kind.endsWith("_sync") && event.optString("outcome") in setOf("sent", "kept_higher_remote_progress", "already_current") ->
+                resultFields(serviceName(event), event)
+        }
+        event.optInt("deletedUpdates").takeIf { it > 0 }?.let { field("Queued updates deleted", it.toString()) }
+        event.text("startedAt")?.let { field("Started", readableDate(isoMillis(it))) }
+        if (event.has("durationMs")) field("Duration", duration(event.optLong("durationMs")))
+        // Background evidence needs the app hidden from the start of a read or run until its event.
+        val visible = entry.events.map { it.optBoolean("appVisibleAtStart") || it.optBoolean("appVisible") }
+        fun yesNo(value: Boolean) = if (value) "Yes" else "No"
+        field(
+            "App visible",
+            when {
+                size == 1 && event.has("appVisibleAtStart") -> "${yesNo(event.optBoolean("appVisibleAtStart"))} at start, ${yesNo(event.optBoolean("appVisible")).lowercase()} at end"
+                size == 1 -> yesNo(visible.single())
+                visible.none { it } -> "No, for all $size"
+                visible.all { it } -> "Yes, for all $size"
+                else -> "Yes for ${visible.count { it }} of $size"
+            }
+        )
+        (event.optJSONObject("error") ?: event.takeIf { it.has("class") && it.has("phase") })?.let { error ->
+            field("Error", listOfNotNull(error.text("class")?.substringAfterLast('.'), error.text("phase")).joinToString(" · "))
+        } ?: event.text("errorClass")?.let { field("Error", it.substringAfterLast('.')) }
+        event.text("runId")?.let { field("Run", it) }
+    }
+
     override fun onDestroy() {
         dialogs.toList().forEach { it.dismiss() }
         super.onDestroy()
     }
 
     /** Shows [dialog] with a black border and no animation, with each ⚠ in its message drawn as the amber triangle. */
-    private fun bordered(dialog: AlertDialog): AlertDialog {
+    private fun bordered(dialog: AlertDialog, onDismiss: (() -> Unit)? = null): AlertDialog {
         dialogs.add(dialog)
-        dialog.setOnDismissListener { dialogs.remove(dialog) }
+        dialog.setOnDismissListener {
+            dialogs.remove(dialog)
+            onDismiss?.invoke()
+        }
         dialog.show()
         dialog.findViewById<TextView>(android.R.id.message)?.let(::drawWarnings)
         dialog.window?.setBackgroundDrawable(

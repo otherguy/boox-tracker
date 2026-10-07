@@ -17,14 +17,18 @@
     <ScrollView android:id="@+id/diagnostics_panel" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true" android:overScrollMode="never"><LinearLayout android:id="@+id/content" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
     <RelativeLayout android:id="@+id/activity_panel" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:visibility="gone">
         <LinearLayout android:id="@+id/activity_header" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:layout_alignParentTop="true" android:paddingTop="16dp">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content">
-                <Button android:id="@+id/activity_filter" style="@style/OutlineButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:layout_marginEnd="8dp" android:text="@string/all_selected"/>
-                <Button android:id="@+id/export" style="@style/PrimaryButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="wrap_content" android:text="@string/export_diagnostics"/>
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center_vertical">
+                <LinearLayout android:layout_width="240dp" android:layout_height="56dp" android:background="@drawable/button_outline" android:padding="4dp">
+                    <Button android:id="@+id/activity_filter_all" style="@style/SegmentButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="@string/filter_all"/>
+                    <Button android:id="@+id/activity_filter_issues" style="@style/SegmentButton" android:layout_width="0dp" android:layout_weight="1" android:layout_height="match_parent" android:text="@string/filter_issues"/>
+                </LinearLayout>
+                <Space android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" android:minWidth="12dp"/>
+                <Button android:id="@+id/export" style="@style/PrimaryButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/export_diagnostics"/>
             </LinearLayout>
-            <Button android:id="@+id/device_info" style="@style/TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/device_info"/>
-            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/activity_limit" android:textSize="16sp" android:textColor="#000000" android:paddingTop="12dp" android:paddingBottom="12dp"/>
+            <Button android:id="@+id/device_info" style="@style/TextButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:paddingHorizontal="0dp" android:gravity="start|center_vertical" android:text="@string/device_info"/>
+            <View android:layout_width="match_parent" android:layout_height="1dp" android:layout_marginTop="4dp" android:background="#000000"/>
         </LinearLayout>
-        <TextView android:layout_below="@id/activity_header" android:id="@+id/activity_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/activity_empty" android:textSize="18sp" android:textColor="#000000" android:visibility="gone"/>
-        <ListView android:layout_below="@id/activity_header" android:layout_alignParentBottom="true" android:id="@+id/activity_entries" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="#000000" android:dividerHeight="1dp" android:overScrollMode="never" android:listSelector="@android:color/transparent"/>
+        <TextView android:layout_below="@id/activity_header" android:id="@+id/activity_empty" android:layout_width="match_parent" android:layout_height="wrap_content" android:paddingTop="16dp" android:text="@string/activity_empty" android:textSize="18sp" android:textColor="#000000" android:visibility="gone"/>
+        <ListView android:layout_below="@id/activity_header" android:layout_alignParentBottom="true" android:id="@+id/activity_entries" android:layout_width="match_parent" android:layout_height="match_parent" android:divider="#AAAAAA" android:dividerHeight="1dp" android:overScrollMode="never" android:listSelector="@android:color/transparent"/>
     </RelativeLayout>
 </LinearLayout>

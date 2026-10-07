@@ -96,6 +96,33 @@ open class ReadingSyncApp :
     override fun onActivityDestroyed(activity: Activity) {}
 }
 
+private const val LOGGED_CHANGES = 25
+
+/**
+ * The check as the event log keeps it: without the provider's column list, with a summary of the selected book, and
+ * with only the first [LOGGED_CHANGES] library changes plus their count. The full check stays in `lastCheck`.
+ */
+fun loggedCheck(detail: JSONObject): JSONObject = JSONObject(detail.toString()).apply {
+    remove("columns")
+    // An issue check keeps the full record, so the log still shows why progress was unusable.
+    optJSONObject("selected")?.takeIf { !optBoolean("issue") }?.let { book ->
+        val summary = JSONObject()
+        listOf(
+            "key" to book.opt("key"),
+            "title" to book.raw("title"),
+            "authors" to book.raw("authors"),
+            "percentage" to book.opt("percentage"),
+            "readingStatus" to book.raw("readingStatus"),
+            "lastAccess" to book.raw("lastAccess")
+        ).forEach { (name, value) -> summary.put(name, value ?: JSONObject.NULL) }
+        put("selected", summary)
+    }
+    optJSONArray("changes")?.let { all ->
+        put("changeCount", all.length())
+        if (all.length() > LOGGED_CHANGES) put("changes", JSONArray((0 until LOGGED_CHANGES).map { all.get(it) }))
+    }
+}
+
 fun deviceInfo(): JSONObject = JSONObject()
     .put("manufacturer", Build.MANUFACTURER)
     .put("model", Build.MODEL)
@@ -223,20 +250,35 @@ class Diagnostics(
         listOf("hardcover", "fable").forEach { service ->
             store.get("$service.active")?.takeIf { it.isNotEmpty() }?.let { value ->
                 val active = JSONObject(value)
-                event(active.getString("source"), "${service}_interruption_detected", active.getString("runId"), JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry."), true)
+                val detail = JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry.")
+                detail.putOpt("key", active.text("key")).putOpt("startedAt", active.text("startedAt"))
+                event(active.getString("source"), "${service}_interruption_detected", active.getString("runId"), detail, true)
                 store.put("$service.active", "")
             }
         }
         listOf("scheduled", "delivery").forEach { source ->
-            store.get("active.$source")?.takeIf { it.isNotEmpty() }?.let {
-                event(
-                    source,
-                    "interruption_detected",
-                    it,
-                    JSONObject().put("reason", "Previous run has no recorded stop; termination time and cause are unknown"),
-                    true
-                )
+            store.get("active.$source")?.takeIf { it.isNotEmpty() }?.let { value ->
+                // Older versions stored only the run id.
+                val active = if (value.startsWith("{")) JSONObject(value) else JSONObject().put("id", value)
+                val detail = JSONObject().put("reason", "Previous run has no recorded stop; termination time and cause are unknown")
+                detail.putOpt("startedAt", active.text("startedAt"))
+                event(source, "interruption_detected", active.getString("id"), detail, true)
                 store.put("active.$source", "")
+            }
+        }
+        prune()
+    }
+
+    @Volatile private var pruneFailed = false
+
+    /** Applies the event retention limits, measured from the last successful sync. A failure is logged once per process. */
+    fun prune() {
+        try {
+            if (store.prune(System.currentTimeMillis(), store.get("lastSyncMs")?.toLongOrNull()) > 0) updates.value++
+        } catch (error: Exception) {
+            if (!pruneFailed) {
+                pruneFailed = true
+                event("system", "prune_failed", detail = errorDetails(error, "prune"), issue = true)
             }
         }
     }
@@ -246,18 +288,31 @@ class Diagnostics(
         id: String
     ) {
         ensureRecovered()
-        store.put("active.$source", id)
-        event(source, "start", id)
+        store.put(
+            "active.$source",
+            JSONObject().put("id", id).put("startedAt", Instant.now().toString()).put("startedElapsedMs", SystemClock.elapsedRealtime())
+                .put("appVisible", app.visible).toString()
+        )
     }
 
+    /** Records one `run` event for the worker run that [startRun] began, then applies the retention limits. */
     fun stopRun(
         source: String,
         id: String,
         reason: String,
         issue: Boolean = false
     ) {
-        event(source, "stop", id, JSONObject().put("reason", reason), issue)
-        store.put("active.$source", "")
+        val marker = store.get("active.$source")
+        val active = marker?.takeIf { it.startsWith("{") }?.let(::JSONObject)?.takeIf { it.optString("id") == id }
+        val detail = JSONObject().put("reason", reason)
+        active?.let {
+            detail.put("startedAt", it.getString("startedAt")).put("appVisibleAtStart", it.getBoolean("appVisible"))
+                .put("durationMs", SystemClock.elapsedRealtime() - it.getLong("startedElapsedMs"))
+        }
+        event(source, "run", id, detail, issue)
+        // A newer run may have started meanwhile; only this run's marker is cleared. Older versions stored the bare id.
+        if (active != null || marker == id) store.put("active.$source", "")
+        prune()
     }
 
     fun snapshot(): JSONObject? = store.get("snapshot")?.let(::JSONObject)
@@ -327,7 +382,10 @@ class Diagnostics(
             store.put("snapshot", result.toString())
         }
         store.put("lastCheck", detail.toString())
-        event(source, "query", runId, detail, issue)
+        val logged = loggedCheck(detail)
+        event(source, "query", runId, logged, issue)
+        // Callers read the event's timestamp and source from the full check.
+        logged.keys().forEach { if (!detail.has(it)) detail.put(it, logged.get(it)) }
         detail
     }
 }

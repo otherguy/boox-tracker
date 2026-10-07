@@ -9,7 +9,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 - **Automatic book detection.** Boox Tracker finds the latest saved book in your NeoReader library.
 - **Progress updates.** Send progress now or let background work collect it while you read.
 - **Simple provider controls.** Turn a provider On to connect it. Turn it Off to stop updates.
-- **Clear activity history.** See what was read, what was sent, and which updates need attention. Export diagnostics when you need help.
+- **Clear activity history.** See what was read, what was sent, and which updates need attention. Tap an entry for its details. Export diagnostics when you need help.
 - **Made for e-ink.** Large touch targets, high-contrast text, static controls, and service icons that work alongside clear labels.
 
 ## Providers
@@ -47,7 +47,7 @@ Boox Tracker reads NeoReader's saved library information without changing it. It
 
 Saved library progress can lag behind page turns or differ from the percentage inside the book. Returning to NeoReader's library can help it save the latest state. Background checks request a fifteen-minute interval; Android and BOOX control when they run, especially during sleep.
 
-The **Sync** tab shows the detected book, saved progress, library count, and each service’s match and delivery state. Tap the book for metadata. **Activity** separates foreground reads, scheduled collection, and queued deliveries. See the [device-testing guide](docs/device-testing.md) for help with background behaviour.
+The **Sync** tab shows the detected book, saved progress, library count, and each service’s match and delivery state. Tap the book for metadata. **Activity** lists foreground reads, background checks, and deliveries in plain words; tap an entry for a summary and its raw record. Repeated unchanged checks and repeated issues share one entry. See the [device-testing guide](docs/device-testing.md) for help with background behaviour.
 
 ## Compatibility and privacy
 
@@ -55,7 +55,7 @@ Requires Android 8.0 or later on a BOOX device with NeoReader. Access to saved r
 
 Your ebooks stay on your device. Connected, enabled providers receive the information needed to match and update the detected book; Boox Tracker does not upload your EPUBs or backfill your whole library.
 
-Hardcover and Fable credentials use Android Keystore encryption. Your Fable password is never stored. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
+Hardcover and Fable credentials use Android Keystore encryption. Your Fable password is never stored. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them. The log is bounded for months of offline use: it keeps at most 1,000 events and nothing older than 30 days, and routine checks from before the last successful sync are removed once they are two days old. Sync state and queued updates are never removed this way. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
 
 ## Build from source
 

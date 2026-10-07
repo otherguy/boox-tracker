@@ -6,11 +6,11 @@ Updated 2026-10-07 for Boox Tracker 0.4.7/code 19 (issues in popups), installed 
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.7 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows with edition notes and a kept-progress warning, every current issue named in full at the top of the book and provider popups | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 148 tests, zero failures/errors; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.8 debug/signed APKs: Hardcover with completion sync and duplicate-read handling, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out, three-row provider rows with edition notes and a kept-progress warning, every current issue named in full at the top of the book and provider popups, a redesigned Activity tab with a bounded event log | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 181 tests, zero failures/errors; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
-| Physical current UI/update | Signed 0.3.1–0.4.7 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Physical current UI/update | Signed 0.3.1–0.4.8 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
 | Source / publication | `main` pushed at `bb73e8e` (0.4.7); [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit on 2026-10-07 | No release or prerelease exists; one needs an explicit user request |
 
 APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
@@ -43,6 +43,24 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Activity redesign and bounded log 0.4.8
+
+**Built:** debug and signed diagnostic APKs, version 0.4.8/code 20. Package, certificate, and SQLite/export schemas are unchanged; no migration was added. Artifact `dist/boox-tracker-0.4.8-diagnostic.apk`, 3,564,938 bytes, SHA-256:
+
+```text
+f7adf2654ad458ee5cbabd27b075236dec54a55db75291374905f0e266624732
+```
+
+Activity rows are fully tappable and read in plain words with a mark, the source, and the device-format time; repeats of one unchanged check or one issue share a row. A row opens a popup with Summary and monospaced JSON tabs of fixed height. The event log is bounded (user decision): 1,000 events, 30 days, and routine events from before the last successful sync after 48 hours, with routine events removed first at the cap. A worker run writes one `run` event, `*_sync_start` is gone, `queued` is written once per revision, and check events keep a six-field book summary unless the check is an issue. Exports keep only the newest file pair.
+
+Size estimate from representative events built from the code paths (not measured on the device; the release build cannot be read over ADB, and `diskstats` did not list the package): a check run wrote about 2.4 KB (the check event alone 1.75 KB, of which the column list is 0.5 KB and the book record 0.7 KB). At 96 runs a day that is about 7 MB a month and 85 MB a year, and about 115 MB a year offline with two pending trackers. Bounded, the events stay near 0.6 MB (1.3 MB if every event were a sync result), plus about 0.7 MB of state, so about 2 MB after one month and after one year.
+
+**Automatically tested:** 181 tests, zero failures/errors, empty stderr. New tests failed first: count and age caps, routine-first cap, sync-relative pruning and the 48-hour floor, state untouched, an unreadable row, the slim and the issue check event, the full check returned to the sync, one `run` event and the kept marker of a newer run, `queued` once per revision, pruning after a delivery, export cleanup, row text for every event kind, grouping across interleaved checks, the popup tabs, monospace, and fixed pane height. Both builds and lint variants, ktlint, ruff, actionlint, and markdownlint passed. Both required reviews ran. Applied: grouping that survives interleaved checks, guarded pruning at startup, the full record for issue checks, routine-first cap, keeping a newer run's marker, row keys with kind and run, "stopped" for cancelled runs, start and end visibility, a TalkBack word for each mark, and the simplifications. Not applied: debouncing list refreshes (Robolectric's paused looper does not advance delays), and protection against a wall clock that jumps forward.
+
+**Emulator checked:** the debug APK on API 32 showed the segmented filter, grouped rows, and both popup tabs at the same size. Screenshots are `dist/screenshots/boox-tracker-0.4.8-activity.png`, `-activity-popup.png`, and `-activity-json.png`; the emulator has no NeoReader, so they show provider-unavailable rows only.
+
+**Verified on physical BOOX:** signed 0.4.8 installed over 0.4.7 via USB at 18:15 on 2026-10-07 (code 20, data inode `129824` unchanged, no uninstall or data clear). The app started by ADB while the screen was dozing; its process ran and no crash was logged. The user then opened the Activity tab and its popup on the device and reported that they look right. Pruning has not been checked on the device. Retention evidence needs an export after the next successful sync: at most 1,000 observations and no `start`, `stop`, or `*_sync_start` events after it.
 
 ## Issues in popups 0.4.7
 

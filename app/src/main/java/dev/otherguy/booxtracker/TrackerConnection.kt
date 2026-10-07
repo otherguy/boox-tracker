@@ -83,10 +83,20 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         settingsMutex.withLock {
             if (!enabled() || store.get("$service.account") != accountId) return
             val previous = store.get(stateKey)?.let(::JSONObject)
-            if (previous?.optString("sourceState") != sourceState(candidate, metadata) || store.pending(accountId, service).any { it.getJSONObject("book").getString("key") == key }) {
+            val waiting = store.pending(accountId, service).firstOrNull { it.getJSONObject("book").getString("key") == key }
+            if (previous?.optString("sourceState") != sourceState(candidate, metadata) || waiting != null) {
                 val item = store.enqueue(accountId, candidate, metadata, check.optString("timestamp"), service)
                 store.put(stateKey, (previous ?: JSONObject()).put("delivery", "pending").toString())
-                diagnostics.event(source, "queued", runId, JSONObject().put("service", service).put("key", key).put("revision", item.getString("revision")).put("outcome", "pending"))
+                // A book already waiting with the same state keeps its revision; only a new revision is news.
+                if (item.getString("revision") != waiting?.optString("revision")) {
+                    diagnostics.event(
+                        source,
+                        "queued",
+                        runId,
+                        JSONObject().put("service", service).put("key", key).put("title", candidate.raw("title") ?: JSONObject.NULL)
+                            .put("percentage", candidate.opt("percentage") ?: JSONObject.NULL).put("revision", item.getString("revision")).put("outcome", "pending")
+                    )
+                }
             }
             if (store.pending(accountId, service).isNotEmpty()) scheduleDelivery(app)
         }
@@ -99,6 +109,7 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         requireEbookFolder(app, store)
         val accountId = store.get("$service.account")?.takeIf { it.isNotBlank() } ?: return@withLock false
         var retry = false
+        var synced = false
         val attempted = mutableSetOf<String>()
         for (item in store.pending(accountId, service)) {
             if (!enabled()) break
@@ -108,14 +119,14 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
             val old = store.get(key)?.let(::JSONObject) ?: JSONObject()
             val id = UUID.randomUUID().toString()
             val started = SystemClock.elapsedRealtime()
-            store.put("$service.active", JSONObject().put("source", source).put("runId", id).toString())
-            diagnostics.event(source, "${service}_sync_start", id, JSONObject().put("key", book.getString("key")))
+            store.put("$service.active", JSONObject().put("source", source).put("runId", id).put("key", book.getString("key")).put("startedAt", Instant.now().toString()).toString())
             try {
                 val result = deliver(book, BookIdentifiers.fromJson(item.getJSONObject("identifiers")), accountId, item.getString("readAt"))
                     .put("durationMs", SystemClock.elapsedRealtime() - started).put("readAt", item.getString("readAt"))
                     .put("timestamp", Instant.now().toString()).put("sourceState", item.getString("sourceState"))
                 val acknowledged = store.acknowledge(item)
                 retry = retry || !acknowledged
+                synced = synced || acknowledged
                 result.put("delivery", if (acknowledged) "synced" else "pending").put("lastSuccess", JSONObject(result.toString()))
                 store.put(key, result.toString())
                 diagnostics.event(source, "${service}_sync", id, result)
@@ -132,6 +143,10 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
                 store.put("$service.active", "")
                 diagnostics.updates.value++
             }
+        }
+        if (synced) {
+            store.put("lastSyncMs", System.currentTimeMillis().toString())
+            diagnostics.prune()
         }
         // Fetches account details when none are stored, for example for an older sign-in or after a failed fetch.
         if (enabled() && store.get("$service.profile") == null) refreshProfile()

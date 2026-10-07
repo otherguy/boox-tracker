@@ -20,7 +20,7 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 1. Turn **Fable On**, enter your Fable email and password in the popup, and press **Sign in**. A wrong password must keep the popup open with a short message. **Cancel** must turn Fable Off.
 2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Fable, the book must be on Currently Reading with the percentage rounded down. Higher progress on Fable must stay unchanged.
 3. Finish the book in NeoReader. After a sync, Fable must show 100% and the book on Finished.
-4. Export diagnostics and confirm that the export contains no password or token.
+4. Export and confirm that the export contains no password or token.
 
 ## Offline collection and reconnect
 
@@ -36,7 +36,7 @@ Account changes must not deliver another account's queue. If testing this, keep 
 
 1. Keep Hardcover On. Stay in NeoReader for 30–60 minutes with Boox Tracker hidden. Keep the device awake for the first test; do not force-stop the new app.
 2. Reopen Boox Tracker and export. Opening it automatically collects and attempts delivery: only entries before that time establish independent work.
-3. Inspect **scheduled** query and **delivery** events. For local reads, `appVisibleAtStart` and `appVisible` must be false. For delivery, inspect its start/stop visibility and timestamps separately.
+3. Inspect **scheduled** query and **delivery** events. For local reads, `appVisibleAtStart` and `appVisible` must be false. Each background run has one **run** event with its start time, `appVisibleAtStart`, and duration; inspect delivery runs separately.
 4. Repeat during sleep, then cold boot. Record sleep, wake, power-off, boot, and app-open times. Reboot retention and execution timing are different questions.
 
 The fifteen-minute interval is a request, not a guarantee. Network availability, Android scheduling, sleep, and BOOX restrictions can delay work. A foreground sync, emulator result, or ADB provider query does not establish ordinary-app background execution.
@@ -49,7 +49,7 @@ No observation service or app-managed wake lock is used in 0.3.0. WorkManager ma
 
 ## Logs and reports
 
-Activity shows the latest 250 events; **Export diagnostics** includes the retained history as text and JSON. Use **All / Issues** and expandable details. Provider denial, unavailable provider, empty library, unknown progress, queued waiting, and tracker errors are separate results.
+Activity shows the retained events; tap an entry for its **Summary** and **JSON** tabs. **Export** writes the same retained history as text and JSON. The log keeps at most 1,000 events and nothing older than 30 days; routine checks and waiting sends from before the last successful sync are removed once they are two days old, so export within two days of a background test. Use **All / Issues**. Provider denial, unavailable provider, empty library, unknown progress, queued waiting, and tracker errors are separate results.
 
 Compatible signed updates preserve data. The 0.3.0 package change starts a new data store and leaves old logs in the old app. Do not uninstall or clear storage to test retention.
 
