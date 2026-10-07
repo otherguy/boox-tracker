@@ -1,12 +1,24 @@
 # Project status and handoff
 
-Updated 2026-10-07 after the 0.4.0 Fable build; 0.3.4 is the installed version. App name: **Boox Tracker**. Reading Sync is the historical name. Read [product decisions](product.md), [current plan](plan-20261006-automatic-offline-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after the 0.4.0 Fable build and its USB install over 0.3.4. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
-Implementation is complete for the approved automatic matching/offline milestone. Physical validation is partly complete. The next test is offline collection and reconnection with the app hidden; see [device testing](device-testing.md#offline-collection-and-hidden-app-delivery). Do not rebuild the provider layer or repeat completed diagnostic sessions. Do not add selectors, matching confirmations, a Connect button, or an observation service.
+State on 2026-10-07:
 
-The checkout is `feat/automatic-offline-sync`. HEAD is `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0`, the original 0.1.0 commit. Later source, tests, and docs are local modified/untracked files. Preserve them and staged state. The remote is `git@github.com:otherguy/boox-tracker.git`. CI passed for 0.1.0; no current-source push or remote CI run is recorded. GitHub releases and prereleases remain on hold. A successful manual sync does not lift that hold.
+- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`, pushed at `84f3c0a`. [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit.
+- **Device:** signed 0.4.0/code 12 is installed over 0.3.4 on the GoColor7 by USB. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
+- **Fable account:** In the Blood is on Currently Reading at 50%. The UK paperback sibling has a stray 0% record on no list.
+- **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
+
+Next physical checks, in order:
+
+1. [Fable sync](device-testing.md#fable-sync). The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
+2. [Completion sync](device-testing.md#completion-sync) on Hardcover.
+3. [Hidden-app offline collection and delivery](device-testing.md#offline-collection-and-hidden-app-delivery).
+4. [Book-only fallback](device-testing.md#book-only-fallback) and queue retention through restart and reboot.
+
+Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
 ## Built: 0.4.0 / code 12
 
@@ -31,7 +43,7 @@ Ordinary-UID `ContentResolver.query()` reads `content://com.onyx.content.databas
 
 The most recent unique usable `lastAccess` selects the saved book automatically. Missing/tied times stop detection. Stored activity can lag the book currently open. Database title/authors serve every ebook format exposed by the provider. Bounded read-only EPUB parsing supplies embedded identifiers; PDF/MOBI/other embedded metadata parsers are not implemented. Their database identifiers/title/author remain usable.
 
-`BookIdentifiers.kt` is the single identifier allowlist: ISBN, ASIN, Goodreads, distinct Hardcover edition/book/slug identities, and explicit StoryGraph/Fable/Margins tags. Future-service tags are display-only bounded opaque IDs, not validated API contracts. Unknown tags are ignored. The UI labels reader results without another allowlist. ASIN is used by the current Hardcover edition lookup.
+`BookIdentifiers.kt` is the single identifier allowlist: ISBN, ASIN, Goodreads, distinct Hardcover edition/book/slug identities, and explicit StoryGraph/Fable/Margins tags. Fable matching uses `fable:` UUIDs; StoryGraph and Margins tags are display-only bounded opaque IDs, not validated API contracts. Unknown tags are ignored. The UI labels reader results without another allowlist. ASIN is used by the current Hardcover edition lookup.
 
 ### Hardcover and delivery
 
@@ -61,9 +73,9 @@ Activity uses recycled rows and lazy details, shows the latest 250 events, and r
 
 ## Automatically tested
 
-The current local reports contain **76 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. Kotlin, Python, Markdown, Actions, whitespace, and link checks passed. Both required independent reviews returned clear final results. Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.0 reports contain **121 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings, which were applied with tests. Packaging verified signatures; delivered APK hashes were checked separately.
 
-Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#identifier-allowlist-033).
+Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 
 ## Verified on physical BOOX
 
@@ -75,7 +87,7 @@ One device: ONYX GoColor7, Android 12/API 32, build `2026-05-19_23-44_4.2-rel_05
 | Independent local scheduling | Historical app-hidden reads, including cold boot and wake; no exact cadence or regular sleep guarantee |
 | Historical logs/Activity | Reboot/update/export retention and much faster scrolling reported on 0.1.2 |
 | Native sign-in and manual exact sync | User confirmed on 0.3.1: Exact edition matched, Synced at…, progress reached Hardcover; In the Blood screenshot shows 240/480 pages, 50% |
-| Current updates/UI | Signed 0.3.1–0.3.3 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked |
+| Current updates/UI | Signed 0.3.1–0.4.0 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.0 not yet launched |
 
 The remote screenshots do not prove a selected edition ID, exact raw fraction, or mutation sequence. Those need an export. The 0.3.3 metadata screenshot is `dist/screenshots/boox-tracker-0.3.3-boox-metadata.png`. Future-service tags were absent from this book, so their rendering/rejection has automatic proof only. Data inode `129824` stayed unchanged across the new-package updates; this alone does not prove reboot queue retention.
 
@@ -85,23 +97,25 @@ Foreground checks around 22:03–22:04 and 22:31–22:32 local time on 2026-10-0
 
 ## Missing evidence and next work
 
+- Validate Fable sign-in, sync, shelving, completion, and the first token refresh on the device.
 - Validate hidden-app offline collection and delivery after reconnection; inspect events before app-open sends.
 - Validate book-only fallback, using the supplied Savage Son case without catalogue edits.
 - Validate queue retention through restart/reboot and real offline toggle/account behavior; automatic coverage already exists.
 - Inspect a current export for matching/page-basis/delivery evidence. Keep private exports and ebook files outside Git.
 - Continue ordinary use under recorded BOOX settings. Treat sleep/reboot gaps as evidence, without guessing their cause.
 
-Other trackers, automatic completion/rereads, additional embedded-format parsers, statistics-provider access, website, updater, and history-retention policy are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
+Goodreads, StoryGraph, and Margins connectors, rereads, additional embedded-format parsers, statistics-provider access, website, updater, and history-retention policy are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
 
 ## Documentation map
 
 | Document | Use |
 | --- | --- |
-| [Agent instructions](../AGENTS.md) | Guardrails, source ownership, commands, resume point |
-| [Product](product.md) | Current requirements and unresolved scope |
+| [Agent instructions](../AGENTS.md) | Durable guardrails, code map, commands |
+| [Product](product.md) | Decisions in force and unresolved scope |
 | [Design](design.md) | Mockup, actual UI, e-ink rules |
 | [Integrations](integrations.md) / [provider research](research.md) | Dated findings, samples, licences, unknown contracts |
 | [Verification](verification.md) / [device testing](device-testing.md) | Separate automatic/device proof and next protocol |
-| [Build and release](build-and-release.md) | Signing, APKs, CI, publication hold |
-| [Current plan](plan-20261006-automatic-offline-sync.md) | Completed implementation and pending physical checks |
+| [Build and release](build-and-release.md) | Tools, signing, packaging, CI, publication rules |
+| [Fable plan](plan-20261006-fable-sync.md) | Latest approved scope and its pending physical checks |
+| [Automatic/offline plan](plan-20261006-automatic-offline-sync.md) / [completion plan](plan-20261006-completion-sync.md) | Completed scopes with pending physical checks |
 | [Diagnostic plan](plan-20261004-reading-sync-poc.md) / [first connector plan](plan-20261006-hardcover-first.md) | Historical approved scopes, superseded requirements |

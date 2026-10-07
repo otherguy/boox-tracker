@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.0/code 12 (Fable). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below and [device checklist](device-testing.md#current-033-checks). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.0/code 12 (Fable). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -10,8 +10,8 @@ Updated 2026-10-07 for Boox Tracker 0.4.0/code 12 (Fable). Version sections reco
 | Automatically tested | 121 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
-| Physical current UI/update | Signed 0.3.1–0.3.3 updates; prompt, merged identifiers, readable-grant cancellation checked | Future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
-| Source / publication | Current source local on feat/automatic-offline-sync; CI configured, only 0.1.0 remote success recorded | No current-source remote CI; releases/prereleases still held |
+| Physical current UI/update | Signed 0.3.1–0.4.0 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.0 launch and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Source / publication | `main` pushed at `84f3c0a` (0.4.0); [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit on 2026-10-07 | No release or prerelease exists; one needs an explicit user request |
 
 APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
 
@@ -23,7 +23,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 
 - A null provider ISBN does not mean no EPUB ISBN exists. The shipping popup now reads the same merged repository as sync off the main thread.
 - `progressProblem: null` means no fraction error; valid progress shows OK. Missing/unreadable/invalid progress stays explicit and never becomes 0%.
-- Reader extraction is the single tag allowlist; UI labels do not add another. Future tags are display-only, and ASIN is currently used by Hardcover.
+- Reader extraction is the single tag allowlist; UI labels do not add another. Tags for services without an integration are display-only. Fable matches `fable:` UUIDs, and Hardcover and Fable both use ASIN.
 - Ebook cache namespace changes invalidate parsed metadata without deleting settings/logs. Application, database/export, and cache versions are separate.
 - Stored lastAccess can lag book switches; provider/library percentages can differ from in-book display. No source selector or percentage offset resolves that uncertainty.
 
@@ -45,7 +45,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 
 ## Fable sync 0.4.0
 
-**Built:** debug and signed diagnostic APKs, version 0.4.0/code 12, on `main` as local uncommitted changes. Package, diagnostic certificate (`678df89d…f4b420d`), app database/export schemas, ebook cache namespace, Hardcover vault file and Keystore alias, and OAuth client ID are unchanged. Artifact `dist/boox-tracker-0.4.0-diagnostic.apk`, 3,538,746 bytes, SHA-256:
+**Built:** debug and signed diagnostic APKs, version 0.4.0/code 12, committed on `main` as `0b435be` with docs in `84f3c0a`, and pushed on 2026-10-07. [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for `84f3c0a`. Package, diagnostic certificate (`678df89d…f4b420d`), app database/export schemas, ebook cache namespace, Hardcover vault file and Keystore alias, and OAuth client ID are unchanged. Artifact `dist/boox-tracker-0.4.0-diagnostic.apk`, 3,538,746 bytes, SHA-256:
 
 ```text
 6154bfce8cfddcad667bed4d2eeb4a5dbccb69a3a807e1ee5fcd735180081679
@@ -57,7 +57,7 @@ Fable is the second tracker; see the [Fable plan](plan-20261006-fable-sync.md) a
 
 **Automatically tested:** 121 tests, zero failures/errors/skips, empty stderr, including 36 new Fable tests against a local fake of the observed response shapes. Both builds and lint variants passed; lint has zero errors and ten dependency/tool notices per variant. ktlint and markdownlint passed. The code-reviewer and code-simplifier reviews both returned findings; all were applied with tests, as listed in the plan notes.
 
-**Verified on physical BOOX:** nothing yet. The 0.4.0 APK was not installed. See [Fable device checks](device-testing.md#fable-sync).
+**Verified on physical BOOX:** the signed 0.4.0 update installed over 0.3.4 via USB on 2026-10-07 at 11:01 local time. Package metadata reports code 12/version 0.4.0, the same data directory inode `129824`, and the app is not disabled. No uninstall or data clear was issued. Launch, Fable sign-in, and sync are not yet checked; see [Fable device checks](device-testing.md#fable-sync).
 
 ## Completion sync 0.3.4
 
@@ -101,7 +101,7 @@ The full Gradle build/test/lint gate, Kotlin lint, Python format/lint, Markdown 
 
 **Verified on physical BOOX:** the signed update installed over 0.3.1 on the GoColor7 via USB on 2026-10-06. Package state reports code 9/version 0.3.2; data inode stayed `129824`. No data-clear or uninstall was issued. After normal wake, the installed ordinary-UID app read NeoReader. Its bordered popup visibly shows full ISBN, ASIN and Goodreads values, bold Title Case labels, NeoReader Database: OK, Progress State: OK, raw status, and readable distinct Last Access/Read At. Absent Hardcover tags produce no line. Screenshot: `dist/screenshots/boox-tracker-0.3.2-boox-metadata.png`. About → Change ebook folder opened the native picker; Back returned through the picker to Sync without an access prompt. The existing connection stayed On and displayed its prior match/sync state. This verifies the popup and readable-grant cancellation on the device; revoked-grant/recreation cases have automatic coverage only.
 
-The update checks opened the app around 22:03–22:04 local time. Those foreground reads are not hidden-app evidence. Prior user-confirmed manual progress delivery remains separate; book-only fallback and offline hidden-app reconnect delivery are still pending in [the current device checks](device-testing.md#current-033-checks). Releases/prereleases remain on hold.
+The update checks opened the app around 22:03–22:04 local time. Those foreground reads are not hidden-app evidence. Prior user-confirmed manual progress delivery remains separate; book-only fallback and offline hidden-app reconnect delivery are still pending in [the device checks](device-testing.md). Releases/prereleases remain on hold.
 
 ## Ebook-folder prompt 0.3.1
 
@@ -139,7 +139,7 @@ Observed regressions before fixes included PDF metadata incorrectly requiring EP
 
 **Verified on physical BOOX:** the signed 0.3.0/code 7 APK installed over USB on the user's GoColor7 on 2026-10-06. Android package state confirms the version, and the process and resumed MainActivity confirm launch. The first launch failed because the package was disabled (`enabled=3`, `lastDisabledCaller: com.onyx`); enabling this package allowed launch. This does not establish which BOOX policy disabled it or guarantee background execution. The old `org.readingsync.diagnostic` package was absent from installed/known package listings; no uninstall or data-clear command was issued. No account operation was performed during this installation.
 
-Earlier ordinary-app provider/scheduled-read evidence below applies to the recorded GoColor7 firmware only. Real native sign-in, exact/book-only progress delivery, reboot queue retention, and hidden-app offline/reconnect work remain pending at this 0.3.0 handoff; later results are recorded above. Use [the current device checklist](device-testing.md#current-033-checks). If the old app is restored, disable its Background checks/tracker/observation before enabling it alongside the new installation; keep its logs. Opening 0.3.0 automatically collects/sends, so only pre-app-open scheduled/delivery events establish independent execution.
+Earlier ordinary-app provider/scheduled-read evidence below applies to the recorded GoColor7 firmware only. Real native sign-in, exact/book-only progress delivery, reboot queue retention, and hidden-app offline/reconnect work remain pending at this 0.3.0 handoff; later results are recorded above. The current device checklist is in [device testing](device-testing.md). If the old app is restored, disable its Background checks/tracker/observation before enabling it alongside the new installation; keep its logs. Opening 0.3.0 automatically collects/sends, so only pre-app-open scheduled/delivery events establish independent execution.
 
 ## Boox Tracker rename: 2026-10-06
 
@@ -213,7 +213,7 @@ Local checks for 0.1.2 passed on 2026-10-05. Provider/background findings below 
 
 ## Built
 
-This section records the historical 0.1.2 diagnostic build. The current artifact is in [Identifier allowlist 0.3.3](#identifier-allowlist-033).
+This section records the historical 0.1.2 diagnostic build. The current artifact is in [project status](project-status.md).
 
 Both variants built with the tool versions in `.tool-versions`:
 
@@ -388,4 +388,6 @@ Compatibility with other BOOX models or firmware, reliable execution across repe
 
 The configured remote is [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). The initial source commit `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0` passed the [Android checks workflow](https://github.com/otherguy/boox-tracker/actions/runs/37175084972); its successful conclusion and matching commit were rechecked during the 0.1.1 work. This CI result covers 0.1.0, not the local 0.1.1/0.1.2 changes.
 
-No release existed at the recorded initial GitHub check. No release/prerelease was created during later local work, and publication remains on hold. Current source remains local on feat/automatic-offline-sync at the original 0.1.0 HEAD; no 0.3.x remote CI run is recorded. The manual workflow and [signing instructions](build-and-release.md#github-delivery) remain a future path, not authorization to dispatch it.
+Later pushes also passed: `2b294dc` (0.3.4 handoff docs) on 2026-10-06 and `84f3c0a` (0.4.0 Fable) [on 2026-10-07](https://github.com/otherguy/boox-tracker/actions/runs/37569442407).
+
+No release or prerelease has been created. The manual workflow and [signing instructions](build-and-release.md#github-delivery) remain a future path, not authorization to dispatch it.

@@ -1,6 +1,6 @@
 # Boox Tracker: automatic matching and offline sync
 
-Approved by the user on 2026-10-06. Implementation is complete through 0.3.3/code 10; physical validation is partly complete. Supersedes edition-selection proposals and the diagnostic observation UI. Publication remains on hold. Read [project status](project-status.md) and [device testing](device-testing.md) for the resume point.
+Approved by the user on 2026-10-06. Completed in 0.3.0–0.3.3 (codes 7–10). Supersedes edition-selection proposals and the diagnostic observation UI. Open physical checks are tracked in [project status](project-status.md).
 
 ## Automatic matching
 
@@ -56,7 +56,7 @@ Automatic checks cover these paths; unchecked items require physical evidence, n
 - Match cache expires after one hour as well as invalidating on metadata fingerprint changes.
 - Existing remote editions without pages remain held. Pageless exact source editions can fall through to verified defaults.
 - Unique delivery uses APPEND_OR_REPLACE so enqueue during worker completion retains another network-triggered attempt.
-- The identifier reader is the single allowlist; the popup supplies labels only. Future-service tags are display-only, not connectors.
+- The identifier reader is the single allowlist; the popup supplies labels only. Future-service tags are display-only, not connectors. Fable later matches `fable:` UUIDs ([Fable plan](plan-20261006-fable-sync.md)).
 - Ebook cache namespace 2 refreshes extracted fields even if source modification time is unchanged; it is not a schema migration.
 
 ### Delivery history
@@ -76,4 +76,4 @@ The old package was absent from installed/known lists; no uninstall/data clear w
 
 Merged APK permission checks distinguish app declarations from dependencies: WorkManager still contributes generic FOREGROUND_SERVICE/SystemForegroundService, WAKE_LOCK and boot scheduling. Observation and its explicit permissions are gone; current workers do not enter foreground mode. Removing a feature does not remove all library declarations.
 
-Current source remains local on feat/automatic-offline-sync, based on the initial 0.1.0 commit. Existing CI has not run on it. No release/prerelease was created or authorized. Other service connectors, rereads (completion is in the [completion plan](plan-20261006-completion-sync.md)), embedded non-EPUB parsers, website, statistics provider, updater, and retention policy need separate scope. See [product decisions](product.md#open-decisions-and-next-work).
+At completion the source was local on `feat/automatic-offline-sync`; it was later merged and pushed to `main`. No release/prerelease was created or authorized. Other service connectors, rereads (completion is in the [completion plan](plan-20261006-completion-sync.md)), embedded non-EPUB parsers, website, statistics provider, updater, and retention policy need separate scope. See [product decisions](product.md#open-decisions-and-next-work).

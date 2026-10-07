@@ -1,10 +1,10 @@
 # Product context
 
-Confirmed context as of 2026-10-06, current app 0.4.0/code 12. The [approved automatic/offline plan](plan-20261006-automatic-offline-sync.md) is implemented. [Verification](verification.md) separates implementation from physical evidence. Historical plans do not override these decisions.
+Confirmed product decisions. They override earlier plans. Current state and next steps are in [project status](project-status.md); [verification](verification.md) separates implementation from physical evidence.
 
 ## Confirmed direction
 
-Boox Tracker is an open-source Android companion: NeoReader saved metadata → companion → enabled trackers. Keep NeoReader as the reader. Hardcover is implemented and user-confirmed manual exact sync works. Fable is implemented in 0.4.0 through its unofficial app API under the [Fable plan](plan-20261006-fable-sync.md); physical checks are pending. Goodreads, StoryGraph, and Margins remain Coming Soon. No two-way NeoReader writes, hosted sync backend, source-book chooser, destination-match confirmation, or catalogue editing is approved.
+Boox Tracker is an open-source Android companion: NeoReader saved metadata → companion → enabled trackers. Keep NeoReader as the reader. Hardcover and Fable are implemented. Fable uses Fable's unofficial app API by the user's decision on 2026-10-06 ([Fable plan](plan-20261006-fable-sync.md)); public docs must say so. Goodreads, StoryGraph, and Margins remain Coming Soon. No two-way NeoReader writes, hosted sync backend, source-book chooser, destination-match confirmation, or catalogue editing is approved.
 
 The user expects the ebook reader to be offline most of the time. Collect and queue locally without asking for Wi-Fi. A connected account can enable offline and stays On during offline periods. First-time connection failure returns Off with an inline message. Off pauses sends without deleting pending items; the same account can resume. A different account must never receive earlier-account updates. Background work never launches approval UI.
 
@@ -26,6 +26,8 @@ Convert the fraction to approximate pages, rounded HALF_UP. Preserve higher remo
 
 Completion sync was approved on 2026-10-06 for the detected book only. When NeoReader saves status `2` with a full fraction, the app writes full pages and a finish date to the read, then sets the Hardcover status to Read. The finish date is the device-local date of the provider last-access time, falling back to the query date. No start date is written. A remote book already marked Read is left unchanged and reported as current. A not-yet-Read book with exactly one finished read, whether from an interrupted earlier write or the user, only receives the status update; that read keeps its pages and date. Equal or higher remote pages do not stop a finish; the higher count is kept. Status `2` with a partial fraction, or status `1` at 100%, holds until NeoReader's state is consistent. Rereads remain held: reopening a finished book can return it to status `1`, and a remote finished read then protects history as before.
 
+Fable stores whole percentages, so the app sends the provider percentage rounded down and reads it back. It shelves the book on Currently Reading before the first update and on Finished at completion. An edition the user already shelved keeps receiving progress. A Finished or Did Not Finish edition holds a reading source. Higher remote progress is kept. Only Fable's sign-in tokens are stored, never the password.
+
 ### Durable collection and delivery
 
 Persist the latest observation per account/service/source book before delivery, while retaining full observation logs. Switching books cannot replace another book's pending item. Acknowledge only the revision sent; retain newer observations. Read remote state before retrying an uncertain write to avoid duplicate reads or reduced progress. Retry transient network/server failures with backoff.
@@ -42,7 +44,7 @@ Readable persisted read-only SAF ebook-folder access is mandatory. Explain what 
 
 The popup shows full available identifier values and omits absent service tags. Labels are bold Title Case, with ISBN/ASIN unchanged. NeoReader Database and Progress State show OK only for successful checks. Diagnostic `progressProblem: null` means no parsing error. Last Access is provider metadata; Read At is the query timestamp, formatted with local date/time preferences. Unsupported timestamps retain their raw value/state.
 
-Package/namespace changed in 0.3.0/code 7 to `dev.otherguy.booxtracker`; development adds `.debug`. This intentionally starts fresh data and does not migrate old credentials/logs. Preserve any old app/data if present and disable its sends before running both. The old package was absent during the USB handoff; no agent uninstall/data clear was issued. Reuse the external diagnostic signer and shared public OAuth client ID. Compatible 0.3.x updates retain settings/logs. SQLite and export schemas remain 1; ebook cache namespace is separately versioned at 2. Activity displays 250 recent events, export retains all history, and no deletion policy is approved.
+Package/namespace changed in 0.3.0/code 7 to `dev.otherguy.booxtracker`; development adds `.debug`. This intentionally starts fresh data and does not migrate old credentials/logs. Preserve any old app/data if present and disable its sends before running both. The old package was absent during the USB handoff; no agent uninstall/data clear was issued. Reuse the external diagnostic signer and shared public OAuth client ID. Compatible updates retain settings/logs. SQLite and export schemas are version 1; ebook cache namespace is separately versioned at 2. Activity displays 250 recent events, export retains all history, and no deletion policy is approved.
 
 ## Findings that constrain the product
 
@@ -61,7 +63,7 @@ Exact timed evidence, device/build fields, status examples, and export counts be
 
 ## Open decisions and next work
 
-The next approved work is physical validation in [device testing](device-testing.md): book-only matching, offline multi-book retention, and hidden-app reconnect delivery. Core implementation and automatic coverage are built. Do not describe unverified execution as a missing implementation, or treat a manual send as proof of scheduled delivery.
+The order of open physical checks is in [project status](project-status.md#resume-here); protocols are in [device testing](device-testing.md). Do not describe unverified execution as a missing implementation, or treat a manual send as proof of scheduled delivery.
 
 | Area | Missing implementation or decision |
 | --- | --- |
@@ -71,4 +73,4 @@ The next approved work is physical validation in [device testing](device-testing
 | Website | Proposed project/download site under an unspecified otherguy.dev subdomain; hosting not selected |
 | History and distribution | Retention/deletion policy, updater, optional Obtainium/store channels |
 
-GitHub Releases is the eventual APK channel, but prereleases/releases remain on hold until explicit user confirmation. Existing CI configuration is not a current remote run. Current changes are local; a future source push and CI run must be verified separately. Use mise and `.tool-versions` for all host tools, including Java; no Homebrew dependency is required.
+GitHub Releases is the eventual APK channel. Create a release or prerelease only when the user explicitly asks. A pushed commit and its CI result do not publish anything. Use mise and `.tool-versions` for all host tools, including Java; no Homebrew dependency is required.

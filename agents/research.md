@@ -1,6 +1,6 @@
 # Provider research
 
-Updated 2026-10-06. Current code is 0.3.3; historical 0.1.x exports established provider access and progress limits. Hardcover sends do not change the BOOX access boundary. Current product/background decisions are in [product](product.md); detailed evidence is in [verification](verification.md).
+Historical 0.1.x exports established provider access and progress limits. Tracker sends do not change the BOOX access boundary. Current product/background decisions are in [product](product.md); detailed evidence is in [verification](verification.md).
 
 The Metadata URI began as a community lead and is now verified through the installed app's ordinary UID on the user's GoColor7 firmware. It is not a universal firmware contract:
 
@@ -12,11 +12,11 @@ The [verification record](verification.md#verified-on-physical-boox) contains th
 
 ## Inspected sources
 
-- [Tukks/onyxbooxsync.koplugin](https://github.com/Tukks/onyxbooxsync.koplugin/tree/9a0e8b3d0484ccdbf6e5919f9442e8047bc9a2b2): MIT license file. Its Android provider helper contains application-side queries as well as writes. Reading Sync does not use its write behavior.
+- [Tukks/onyxbooxsync.koplugin](https://github.com/Tukks/onyxbooxsync.koplugin/tree/9a0e8b3d0484ccdbf6e5919f9442e8047bc9a2b2): MIT license file. Its Android provider helper contains application-side queries as well as writes. Boox Tracker does not use its write behavior.
 - [eszter007/boox-kosync](https://github.com/eszter007/boox-kosync/tree/9a4df2f9b2cdea414fd49bd9972d575c1dfc40c1): MIT license file. Its application uses `ContentResolver`, a foreground observer, and polling. It references `extraAttributes.current_page_position_v2`; its meaning must be tested per firmware.
 - [sleepdebt/boox-hardcover](https://github.com/sleepdebt/boox-hardcover/tree/f1ae43468d80d55aaaa7b06268d297be7ca6c6ca): `pyproject.toml` declares MIT; no standalone license text was present in the inspected tree. It queries through ADB and documents normalized fractions and lifecycle persistence. Those observations cannot prove application-UID access or persistence timing on another firmware.
 
-Reading Sync uses an independent minimal implementation. No tracker code or source snippets were copied from these projects. AndroidX dependencies retain their own Apache licenses.
+Boox Tracker uses an independent minimal implementation. No tracker code or source snippets were copied from these projects. AndroidX dependencies retain their own Apache licenses.
 
 The supplied exploration history additionally named [BearChao/apple-books-boox-sync](https://github.com/BearChao/apple-books-boox-sync) as a metadata/progress/status reference. It is an Apple Books/ADB integration; its source and licence were not inspected during this POC. It does not establish our installed-app access or product architecture.
 
@@ -51,7 +51,7 @@ The supplied history named an optional second URI:
 content://com.onyx.kreader.statistics.provider/OnyxStatisticsModel
 ```
 
-Reading Sync does not query or declare visibility for this provider. No ordinary-UID access, column availability, event meaning, time units, or linkage has been verified on the device. Successful Metadata queries do not prove any of these.
+Boox Tracker does not query or declare visibility for this provider. No ordinary-UID access, column availability, event meaning, time units, or linkage has been verified on the device. Successful Metadata queries do not prove any of these.
 
 | Candidate field | Historical interpretation requiring validation |
 | --- | --- |
@@ -71,7 +71,7 @@ Prior reverse-engineering notes suggested `type` codes `0` opening, `1` reading 
 - [Periodic WorkManager requests](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work): fifteen minutes is the minimum periodic interval; actual timing is best-effort.
 - [Wake behavior](https://developer.android.com/develop/background-work/background-tasks/awake?hl=en): WorkManager/system scheduling can acquire wake locks. Boox Tracker adds no app-managed wake lock or forced screen-on behavior.
 
-The app source manifest requests Internet and network-state access for Hardcover. Its observation service and explicit foreground/notification permissions were removed in 0.3.0. The merged diagnostic APK still inherits WorkManager's WAKE_LOCK, RECEIVE_BOOT_COMPLETED, generic FOREGROUND_SERVICE permission, and SystemForegroundService declaration. Current application code does not promote workers to foreground work. Do not claim the final APK lacks all foreground-service declarations. Local collection has no network constraint; separate delivery does. No broad storage, usage-stats, root, shell, battery-exemption, or vendor-signature permission is requested. Read-only ebook access is a separate persisted SAF grant; package visibility grants no provider access permission.
+The app source manifest requests Internet and network-state access for tracker sync. Its observation service and explicit foreground/notification permissions were removed in 0.3.0. The merged diagnostic APK still inherits WorkManager's WAKE_LOCK, RECEIVE_BOOT_COMPLETED, generic FOREGROUND_SERVICE permission, and SystemForegroundService declaration. Current application code does not promote workers to foreground work. Do not claim the final APK lacks all foreground-service declarations. Local collection has no network constraint; separate delivery does. No broad storage, usage-stats, root, shell, battery-exemption, or vendor-signature permission is requested. Read-only ebook access is a separate persisted SAF grant; package visibility grants no provider access permission.
 
 The supplied background-setting leads are [BOOX app management](https://help.boox.com/hc/en-us/articles/10701262170644-App-Management-Settings) and an [alternative BOOX guide](https://help.boox.com/hc/en-us/articles/8569441562004-App-Management-Settings). App freeze, auto-start, battery/background restrictions, and notification controls may affect execution. Firmware labels vary. Record existing settings, change one variable only when a test calls for it, and do not infer a cause or execution guarantee from a gap. Physical procedures remain in [device testing](device-testing.md).
 

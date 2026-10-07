@@ -1,6 +1,6 @@
 # Build and release
 
-Updated 2026-10-06 for 0.3.3/code 10. Local artifacts and USB delivery are complete. Current source is not pushed or remotely tested. **GitHub prereleases and releases remain on hold** until explicit user confirmation; do not dispatch the prerelease workflow. Manual Hardcover success does not lift this gate.
+Tools, signing, packaging, CI, USB installation, and publication rules. The current build, its checksums, and the latest CI result are in [project status](project-status.md). **Publish a GitHub release or dispatch the prerelease workflow only when the user explicitly asks.** A successful sync or a green CI run is not that request.
 
 ## Tools
 
@@ -49,34 +49,25 @@ mise exec -- markdownlint-cli2
 mise exec -- actionlint
 ```
 
-Lint each changed Markdown file explicitly, including untracked docs. Run `git diff --check` and check local links. Substantial code changes require parallel code-reviewer/code-simplifier reviews with findings resolved; docs-only changes require direct review. Do not weaken tests or dismiss unexpected stderr. Full current code checks have 76 passing tests, zero failures/errors/skips, empty stderr, and zero Android lint errors; ten existing dependency/tool notices remain per variant. See [verification](verification.md#identifier-allowlist-033).
+Lint each changed Markdown file explicitly, including untracked docs. Run `git diff --check` and check local links. Substantial code changes require parallel code-reviewer/code-simplifier reviews with findings resolved; docs-only changes require direct review. Do not weaken tests or dismiss unexpected stderr. Test counts and lint notices for each build are in [verification](verification.md).
 
 The packaging script verifies APK signatures and writes copied APKs, adjacent SHA-256 files, and `dist/build-info.json`. It records version/package/tool/signature information, never signing passwords. Build outputs and packaged artifacts are read-only generated files. Rebuild/package through their owner; do not edit or rename historical outputs.
 
 Reproducible means pinned tools/wrapper/dependencies/source/signer. Byte-identical repeated APKs are not claimed. Compare each delivered APK with its own checksum. A checksum match proves bytes, not runtime compatibility.
 
-## Current 0.3.3 delivery
+## Compatible updates
 
-| Variant | File / evidence |
-| --- | --- |
-| Diagnostic | `dist/boox-tracker-0.3.3-diagnostic.apk`, 3,507,514 bytes |
-| Diagnostic SHA-256 | `5e9df530dc178f4af9668fa53bf48b90cdcabf4268ca19a5fd05e1d159472bd2` |
-| Debug | `dist/boox-tracker-0.3.3-debug.apk`, 4,732,922 bytes |
-| Debug SHA-256 | `9a1e967b4ef7fc4a7c1f8800f4c20022a2b2eab6053acf0ef2d3f1db858663e3` |
+Compatible updates require the same application ID and certificate and an increasing versionCode. Local builds can use `-PversionCode=<integer>`. The SQLite and export schemas have their own versions; do not change them just because the app version changes. The ebook metadata cache namespace is a third, separate version. Installation, retained data-directory identity, and account behaviour are separate checks.
 
-0.3.3/code 10 installed over 0.3.2 on GoColor7 via USB with the same package/certificate/data inode. Metadata was checked visually; folder replacement cancellation was checked on 0.3.2. The user confirmed native sign-in/exact match/manual delivery on 0.3.1. Book-only and hidden-app offline/reconnect delivery remain unverified. Installation, retained data-directory identity, and account behavior are separate checks.
-
-Package identity changed in 0.3.0/code 7; it starts fresh and can coexist with `org.readingsync.diagnostic`. Do not migrate private data by hand. Preserve any old app/logs and disable its checks/observation/sends before running both. The old package was absent during the handoff; no uninstall or data-clear command was issued. The external signing path and `READING_SYNC_*` secrets names stay unchanged despite branding.
-
-Compatible updates require the same application ID/certificate and an increasing versionCode. Local builds can use `-PversionCode=<integer>`. Current SQLite/export schemas remain 1; do not change them just because the app version changes. Ebook metadata cache namespace 2 is a different version.
+Package identity changed in 0.3.0/code 7; it starts fresh and can coexist with `org.readingsync.diagnostic`. Do not migrate private data by hand. If the old app is present, preserve its logs and disable its checks, observation, and sends before running both. The external signing path and `READING_SYNC_*` secrets names stay unchanged despite branding.
 
 ## GitHub delivery
 
-Remote: [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). Branch `feat/automatic-offline-sync` remains based on original 0.1.0 HEAD `a795e98c0e77f8b9af61d3033ac5c36e8b5aa6f0`, with local modified/untracked work. Check status before committing; never stage unrelated files or repeat the historical one-time force push.
+Remote: [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). Check status before committing and never stage unrelated files. Do not force-push `main`.
 
-`android.yml` runs on push/pull request: static checks, tests, both lint variants, debug assembly, and artifact/report upload. It does not need the diagnostic signer. The [recorded successful CI run](https://github.com/otherguy/boox-tracker/actions/runs/37175084972) covers 0.1.0 only. No 0.3.x remote run is recorded. Local passing checks are not proof of GitHub CI.
+`android.yml` runs on push/pull request: static checks, tests, both lint variants, debug assembly, and artifact/report upload. It does not need the diagnostic signer. Local passing checks are not proof of GitHub CI; check the run for the pushed commit.
 
-`prerelease.yml` is a manual workflow that builds/checks signed artifacts and creates a **draft prerelease**. It is the documented future publishing path, not authorization to run it. After the user lifts the hold, verify the intended source/tag, increasing versionCode, trusted signing configuration, and completed checks before dispatch. Review the draft before publication. A source push alone does not publish an APK.
+`prerelease.yml` is a manual workflow that builds/checks signed artifacts and creates a **draft prerelease**. It is the documented publishing path, not authorization to run it. When the user asks for a release, verify the intended source/tag, increasing versionCode, trusted signing configuration, and completed checks before dispatch. Review the draft before publication. A source push alone does not publish an APK.
 
 Repository secrets required by that later workflow:
 
@@ -89,20 +80,20 @@ The workflow writes signing files under runner temporary storage with restrictiv
 
 ## USB installation
 
-The user authorized USB delivery on 2026-10-06. BOOX USB Debug Mode is under Home → Apps → top-right menu → App Management on the tested firmware; see [BOOX instructions](https://booxsupport.zendesk.com/hc/en-us/articles/8569441562004-App-Management-Settings). Accept device debugging authorization. This is an installation convenience, not an app requirement.
+Install over USB only with the user's go-ahead. BOOX USB Debug Mode is under Home → Apps → top-right menu → App Management on the tested firmware; see [BOOX instructions](https://booxsupport.zendesk.com/hc/en-us/articles/8569441562004-App-Management-Settings). Accept device debugging authorization. This is an installation convenience, not an app requirement.
 
 ```sh
 mise exec -- adb devices -l
-mise exec -- adb -s <physical-serial> install -r dist/boox-tracker-0.3.3-diagnostic.apk
+mise exec -- adb -s <physical-serial> install -r dist/boox-tracker-<version>-diagnostic.apk
 ```
 
-The physical device was `6DE7CCBA`; an emulator was also attached during some checks. Recheck devices and explicitly select the physical serial. Verify version/package/launch separately. Never uninstall or clear data to make an update pass, and never use an ADB provider query as ordinary-app proof.
+The GoColor7's serial is `6DE7CCBA`; an emulator is often attached too. Recheck devices and explicitly select the physical serial. Before and after the install, compare `versionCode` and the data directory inode (`stat -c '%i' /data/user/0/dev.otherguy.booxtracker`). Verify launch separately. Never uninstall or clear data to make an update pass, and never use an ADB provider query as ordinary-app proof.
 
 The fresh package was initially disabled by `com.onyx`; enabling it allowed launch, with cause unknown. UI XML dumps returned null roots on this BOOX; screenshots were used instead. See [device pitfalls](device-testing.md#boox-settings-and-usb-pitfalls). Normal file-manager/browser sideload installation requires no ADB/root/Android Studio.
 
 ## Historical deliveries and future channels
 
-0.1.0–0.2.2 used `org.readingsync.diagnostic`. 0.1.2/code 3 retained logs and improved Activity scrolling; 0.2.0/code 4 added Hardcover; 0.2.1/code 5 added service rows; 0.2.2/code 6 renamed the app. 0.3.0/code 7 changed package/offline matching, 0.3.1/code 8 added folder explanation, 0.3.2/code 9 fixed metadata/cancellation, and 0.3.3/code 10 added display tags with one reader allowlist/cache invalidation. Historical hashes, checks, and physical boundaries remain in [verification](verification.md). Previous generated APKs remain under dist.
+0.1.0–0.2.2 used `org.readingsync.diagnostic`. 0.1.2/code 3 retained logs and improved Activity scrolling; 0.2.0/code 4 added Hardcover; 0.2.1/code 5 added service rows; 0.2.2/code 6 renamed the app. 0.3.0/code 7 changed package/offline matching, 0.3.1/code 8 added folder explanation, 0.3.2/code 9 fixed metadata/cancellation, 0.3.3/code 10 added display tags with one reader allowlist/cache invalidation, 0.3.4/code 11 added Hardcover completion sync, and 0.4.0/code 12 added Fable. Historical hashes, checks, and physical boundaries remain in [verification](verification.md). Previous generated APKs remain under dist.
 
 GitHub Releases is the eventual channel. No updater exists, and uploading an APK cannot update an installed app. Obtainium, F-Droid, Google Play, BOOX store, tag-triggered publication, and silent installation are not selected/built requirements. Website subdomain/hosting are not selected. Other-channel signing can affect updates; retain the existing identity until an explicit decision.
 

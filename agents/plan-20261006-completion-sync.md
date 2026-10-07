@@ -1,6 +1,6 @@
 # Boox Tracker: completion sync
 
-Approved by the user on 2026-10-06 after rejecting a Sync All backfill button. Scope: when NeoReader marks the detected book finished, mark it Read on the enabled tracker. Hardcover is the only tracker. See [product context](product.md#progress-and-history) and [device testing](device-testing.md#completion-sync).
+Approved by the user on 2026-10-06 after rejecting a Sync All backfill button. Scope: when NeoReader marks the detected book finished, mark it Read on the enabled tracker. Hardcover was the only tracker then. See [product context](product.md#progress-and-history) and [device testing](device-testing.md#completion-sync).
 
 ## Source rules
 

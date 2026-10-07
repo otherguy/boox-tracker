@@ -1,8 +1,8 @@
 # Destination-service research
 
-Updated 2026-10-06 for Boox Tracker 0.3.3. The [automatic matching/offline plan](plan-20261006-automatic-offline-sync.md) supersedes exact-ISBN-only and catalogue-selection proposals. Findings below are dated evidence, not guarantees about future API availability. Recheck official contracts before a new integration or dependency change.
+The [automatic matching/offline plan](plan-20261006-automatic-offline-sync.md) supersedes exact-ISBN-only and catalogue-selection proposals. Findings below are dated evidence, not guarantees about future API availability. Recheck official contracts before a new integration or dependency change.
 
-## Current automatic matching evidence: 2026-10-06
+## Destination summary
 
 | Destination | Implementation / evidence |
 | --- | --- |
@@ -46,7 +46,7 @@ Use an active remote read's edition first. Otherwise use exact matched edition, 
 
 Tag/URL types follow the inspected [Calibre conventions](https://github.com/RobBrazier/calibre-plugins/blob/main/plugins/hardcover/README.md): `hardcover-edition` is an edition ID, `hardcover-id` a numeric book ID, `hardcover-slug` a book slug. `hardcover` is normalized to a book ID for numeric values or a slug otherwise. Accept supported book/edition URLs. Never treat a Goodreads number as a Hardcover ID.
 
-`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Explicit StoryGraph/Fable/Margins values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}` for display only. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for them. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
+`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Explicit StoryGraph/Fable/Margins values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}`. Fable matching uses only values that are Fable book UUIDs; StoryGraph and Margins values are display-only. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for StoryGraph or Margins. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
 
 ### Local matching samples: 2026-10-06
 
@@ -131,4 +131,4 @@ It asked about public/private/beta access, progress/status/time history, Goodrea
 
 The current product requires no questions, book chooser, or match confirmation. Missing exact editions can use a safe book match/page basis; conflicts and ambiguity remain errors. Title/author fallback is already built, not future-only work. Completion of the detected book is built; rereads remain held. Stored provider lastAccess can lag; matching a destination does not improve source detection.
 
-Next validation: book-only fallback and hidden-app offline/reconnect delivery. Other service APIs/authentication, rereads, and wider lifecycle policy remain separate work. Credentials, private exports, full paths, and unrelated provider blobs stay out of source/logs/exports. See [product](product.md) and [device checklist](device-testing.md).
+The order of open physical checks is in [project status](project-status.md#resume-here). Goodreads, StoryGraph, and Margins APIs/authentication, rereads, and wider lifecycle policy remain separate work. Credentials, private exports, full paths, and unrelated provider blobs stay out of source/logs/exports. See [product](product.md) and [device checklist](device-testing.md).

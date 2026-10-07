@@ -1,23 +1,16 @@
 # Device-test handoff
 
-Updated 2026-10-06 for 0.4.0/code 12 (Fable); installed build 0.3.4/code 11. The [public guide](../docs/device-testing.md) gives normal setup; this file records personal test context and the remaining evidence. Report **Built**, **Automatically tested**, and **Verified on physical BOOX** separately.
+The [public guide](../docs/device-testing.md) gives normal setup; this file records personal test context, protocols, and recorded results. The installed build and the order of open checks are in [project status](project-status.md#resume-here). Report **Built**, **Automatically tested**, and **Verified on physical BOOX** separately.
 
-## Current 0.3.4 checks
+## Recorded Hardcover results
 
-Signed 0.3.4 (completion sync) is installed over 0.3.3 on the GoColor7 with the same certificate/data directory; see [completion sync](#completion-sync) for its checks. 0.3.3 was installed over 0.3.2 with the same certificate/data directory. Hardcover remains On and connected. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
+Signed updates from 0.3.1 through 0.4.0 were installed over each other on the GoColor7 by USB with the same certificate and data directory. Hardcover stayed On and connected through 0.3.4. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
 
 The user confirmed native approval, Exact edition matched, Synced at…, and progress reaching Hardcover on 0.3.1. Their In the Blood screenshots show Currently Reading, 240/480 pages (50%). Preserve this completed manual result. Actual edition ID, raw source fraction, and mutation sequence need an export; the 480-page display cannot prove the edition chosen.
 
-Remaining physical evidence:
+The open checks and their order are in [project status](project-status.md#resume-here).
 
-- One real finish on 0.3.4: Finished in the Hardcover row, status Read, single read with the last-access date.
-- Book-only fallback without selection or catalogue edits.
-- Offline multi-book collection and retained queue through restart/reboot.
-- Reconnection delivery with Boox Tracker hidden, before app-open sends.
-- Connected-account On while offline, first-time offline failure, and Off/On pause/resume behavior.
-- Normal sleep/reboot behavior under recorded settings; no exact timing guarantee.
-
-The last update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. No completed current-package offline/reconnect export has been inspected yet.
+Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0 install at 11:01 on 2026-10-07 did not open the app. No offline/reconnect export from the current package has been inspected yet.
 
 ## Completion sync
 
@@ -97,4 +90,4 @@ These intervals already contain positive evidence. Do not repeat them to extend 
 
 ## First Hardcover build: 2026-10-06
 
-The historical 0.2.0 protocol used optional EPUB access, exact ISBN matching, Read now, and Background checks with observation Off. It is superseded by [the current plan](plan-20261006-automatic-offline-sync.md). Native sign-in/manual exact delivery now have user evidence on 0.3.1; book-only and hidden-app delivery remain current tests. No GitHub publication is authorized. Never commit tokens, consent codes, private exports, or ebook contents.
+The historical 0.2.0 protocol used optional EPUB access, exact ISBN matching, Read now, and Background checks with observation Off. It is superseded by the [automatic/offline plan](plan-20261006-automatic-offline-sync.md). Native sign-in/manual exact delivery now have user evidence on 0.3.1; book-only and hidden-app delivery remain current tests. No GitHub publication is authorized. Never commit tokens, consent codes, private exports, or ebook contents.

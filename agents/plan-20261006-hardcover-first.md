@@ -69,8 +69,8 @@ The first review found four reproducible defects: explicit non-ISBN numeric sche
 
 The 0.2.1 UI follows the user's 2026-10-06 correction: there is no Connect button. Turning Hardcover On checks the saved connection, silently enables it if present, or starts device sign-in and enables after approval. Off cancels pending sign-in or stops sends. Disabled services do not produce a header warning; only enabled service faults and NeoReader read issues do. This replaces the initial separate connection/enable controls.
 
-## Current evidence and remaining work
+## Evidence at 0.3.3
 
 On 0.3.1 the user completed native approval and reported Exact edition matched / Synced at…; remote screenshots show In the Blood at 240/480 pages (50%). The foreground OAuth/match/send path now has physical evidence. Actual edition/raw fraction/mutation details await an export. Book-only fallback, offline queue/reboot retention, and hidden-app reconnect delivery remain physically pending; all are implemented and automatically tested.
 
-Current local checks on 0.3.3 have 76 passing tests, both APK builds/lint variants, static checks, signature/checksum verification, and both reviews. Title/author fallback, accessible Goodreads mappings, default edition bases, and durable per-account/book queuing are built. Completion/rereads/catalogue edits remain held or excluded. Read [project status](project-status.md) and [the current device protocol](device-testing.md); source is local, and publication remains on hold.
+At 0.3.3, local checks had 76 passing tests, both APK builds/lint variants, static checks, signature/checksum verification, and both reviews. Title/author fallback, accessible Goodreads mappings, default edition bases, and durable per-account/book queuing are built. Completion/rereads/catalogue edits remain held or excluded. Current state is in [project status](project-status.md); protocols are in [device testing](device-testing.md).
