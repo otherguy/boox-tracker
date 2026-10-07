@@ -15,7 +15,7 @@ class FableConnection(
     private val sync = FableSync(auth, store) { enabled() }
     private var signIn: Job? = null
 
-    /** The switch is On and the email/password form is shown until sign-in starts. */
+    /** The switch is On and the email/password popup stays open until sign-in succeeds or the user cancels. */
     @Volatile var awaitingCredentials = false
         private set
 
@@ -53,7 +53,7 @@ class FableConnection(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                awaitingCredentials = false
+                // awaitingCredentials stays true so the user can correct the email or password and retry.
                 store.put("fable.enabled", "false")
                 store.put("fable.connectionError", failureReason(error))
                 recordFailure("manual", "fable_connection", error)

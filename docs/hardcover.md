@@ -6,7 +6,7 @@ Boox Tracker sends saved NeoReader progress to your Hardcover account. Turn Hard
 
 1. Allow read-only access to your ebook folder when Boox Tracker starts. Select a folder below the storage root; subfolders are included.
 2. Open a book in NeoReader and return to its library so it can save progress.
-3. Turn **Hardcover On**. If needed, open `hardcover.app/link` on your reader, phone, or computer. Sign in, enter the displayed code, and approve the connection.
+3. Turn **Hardcover On**. A popup shows a sign-in code. Press **Open Hardcover sign-in**, or open `hardcover.app/link` on your reader, phone, or computer. Sign in, enter the code, and approve the connection. The popup closes when approval completes; **Cancel** turns Hardcover Off.
 4. Press **Sync Now**. Check the match and delivery result below Hardcover, then check your account.
 
 A saved connection can be enabled offline. Updates stay queued until delivery is possible. A first connection needs internet to obtain and approve its code; a failed attempt returns the switch to Off. Services that are On stay On while offline. Boox Tracker does not prompt you to enable Wi-Fi.

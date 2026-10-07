@@ -4,13 +4,13 @@ The [public guide](../docs/device-testing.md) gives normal setup; this file reco
 
 ## Recorded Hardcover results
 
-Signed updates from 0.3.1 through 0.4.0 were installed over each other on the GoColor7 by USB with the same certificate and data directory. Hardcover stayed On and connected through 0.3.4. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
+Signed updates from 0.3.1 through 0.4.1 were installed over each other on the GoColor7 by USB with the same certificate and data directory. Hardcover stayed On and connected through 0.3.4. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
 
 The user confirmed native approval, Exact edition matched, Synced at…, and progress reaching Hardcover on 0.3.1. Their In the Blood screenshots show Currently Reading, 240/480 pages (50%). Preserve this completed manual result. Actual edition ID, raw source fraction, and mutation sequence need an export; the 480-page display cannot prove the edition chosen.
 
 The open checks and their order are in [project status](project-status.md#resume-here).
 
-Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0 install at 11:01 on 2026-10-07 did not open the app. No offline/reconnect export from the current package has been inspected yet.
+Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0 and 0.4.1 installs at 11:01, 11:22, and 11:37 on 2026-10-07 did not open the app. No offline/reconnect export from the current package has been inspected yet.
 
 ## Completion sync
 

@@ -242,6 +242,21 @@ class HardcoverTest {
         .put("readingStatus", JSONObject().put("state", "value").put("raw", status))
         .put("lastAccess", if (lastAccess == null) JSONObject().put("state", "null") else JSONObject().put("state", "value").put("raw", lastAccess))
 
+    private fun capturingStderr(block: suspend () -> Unit) = runBlocking {
+        val originalError = System.err
+        val capturedError = java.io.ByteArrayOutputStream()
+        val stream = java.io.PrintStream(capturedError, true, Charsets.UTF_8)
+        System.setErr(stream)
+        try {
+            block()
+        } finally {
+            System.setErr(originalError)
+            stream.close()
+        }
+        // Robolectric's CppAssetManager2 reports zero-ID lookups during widget construction.
+        assertEquals(emptyList<String>(), capturedError.toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() && it != "Invalid ID 0x00000000." }.toList())
+    }
+
     // 2026-10-05T18:30Z is already 2026-10-06 in the Asia/Bangkok test zone.
     private fun finished(lastAccess: String? = "1791225000000") = book("10000/10000", "2", lastAccess)
 
@@ -584,6 +599,89 @@ class HardcoverTest {
             stream.close()
             // Robolectric's CppAssetManager2 reports zero-ID lookups during widget construction.
             assertEquals(emptyList<String>(), capturedError.toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() && it != "Invalid ID 0x00000000." }.toList())
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun signInCodeAppearsInAPopupAndCancelTurnsHardcoverOff() = capturingStderr {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        vault.clear()
+        server.pendingResponses = 100
+        app.hardcover = HardcoverConnection(app, auth) { true }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val screen = androidx.lifecycle.ViewModelProvider(controller.get())[ScreenModel::class.java]
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun toggle(): CheckBox? = descendants(controller.get().findViewById(android.R.id.content))
+            .filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Hardcover:") == true }
+        fun popup() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }
+        suspend fun awaitState(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            awaitState { toggle()?.isEnabled == true && !screen.busy }
+            toggle()!!.performClick()
+            fun code() = popup()?.findViewById<android.widget.TextView>(android.R.id.message)?.takeIf { it.text.contains("TEST-CODE") }
+            awaitState { code() != null }
+            val dialog = popup()!!
+            assertTrue(dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled)
+            assertTrue(code()!!.isTextSelectable)
+            assertFalse(descendants(controller.get().findViewById(android.R.id.content)).filterIsInstance<android.widget.TextView>().any { it.text.contains("TEST-CODE") })
+            assertTrue(toggle()!!.isChecked)
+            // Leaving the app to approve in a browser keeps the same popup.
+            controller.pause().stop()
+            controller.start().resume()
+            awaitState { toggle() != null && !screen.busy }
+            assertTrue(dialog === popup())
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+            awaitState { !dialog.isShowing && !app.hardcover.signingIn && toggle()?.isChecked == false }
+            assertFalse(app.hardcover.state().getBoolean("enabled"))
+            assertFalse(auth.connected())
+            assertTrue(server.mutations().isEmpty())
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun recreatedScreenReopensThePopupAndBackTurnsHardcoverOff() = capturingStderr {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        vault.clear()
+        server.pendingResponses = 100
+        app.hardcover = HardcoverConnection(app, auth) { true }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun toggle(): CheckBox? = descendants(controller.get().findViewById(android.R.id.content))
+            .filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Hardcover:") == true }
+        fun popup() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)
+            ?.takeIf { it.isShowing && it.findViewById<android.widget.TextView>(android.R.id.message)?.text?.contains("TEST-CODE") == true }
+        suspend fun awaitState(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            awaitState { toggle()?.isEnabled == true }
+            toggle()!!.performClick()
+            awaitState { popup() != null }
+            val first = popup()!!
+            controller.recreate()
+            awaitState { popup().let { it != null && it !== first } }
+            assertFalse(first.isShowing)
+            assertTrue(app.hardcover.signingIn)
+            popup()!!.onBackPressed()
+            awaitState { !app.hardcover.signingIn && popup() == null && toggle()?.isChecked == false }
+            assertFalse(app.hardcover.state().getBoolean("enabled"))
+            assertFalse(auth.connected())
+        } finally {
+            controller.pause().stop().destroy()
         }
     }
 

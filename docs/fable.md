@@ -9,12 +9,12 @@ Boox Tracker sends saved NeoReader progress to your Fable account and keeps the 
 
 1. Allow read-only access to your ebook folder when Boox Tracker starts.
 2. Open a book in NeoReader and return to its library so it can save progress.
-3. Turn **Fable On**. Enter your Fable email and password below the Fable row and press **Sign in**.
+3. Turn **Fable On**. In the popup, enter your Fable email and password and press **Sign in**.
 4. Press **Sync Now**. Check the match and delivery result below Fable, then check your Fable library.
 
 If you created your Fable account with Google or Apple, set a password for the account in the Fable app first.
 
-Boox Tracker never stores your password. It keeps only Fable's sign-in tokens, encrypted with Android Keystore. If Fable ends the session, for example after a password change, the row shows **Reconnect required**: turn Fable Off and On and sign in again. A rejected sign-in returns the switch to Off with a short message.
+Boox Tracker never stores your password. It keeps only Fable's sign-in tokens, encrypted with Android Keystore. If Fable ends the session, for example after a password change, the row shows **Reconnect required**: turn Fable Off and On and sign in again. If Fable rejects the email or password, the popup stays open with a short message so you can try again. **Cancel** turns Fable Off.
 
 ## Matching
 

@@ -3,9 +3,9 @@ package dev.otherguy.booxtracker
 import android.os.Looper
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.TextView
 import androidx.work.testing.TestListenableWorkerBuilder
 import java.util.concurrent.CopyOnWriteArrayList
 import javax.crypto.spec.SecretKeySpec
@@ -228,6 +228,8 @@ class FableTest {
     private fun sync(maySend: () -> Boolean = { true }) = FableSync(auth, store, maySend)
     private fun held(block: suspend () -> Unit) = assertThrows(SyncProblem::class.java) { runBlocking { block() } }.code
 
+    private fun popup() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing && it.findViewById<EditText>(R.id.fable_email) != null }
+
     private fun capturingStderr(block: suspend () -> Unit) = runBlocking {
         val originalError = System.err
         val capturedError = java.io.ByteArrayOutputStream()
@@ -435,7 +437,7 @@ class FableTest {
         assertFalse(store.events().any { it.toString().contains("secret-password") })
     }
 
-    @Test fun rejectedSignInReturnsOffWithTheReason() = runBlocking {
+    @Test fun rejectedSignInStaysPendingWithTheReasonUntilCancelled() = runBlocking {
         vault.clear()
         server.wrongPassword = true
         val connection = FableConnection(app, auth) { true }
@@ -445,12 +447,27 @@ class FableTest {
         val state = connection.state()
         assertFalse(state.getBoolean("enabled"))
         assertFalse(state.getBoolean("connected"))
-        assertFalse(connection.awaitingCredentials)
-        assertEquals("fable_http_400_invalid_login_credentials", state.getString("connectionError"))
-        connection.setEnabled(true)
         assertTrue(connection.awaitingCredentials)
+        assertEquals("fable_http_400_invalid_login_credentials", state.getString("connectionError"))
+        server.wrongPassword = false
+        connection.signIn("reader@example.com", "secret-password")
+        withTimeout(10_000) { while (connection.signingIn || !connection.state().getBoolean("enabled")) delay(10) }
+        assertFalse(connection.awaitingCredentials)
+        assertEquals("", connection.state().getString("connectionError"))
+        connection.setEnabled(false)
+        assertFalse(connection.state().getBoolean("enabled"))
+    }
+
+    @Test fun cancellingAPendingSignInTurnsFableOff() = runBlocking {
+        vault.clear()
+        server.wrongPassword = true
+        val connection = FableConnection(app, auth) { true }
+        connection.setEnabled(true)
+        connection.signIn("reader@example.com", "wrong")
+        withTimeout(10_000) { while (connection.signingIn) delay(10) }
         connection.setEnabled(false)
         assertFalse(connection.awaitingCredentials)
+        assertEquals("", connection.state().getString("connectionError"))
     }
 
     @Test fun offlineFableQueueIsSeparateFromHardcoverAndDeliversLater() = runBlocking {
@@ -572,7 +589,7 @@ class FableTest {
 
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
-    fun rejectedSignInShowsTheReasonAndOnlyAnEnabledFableWarns() = capturingStderr {
+    fun rejectedSignInKeepsThePopupOpenAndOnlyAnEnabledFableWarns() = capturingStderr {
         vault.clear()
         server.wrongPassword = true
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
@@ -592,14 +609,20 @@ class FableTest {
             awaitUi { toggle()?.isEnabled == true && !screen.busy }
             assertNull(activity.findViewById<View>(R.id.access_warning))
             toggle()!!.performClick()
-            awaitUi { activity.findViewById<EditText>(R.id.fable_password) != null && !screen.busy }
-            activity.findViewById<EditText>(R.id.fable_email).setText("reader@example.com")
-            activity.findViewById<EditText>(R.id.fable_password).setText("wrong")
-            activity.findViewById<Button>(R.id.fable_sign_in).performClick()
-            awaitUi { !app.fable.signingIn && toggle()?.contentDescription?.contains("Email or password not accepted") == true && !screen.busy }
-            assertFalse(toggle()!!.isChecked)
+            awaitUi { popup() != null && !screen.busy }
+            val dialog = popup()!!
             assertNull(activity.findViewById<EditText>(R.id.fable_email))
+            dialog.findViewById<EditText>(R.id.fable_email)!!.setText("reader@example.com")
+            dialog.findViewById<EditText>(R.id.fable_password)!!.setText("wrong")
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
+            awaitUi { !app.fable.signingIn && !screen.busy && dialog.findViewById<TextView>(R.id.fable_sign_in_status)?.text?.toString() == "Email or password not accepted" }
+            assertTrue(dialog.isShowing)
+            assertTrue(toggle()!!.isChecked)
+            assertEquals("reader@example.com", dialog.findViewById<EditText>(R.id.fable_email)!!.text.toString())
+            assertEquals("", dialog.findViewById<EditText>(R.id.fable_password)!!.text.toString())
             assertNull(activity.findViewById<View>(R.id.access_warning))
+            dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+            awaitUi { !dialog.isShowing && !app.fable.awaitingCredentials && toggle()?.isChecked == false && !screen.busy }
             store.put("fable.enabled", "true")
             app.diagnostics.updates.value++
             awaitUi { activity.findViewById<View>(R.id.access_warning) != null && toggle()?.contentDescription?.contains("Reconnect required") == true }
@@ -610,7 +633,7 @@ class FableTest {
 
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
-    fun theSwitchShowsTheSignInFormAndConnects() = capturingStderr {
+    fun theSwitchOpensTheSignInPopupAndConnects() = capturingStderr {
         vault.clear()
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
         app.fable = FableConnection(app, auth) { true }
@@ -618,8 +641,7 @@ class FableTest {
         val activity = controller.get()
         val screen = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
         fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
-        fun views() = descendants(activity.findViewById(android.R.id.content))
-        fun toggle() = views().filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Fable:") == true }
+        fun toggle() = descendants(activity.findViewById(android.R.id.content)).filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Fable:") == true }
         suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
             while (!predicate()) {
                 shadowOf(Looper.getMainLooper()).idle()
@@ -629,16 +651,22 @@ class FableTest {
         try {
             awaitUi { toggle()?.isEnabled == true && !screen.busy }
             toggle()!!.performClick()
-            awaitUi { activity.findViewById<EditText>(R.id.fable_email) != null && !screen.busy }
+            awaitUi { popup() != null && !screen.busy }
             assertTrue(server.requests.isEmpty())
-            activity.findViewById<EditText>(R.id.fable_email).setText("reader@example.com")
-            assertFalse(activity.findViewById<Button>(R.id.fable_sign_in).isEnabled)
-            activity.findViewById<EditText>(R.id.fable_password).setText("secret-password")
+            val dialog = popup()!!
+            val signIn = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+            dialog.findViewById<EditText>(R.id.fable_email)!!.setText("reader@example.com")
+            assertFalse(signIn.isEnabled)
+            dialog.findViewById<EditText>(R.id.fable_password)!!.setText("secret-password")
+            assertTrue(signIn.isEnabled)
+            // The Sync screen rebuilds its rows on every update; a new switch view proves the update ran.
+            val before = toggle()
             app.diagnostics.updates.value++
-            awaitUi { activity.findViewById<EditText>(R.id.fable_password)?.text?.toString() == "secret-password" }
-            assertEquals("reader@example.com", activity.findViewById<EditText>(R.id.fable_email).text.toString())
-            activity.findViewById<Button>(R.id.fable_sign_in).performClick()
-            awaitUi { app.fable.state().getBoolean("enabled") && !app.fable.signingIn && activity.findViewById<EditText>(R.id.fable_email) == null && toggle()?.isChecked == true && !screen.busy }
+            awaitUi { toggle().let { it != null && it !== before } && !screen.busy }
+            assertTrue(dialog === popup())
+            assertEquals("secret-password", dialog.findViewById<EditText>(R.id.fable_password)!!.text.toString())
+            signIn.performClick()
+            awaitUi { app.fable.state().getBoolean("enabled") && !app.fable.signingIn && !dialog.isShowing && toggle()?.isChecked == true && !screen.busy }
             assertEquals("", screen.fablePassword)
             assertTrue(server.requests.any { it.getString("path").endsWith("verifyPassword") })
             assertFalse(buildExport(app.diagnostics).toString().contains("secret-password"))

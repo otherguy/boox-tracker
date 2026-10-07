@@ -17,7 +17,7 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 
 ## Fable
 
-1. Turn **Fable On**, enter your Fable email and password, and press **Sign in**. A wrong password must return the switch to Off with a short message.
+1. Turn **Fable On**, enter your Fable email and password in the popup, and press **Sign in**. A wrong password must keep the popup open with a short message. **Cancel** must turn Fable Off.
 2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Fable, the book must be on Currently Reading with the percentage rounded down. Higher progress on Fable must stay unchanged.
 3. Finish the book in NeoReader. After a sync, Fable must show 100% and the book on Finished.
 4. Export diagnostics and confirm that the export contains no password or token.

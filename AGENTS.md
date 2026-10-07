@@ -26,7 +26,7 @@ Current state, versions, device results, and next steps are in [project status](
 
 - Match from explicit service IDs, then ISBN-13, ISBN-10, ASIN, and mapped identifiers, then one normalized title and author match. Several editions of one book establish the book. Conflicts and ambiguity hold the update with a visible error.
 - `BookIdentifiers.kt` is the only identifier-tag allowlist. The metadata popup labels its output and does not filter again. Tags for services without an integration are display-only.
-- The service switch drives the connection. On starts sign-in when no session exists. Off cancels sign-in or pauses sends and keeps queued items. A first connection failure returns Off with an inline message. Only enabled services can show a warning.
+- The service switch drives the connection. On opens that service's sign-in popup when no session exists; Cancel or Back in the popup turns the switch Off. Off cancels sign-in or pauses sends and keeps queued items. A failed Hardcover connection returns Off with a message on the row; a rejected Fable email or password keeps the popup open with the reason. Only enabled services can show a warning.
 - Fable uses Fable's unofficial app API by the user's decision; public docs must say so. Never store the Fable password, only its tokens.
 - Read [integration research](agents/integrations.md) before adding or changing a tracker.
 

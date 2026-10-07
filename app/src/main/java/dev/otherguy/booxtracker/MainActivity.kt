@@ -13,6 +13,7 @@ import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ListView
@@ -40,10 +41,9 @@ class ScreenModel : ViewModel() {
     var pickerActive = false
     var gateAttempted = false
 
-    /** Fable sign-in drafts survive screen rebuilds; they are memory-only and never stored or logged. */
+    /** Fable sign-in drafts survive activity recreation; they are memory-only and never stored or logged. */
     var fableEmail = ""
     var fablePassword = ""
-    var focusedField = View.NO_ID
     val expanded = mutableSetOf<String>()
     var activityKeys: Map<String, String> = emptyMap()
 }
@@ -59,6 +59,15 @@ class MainActivity : AppCompatActivity() {
     private var gateDialog: AlertDialog? = null
     private var gateChecking = false
     private val dialogs = mutableSetOf<AlertDialog>()
+
+    /**
+     * Sign-in popups, kept until their connection stops signing in. A popup the user cancelled stays here closed,
+     * so a screen update cannot reopen it while the cancel is still running.
+     */
+    private var hardcoverSignIn: AlertDialog? = null
+    private var fableSignIn: FableSignInViews? = null
+
+    private class FableSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView)
     private val ebookFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         model.pickerActive = false
         val uri = result.data?.data
@@ -229,6 +238,8 @@ class MainActivity : AppCompatActivity() {
                 val fable = withContext(Dispatchers.IO) { app.fable.state() }
                 content.removeAllViews()
                 showSync(snapshot, check, selected, hardcover, fable)
+                updateHardcoverSignIn()
+                updateFableSignIn(fable)
             }
         }
     }
@@ -251,9 +262,8 @@ class MainActivity : AppCompatActivity() {
     private fun button(
         text: String,
         parent: LinearLayout = content,
-        outlined: Boolean = false,
         action: () -> Unit
-    ): Button = Button(this, null, 0, if (outlined) R.style.OutlineButton else R.style.PrimaryButton).apply {
+    ): Button = Button(this, null, 0, R.style.PrimaryButton).apply {
         this.text = text
         parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
         setOnClickListener { action() }
@@ -494,21 +504,10 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         )
-        if (app.hardcover.signingIn) {
-            val device = app.hardcover.device
-            if (device != null) {
-                label("Sign-in code: ${device.userCode}", true)
-                label("Open hardcover.app/link on this device or another device. Sign in and approve the connection. The code expires automatically.")
-                button("Open Hardcover sign-in", outlined = true) { startActivity(Intent(Intent.ACTION_VIEW, device.verification.toUri())) }
-            } else {
-                label("Requesting a sign-in code…")
-            }
-        }
     }
 
     private fun showFable(state: JSONObject) {
         val fable = app.fable
-        val report: (Exception) -> Unit = { fable.recordFailure("manual", "fable_operation", it) }
         val pending = when {
             fable.signingIn -> "Signing in…"
             fable.awaitingCredentials -> "Sign-in required"
@@ -520,47 +519,126 @@ class MainActivity : AppCompatActivity() {
             serviceSummary(state, pending, "Fable"),
             state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
             !model.busy,
-            details = { serviceDetails("Fable", fable::state, report) { fable.disconnect() } },
+            details = { serviceDetails("Fable", fable::state, fableReport) { fable.disconnect() } },
             changed = { checked ->
                 if (!checked) model.fablePassword = ""
-                action(report) {
+                action(fableReport) {
                     fable.setEnabled(checked)
                     if (checked && fable.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
                 }
             }
         )
-        if (!fable.awaitingCredentials && !fable.signingIn) return
-        label("Sign in with your Fable email and password. Boox Tracker keeps only Fable's sign-in tokens on this device and never stores your password. Fable has no public API, so this connection may stop working if Fable changes.", size = 17f)
-        lateinit var submit: Button
-        fun ready() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !fable.signingIn
-        fun signIn() {
-            if (!ready()) return
-            val email = model.fableEmail.trim()
-            val password = model.fablePassword
-            model.fablePassword = ""
-            model.focusedField = View.NO_ID
-            action(report) { fable.signIn(email, password) }
-        }
-        val email = textField(R.id.fable_email, "Email", model.fableEmail, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_NEXT) {
-            model.fableEmail = it
-            submit.isEnabled = ready()
-        }
-        val password = textField(R.id.fable_password, "Password", model.fablePassword, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, View.AUTOFILL_HINT_PASSWORD, EditorInfo.IME_ACTION_DONE) {
-            model.fablePassword = it
-            submit.isEnabled = ready()
-        }.apply { isSaveEnabled = false }
-        password.setOnEditorActionListener { _, actionId, _ ->
-            (actionId == EditorInfo.IME_ACTION_DONE).also { if (it) signIn() }
-        }
-        submit = button("Sign in") { signIn() }.apply {
-            id = R.id.fable_sign_in
-            isEnabled = ready()
-        }
-        email.isEnabled = !fable.signingIn
-        password.isEnabled = !fable.signingIn
     }
 
-    private fun textField(fieldId: Int, hint: String, value: String, type: Int, autofill: String, ime: Int, changed: (String) -> Unit): android.widget.EditText = android.widget.EditText(this).apply {
+    /** Turns a pending sign-in Off from its popup. Runs in the app scope so it completes even if the screen closes. */
+    private fun cancelSignIn(report: (Exception) -> Unit, off: suspend () -> Unit) {
+        diagnostics.scope.launch {
+            try {
+                off()
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                report(error)
+            }
+        }
+    }
+
+    private fun updateHardcoverSignIn() {
+        val hardcover = app.hardcover
+        if (!hardcover.signingIn) {
+            hardcoverSignIn?.dismiss()
+            hardcoverSignIn = null
+            return
+        }
+        val device = hardcover.device
+        val message = if (device == null) {
+            "Requesting a sign-in code…"
+        } else {
+            "Sign-in code: ${device.userCode}\n\nOpen hardcover.app/link on this device or another device. Sign in, enter the code, and approve the connection. The code expires automatically."
+        }
+        val dialog = hardcoverSignIn ?: bordered(
+            AlertDialog.Builder(this).setTitle("Hardcover sign-in").setMessage(message)
+                .setPositiveButton("Open Hardcover sign-in", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
+                .setOnCancelListener { cancelSignIn(hardcoverReport) { hardcover.setEnabled(false) } }
+                .create().apply { setCanceledOnTouchOutside(false) }
+        ).also { dialog ->
+            // Open Hardcover sign-in keeps the popup open; it closes when sign-in finishes or is cancelled.
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { app.hardcover.device?.let { startActivity(Intent(Intent.ACTION_VIEW, it.verification.toUri())) } }
+            // The user may need to copy the code into a browser on this device.
+            dialog.findViewById<TextView>(android.R.id.message)?.setTextIsSelectable(true)
+            hardcoverSignIn = dialog
+        }
+        // Rewriting unchanged text would clear a selection the user started.
+        if (dialog.findViewById<TextView>(android.R.id.message)?.text?.toString() != message) dialog.setMessage(message)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = device != null
+    }
+
+    private fun updateFableSignIn(state: JSONObject) {
+        val fable = app.fable
+        if (!fable.awaitingCredentials && !fable.signingIn) {
+            fableSignIn?.dialog?.dismiss()
+            fableSignIn = null
+            return
+        }
+        val form = fableSignIn ?: fableSignInDialog().also { fableSignIn = it }
+        val error = state.optString("connectionError")
+        form.status.text = when {
+            fable.signingIn -> "Signing in…"
+            error.isNotBlank() -> connectionText(error)
+            else -> ""
+        }
+        form.status.isGone = form.status.text.isEmpty()
+        form.email.isEnabled = !fable.signingIn
+        form.password.isEnabled = !fable.signingIn
+        form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = fableReady()
+    }
+
+    private fun fableReady() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !app.fable.signingIn
+
+    private fun fableSignInDialog(): FableSignInViews {
+        val fable = app.fable
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        label("Sign in with your Fable email and password. Boox Tracker keeps only Fable's sign-in tokens on this device and never stores your password. Fable has no public API, so this connection may stop working if Fable changes.", parent = body, size = 17f).setTextIsSelectable(false)
+        lateinit var dialog: AlertDialog
+        val email = textField(body, R.id.fable_email, "Email", model.fableEmail, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_NEXT) {
+            model.fableEmail = it
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = fableReady()
+        }
+        val password = textField(body, R.id.fable_password, "Password", model.fablePassword, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, View.AUTOFILL_HINT_PASSWORD, EditorInfo.IME_ACTION_DONE) {
+            model.fablePassword = it
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = fableReady()
+        }.apply { isSaveEnabled = false }
+        val status = label("", parent = body, size = 17f).apply {
+            id = R.id.fable_sign_in_status
+            setTextIsSelectable(false)
+        }
+        fun submit() {
+            if (!fableReady()) return
+            val typedEmail = model.fableEmail.trim()
+            val typedPassword = model.fablePassword
+            password.setText("")
+            action(fableReport) { fable.signIn(typedEmail, typedPassword) }
+        }
+        password.setOnEditorActionListener { _, actionId, _ ->
+            (actionId == EditorInfo.IME_ACTION_DONE).also { if (it) submit() }
+        }
+        dialog = bordered(
+            AlertDialog.Builder(this).setTitle("Fable sign-in").setView(body)
+                .setPositiveButton("Sign in", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
+                .setOnCancelListener {
+                    model.fablePassword = ""
+                    cancelSignIn(fableReport) { fable.setEnabled(false) }
+                }.create().apply { setCanceledOnTouchOutside(false) }
+        )
+        // Sign in keeps the popup open; it closes when sign-in succeeds or is cancelled.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { submit() }
+        return FableSignInViews(dialog, email, password, status)
+    }
+
+    private fun textField(parent: LinearLayout, fieldId: Int, hint: String, value: String, type: Int, autofill: String, ime: Int, changed: (String) -> Unit): EditText = EditText(this).apply {
         id = fieldId
         this.hint = hint
         inputType = type
@@ -578,19 +656,11 @@ class MainActivity : AppCompatActivity() {
         setText(value)
         setSelection(value.length)
         doAfterTextChanged { changed(it?.toString().orEmpty()) }
-        setOnFocusChangeListener { _, focused ->
-            if (focused) {
-                model.focusedField = fieldId
-            } else if (model.focusedField == fieldId) {
-                model.focusedField = View.NO_ID
-            }
-        }
-        content.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
-        // The Sync screen is rebuilt on every update, so the field that had focus takes it back.
-        if (model.focusedField == fieldId) post { requestFocus() }
+        parent.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
     }
 
     private val hardcoverReport: (Exception) -> Unit = { app.hardcover.recordFailure("manual", "hardcover_operation", it) }
+    private val fableReport: (Exception) -> Unit = { app.fable.recordFailure("manual", "fable_operation", it) }
 
     private fun action(report: (Exception) -> Unit = hardcoverReport, block: suspend () -> Unit) {
         if (model.busy) return
