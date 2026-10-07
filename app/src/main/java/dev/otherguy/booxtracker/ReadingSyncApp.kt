@@ -7,6 +7,8 @@ import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.SystemClock
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -118,6 +120,12 @@ fun accessTime(book: JSONObject): Long? {
         }
     }
     return runCatching { Instant.parse(value).toEpochMilli() }.getOrNull()
+}
+
+/** The local day the user last read the book: NeoReader's saved access time, else the queued read time, else now. */
+fun readingDay(book: JSONObject, readAt: String?): LocalDate {
+    val millis = accessTime(book) ?: readAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: System.currentTimeMillis()
+    return Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate()
 }
 
 fun books(snapshot: JSONObject?): List<JSONObject> = snapshot?.optJSONArray("books")?.let { a -> (0 until a.length()).map { a.getJSONObject(it) } } ?: emptyList()

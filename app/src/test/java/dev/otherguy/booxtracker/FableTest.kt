@@ -57,6 +57,8 @@ class FableServer : AutoCloseable {
     var shelveIgnored = false
     var autoFinish = true
     var listPageSize = 100
+    var streakStatus: Int? = null
+    val streakDays = linkedMapOf<String, List<String>>()
     var signInEntered: java.util.concurrent.CountDownLatch? = null
     var signInRelease: java.util.concurrent.CountDownLatch? = null
     val books = linkedMapOf<String, JSONObject>()
@@ -121,6 +123,22 @@ class FableServer : AutoCloseable {
         val segments = path.trim('/').split('/')
         return when {
             path == "/api/settings/profile/" -> 200 to JSONObject().put("id", account).put("email", "reader@example.com")
+
+            path == "/api/v2/reading/streaks/history" && method == "POST" -> {
+                val ids = body!!.optJSONArray("book_ids")
+                val forcedStatus = streakStatus
+                when {
+                    forcedStatus != null -> forcedStatus to JSONObject()
+
+                    ids == null || ids.length() == 0 -> 400 to JSONObject().put("book_ids", JSONArray().put("This field is required."))
+
+                    else -> {
+                        check(body.getBoolean("value") && body.getString("day_name").isNotBlank())
+                        streakDays[body.getString("date")] = (0 until ids.length()).map { ids.getString(it) }
+                        201 to null
+                    }
+                }
+            }
 
             path == "/api/books/search/" -> {
                 val query = url.queryParameter("auto").orEmpty().uppercase()
@@ -189,6 +207,7 @@ class FableServer : AutoCloseable {
     fun writes(): List<JSONObject> = requests.filter { it.getString("method") == "POST" && it.getString("path").startsWith("/api/") }
     fun progressWrites(): List<JSONObject> = writes().filter { it.getString("path").endsWith("/reading_progress") }
     fun shelfWrites(): List<JSONObject> = writes().filter { it.getString("path").endsWith("/book_lists/book") }
+    fun streakWrites(): List<JSONObject> = writes().filter { it.getString("path") == "/api/v2/reading/streaks/history" }
     fun apiCalls(): List<JSONObject> = requests.filter { it.getString("path").startsWith("/api/") }
     override fun close() = server.shutdown()
 }
@@ -204,8 +223,10 @@ class FableTest {
     private lateinit var vault: TokenVault
     private lateinit var auth: FableAuth
     private val identifiers = BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author")
+    private val defaultZone = java.util.TimeZone.getDefault()
 
     @Before fun setup() {
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Bangkok"))
         server = FableServer()
         grantTestFolder(app)
         vault = fableVault(app)
@@ -214,6 +235,7 @@ class FableTest {
     }
 
     @After fun close() = runBlocking {
+        java.util.TimeZone.setDefault(defaultZone)
         server.close()
         vault.clear()
         app.diagnostics.scope.coroutineContext[kotlinx.coroutines.Job]!!.cancelAndJoin()
@@ -222,8 +244,11 @@ class FableTest {
     }
 
     private fun raw(value: String) = JSONObject().put("state", "value").put("raw", value)
-    private fun book(progress: String = "4723/10000", status: String = "1", key: String = "first") = JSONObject().put("key", key).put("progress", raw(progress)).put("readingStatus", raw(status))
+
+    // 1791225000000 is 2026-10-05T18:30Z, which is Tuesday 2026-10-06 in the Asia/Bangkok test zone.
+    private fun book(progress: String = "4723/10000", status: String = "1", key: String = "first", lastAccess: String? = "1791225000000") = JSONObject().put("key", key).put("progress", raw(progress)).put("readingStatus", raw(status))
         .put("title", raw("Synthetic Book")).put("authors", raw("Test Author")).put("ISBN", raw("9781398508255"))
+        .put("lastAccess", if (lastAccess == null) JSONObject().put("state", "null") else raw(lastAccess))
     private fun check(book: JSONObject) = JSONObject().put("outcome", "success").put("timestamp", "2026-10-06T10:00:00Z").put("selected", book)
     private fun sync(maySend: () -> Boolean = { true }) = FableSync(auth, store, maySend)
     private fun held(block: suspend () -> Unit) = assertThrows(SyncProblem::class.java) { runBlocking { block() } }.code
@@ -321,10 +346,15 @@ class FableTest {
         assertEquals(47, result.getInt("percent"))
         assertEquals("current_reading", server.shelf[FABLE_EBOOK])
         val writes = server.writes()
-        assertEquals(listOf("/api/v2/users/account-1/book_lists/book", "/api/books/$FABLE_EBOOK/reading_progress"), writes.map { it.getString("path") })
+        assertEquals(listOf("/api/v2/users/account-1/book_lists/book", "/api/v2/reading/streaks/history", "/api/books/$FABLE_EBOOK/reading_progress"), writes.map { it.getString("path") })
         val shelve = writes[0].getJSONObject("body")
         assertEquals("list-current_reading", shelve.getJSONArray("book_list_ids").getString(0))
-        val body = writes[1].getJSONObject("body")
+        val streak = writes[1].getJSONObject("body")
+        assertEquals("2026-10-06", streak.getString("date"))
+        assertEquals("Tuesday", streak.getString("day_name"))
+        assertEquals(listOf(FABLE_EBOOK), server.streakDays["2026-10-06"])
+        assertEquals("2026-10-06", result.getString("streakDate"))
+        val body = writes[2].getJSONObject("body")
         assertEquals(setOf("status", "social_accounts", "current_percentage", "selected_mode"), body.keys().asSequence().toSet())
         assertEquals(47, body.getInt("current_percentage"))
     }
@@ -334,7 +364,9 @@ class FableTest {
         sync.send(book(), identifiers, "account-1")
         assertEquals("already_current", sync.send(book(), identifiers, "account-1").getString("outcome"))
         assertEquals("kept_higher_remote_progress", sync.send(book("4000/10000"), identifiers, "account-1").getString("outcome"))
-        assertEquals(2, server.writes().size)
+        assertEquals(1, server.progressWrites().size)
+        // Only the send that raised progress marks a reading day.
+        assertEquals(1, server.streakWrites().size)
     }
 
     @Test fun wantToReadIsMovedAndAnAlreadyShelvedConflictIsAccepted() = runBlocking {
@@ -371,8 +403,9 @@ class FableTest {
         assertEquals("finished", result.getString("shelfAfter"))
         assertEquals(100, server.progressWrites().single().getJSONObject("body").getInt("current_percentage"))
         assertTrue(server.shelfWrites().isEmpty())
+        assertEquals(listOf(FABLE_EBOOK), server.streakDays["2026-10-06"])
         assertEquals("already_current", sync().send(book("10000/10000", "2"), identifiers, "account-1").getString("outcome"))
-        assertEquals(1, server.writes().size)
+        assertEquals(2, server.writes().size)
     }
 
     @Test fun completionShelvesFinishedWhenFableDoesNotMoveTheBook() = runBlocking {
@@ -412,6 +445,40 @@ class FableTest {
         (10..30).forEach { server.book("00000000-0000-4000-8000-0000000000$it", "97800000001$it") }
         assertEquals("fable_family_too_large", held { sync().send(book(), identifiers, "account-1") })
         assertTrue(server.writes().isEmpty())
+    }
+
+    @Test fun theReadingDayFollowsTheEditionThatReceivesProgress() = runBlocking {
+        server.shelf[FABLE_PAPERBACK] = "current_reading"
+        sync().send(book(), identifiers, "account-1")
+        assertEquals(listOf(FABLE_PAPERBACK), server.streakDays["2026-10-06"])
+    }
+
+    @Test fun withoutALastAccessTheQueuedReadTimeSetsTheReadingDay() = runBlocking {
+        sync().send(book(lastAccess = null), identifiers, "account-1", readAt = "2026-10-04T20:00:00Z")
+        assertEquals(listOf("2026-10-05"), server.streakDays.keys.toList())
+        assertEquals("Monday", server.streakWrites().single().getJSONObject("body").getString("day_name"))
+    }
+
+    @Test fun aRejectedReadingDayDoesNotBlockProgress() = runBlocking {
+        for (status in listOf(400, 403)) {
+            server.progress.clear()
+            server.requests.clear()
+            server.streakStatus = status
+            val result = sync().send(book(), identifiers, "account-1")
+            assertEquals("sent", result.getString("outcome"))
+            assertEquals("fable_http_$status", result.getString("streakError"))
+            assertEquals(1, server.progressWrites().size)
+        }
+    }
+
+    @Test fun aTemporaryReadingDayFailureRetriesBeforeAnyProgressWrite() = runBlocking {
+        server.streakStatus = 503
+        assertTrue(temporaryFailure(assertThrows(HttpProblem::class.java) { runBlocking { sync().send(book(), identifiers, "account-1") } }))
+        assertTrue(server.progressWrites().isEmpty())
+        server.streakStatus = null
+        assertEquals("sent", sync().send(book(), identifiers, "account-1").getString("outcome"))
+        assertEquals(listOf(FABLE_EBOOK), server.streakDays["2026-10-06"])
+        assertEquals(1, server.progressWrites().size)
     }
 
     @Test fun anUncertainWriteIsReconciledWithoutASecondPost() = runBlocking {
@@ -626,6 +693,35 @@ class FableTest {
             store.put("fable.enabled", "true")
             app.diagnostics.updates.value++
             awaitUi { activity.findViewById<View>(R.id.access_warning) != null && toggle()?.contentDescription?.contains("Reconnect required") == true }
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun aRejectedStreakDayWarnsOnAnEnabledFable() = capturingStderr {
+        server.streakStatus = 400
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.fable = FableConnection(app, auth) { true }
+        app.fable.setEnabled(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun toggle() = descendants(activity.findViewById(android.R.id.content)).filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Fable:") == true }
+        suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            // Opening the app syncs the detected book; Fable accepts progress but rejects the streak day.
+            awaitUi { toggle()?.contentDescription?.contains("Streak day not marked · fable http 400") == true && activity.findViewById<View>(R.id.access_warning) != null }
+            assertEquals(1, server.progressWrites().size)
+            app.fable.setEnabled(false)
+            app.diagnostics.updates.value++
+            awaitUi { activity.findViewById<View>(R.id.access_warning) == null && toggle()?.contentDescription?.contains("Streak day") == false }
         } finally {
             controller.pause().stop().destroy()
         }

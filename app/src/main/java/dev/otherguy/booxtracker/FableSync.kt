@@ -1,6 +1,8 @@
 package dev.otherguy.booxtracker
 
 import java.math.RoundingMode
+import java.time.format.TextStyle
+import java.util.Locale
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -16,7 +18,7 @@ fun flooredPercent(raw: String?): Int {
 private val shelves = listOf("current_reading", "want_to_read", "finished", "did_not_finish")
 
 class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
-    suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: String? = null): JSONObject = auth.authorized { token ->
+    suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: String? = null, readAt: String? = null): JSONObject = auth.authorized { token ->
         suspend fun get(path: String): JSONObject {
             coroutineContext.ensureActive()
             val result = auth.http.get(token, path)
@@ -93,6 +95,23 @@ class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore
         if (!finished && remote == percent && shelfBefore == "current_reading") return@authorized detail.put("outcome", "already_current").put("unchanged", true).put("shelfAfter", shelfBefore)
         if (shelfBefore != "current_reading") shelve(target, "current_reading")
         if (remote != percent) {
+            // Progress went up, so mark the day the user read it. This runs before the progress write: a temporary
+            // failure then retries both, and repeating it for a marked day adds no second entry.
+            val day = readingDay(book, readAt)
+            val date = day.toString()
+            detail.put("streakDate", date)
+            try {
+                post(
+                    "/api/v2/reading/streaks/history",
+                    JSONObject().put("date", date).put("day_name", day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH))
+                        .put("value", true).put("book_ids", JSONArray().put(target))
+                )
+            } catch (error: HttpProblem) {
+                // A rejected streak day must not block progress. A bad token also fails the progress write below,
+                // which refreshes it and retries the whole send; temporary failures retry the send later.
+                if (temporaryFailure(error)) throw error
+                detail.put("streakError", failureReason(error))
+            }
             // "reading" with 100% is what Fable itself turns into a finished read.
             post("/api/books/$target/reading_progress", JSONObject().put("status", "reading").put("social_accounts", JSONArray()).put("current_percentage", percent).put("selected_mode", "percentage"))
             if (get("/api/books/$target/reading_progress").optInt("current_percentage", -1) != percent) throw SyncProblem("fable_progress_not_applied")

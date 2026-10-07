@@ -1,8 +1,6 @@
 package dev.otherguy.booxtracker
 
 import java.math.RoundingMode
-import java.time.Instant
-import java.time.ZoneId
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.ensureActive
 import org.json.JSONArray
@@ -29,12 +27,7 @@ class HardcoverSync(private val auth: HardcoverAuth, private val store: Diagnost
             else -> throw SyncProblem("source_status_unsupported")
         }
         if (finished && Progress.parse(book.raw("progress")).percent != "100") throw SyncProblem("source_finish_progress_mismatch")
-        val finishedOn = if (finished) {
-            val millis = accessTime(book) ?: readAt?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: System.currentTimeMillis()
-            Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalDate().toString()
-        } else {
-            null
-        }
+        val finishedOn = if (finished) readingDay(book, readAt).toString() else null
         val me = query("query Identity { me { id } }").records("me").singleOrNull() ?: throw SyncProblem("hardcover_identity_unavailable")
         if (expectedAccount != null && me.getInt("id") != expectedAccount) throw SyncProblem("hardcover_account_changed")
         val match = HardcoverMatcher({ q, v -> query(q, v) }, store).match(book.optString("key").takeIf { it.isNotBlank() }, identifiers)

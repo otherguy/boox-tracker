@@ -28,7 +28,7 @@ class FableConnection(
         fableAccountId(auth.http.get(token, "/api/settings/profile/"))
     }
 
-    override suspend fun deliver(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String) = sync.send(book, identifiers, account)
+    override suspend fun deliver(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String) = sync.send(book, identifiers, account, readAt)
 
     /** Signs in with the typed credentials. The password is passed to Fable's sign-in request and is not stored. */
     suspend fun signIn(email: String, password: String) = settingsMutex.withLock {

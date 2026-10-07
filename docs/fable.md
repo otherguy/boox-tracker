@@ -27,6 +27,7 @@ If you already shelved another edition of the book on Fable, Boox Tracker update
 Fable stores whole percentages. Boox Tracker sends NeoReader's saved percentage rounded down, so 50.07% becomes 50%.
 
 - An unshelved or Want to Read book moves to **Currently Reading** before the first progress update.
+- When progress goes up, Boox Tracker also marks the last day you read the book for your Fable reading streak, like tapping **I read today** in the Fable app. An update that waited offline marks the day you last read, not the day it was sent. If you read on several days while offline, only the last of them is marked. If Fable rejects the streak day, your progress still syncs, and the Fable row shows **Streak day not marked** with an amber warning.
 - Higher progress on Fable is kept.
 - When NeoReader marks the book finished, Fable receives 100% and the book moves to **Finished**.
 - A book on Finished or Did Not Finish on Fable is protected: reopening it in NeoReader holds the update instead of changing it.

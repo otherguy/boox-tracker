@@ -1,6 +1,6 @@
 # Project status and handoff
 
-Updated 2026-10-07 after the 0.4.1 sign-in popup build and its USB install over 0.4.0. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after the 0.4.2 Fable reading-streak build; 0.4.1 is installed. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
@@ -13,14 +13,14 @@ State on 2026-10-07:
 
 Next physical checks, in order:
 
-1. [Fable sync](device-testing.md#fable-sync). The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
+1. [Fable sync](device-testing.md#fable-sync), including the first reading day that has no "I read today" tap: after the sync, the day must show as read on Fable's streak. The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
 2. [Completion sync](device-testing.md#completion-sync) on Hardcover.
 3. [Hidden-app offline collection and delivery](device-testing.md#offline-collection-and-hidden-app-delivery).
 4. [Book-only fallback](device-testing.md#book-only-fallback) and queue retention through restart and reboot.
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.1 / code 13
+## Built: 0.4.2 / code 14
 
 | Item | Current value |
 | --- | --- |
@@ -30,8 +30,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.4.1-diagnostic.apk`, 3,541,058 bytes |
-| Diagnostic APK SHA-256 | `feb971d748125caeec5159f49f502da45afcb06508afa3cd9281a9422bb68854` |
+| Diagnostic APK | `dist/boox-tracker-0.4.2-diagnostic.apk`, 3,542,438 bytes |
+| Diagnostic APK SHA-256 | `30b2dfd0989684ac474bb93a1f2b352741f338bd8bf6eee89ee04dc60a74c9a0` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -73,7 +73,7 @@ Activity uses recycled rows and lazy details, shows the latest 250 events, and r
 
 ## Automatically tested
 
-The 0.4.1 reports contain **124 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings, which were applied with tests. Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.2 reports contain **129 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings, which were applied with tests. Packaging verified signatures; delivered APK hashes were checked separately.
 
 Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 

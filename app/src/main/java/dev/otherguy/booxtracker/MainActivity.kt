@@ -282,7 +282,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun needsAttention(state: JSONObject): Boolean {
         val last = state.optJSONObject("last")
-        return state.getBoolean("enabled") && (state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" || last?.optString("matchKind") == "book")
+        return state.getBoolean("enabled") && (
+            state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" ||
+                last?.optString("matchKind") == "book" || !last?.optString("streakError").isNullOrBlank()
+            )
     }
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
@@ -485,8 +488,9 @@ class MainActivity : AppCompatActivity() {
             ""
         }
         val editionNote = if (last?.optBoolean("existingEditionPreserved") == true) "\nUsing your $serviceName edition" else ""
+        val streakNote = last?.optString("streakError")?.takeIf { it.isNotBlank() && state.getBoolean("enabled") }?.let { "\n⚠ Streak day not marked · ${it.replace('_', ' ')}" }.orEmpty()
         val queueNote = if (state.getBoolean("enabled") && state.optInt("pending") > 0) "\n${state.optInt("pending")} queued update(s)" else ""
-        return summary + editionNote + queueNote
+        return summary + editionNote + streakNote + queueNote
     }
 
     private fun showHardcover(state: JSONObject) {

@@ -115,6 +115,19 @@ The user signed in on fable.co in the built-in browser. Read-only probes and use
 
 No rate-limit headers were observed.
 
+### Reading streak, verified 2026-10-07
+
+Fable's reading streak is a per-day record, separate from progress. Progress writes on 2026-10-06 created no streak day; the user's "I read today" tap in the Fable app on 2026-10-07 did, linked to In the Blood, and also moved progress to 52%. The streak screen is native to the app; the website only reads streak stats. `GET https://api.fable.co/api/` lists the API routes, including the `v2/reading` family.
+
+| Call | Verified behaviour |
+| --- | --- |
+| `GET /api/v2/reading/?timezone=<IANA zone>` | Currently-reading screen: `streaks.current_streak`, `streaks.days_of_the_week` (`date`, `day_name`, `value`), `streaks.streak_book_ids`, and books with `reading_progress`. Without `timezone` it returns 400. Days are local dates |
+| `GET /api/v2/reading/streaks/history?limit=&offset=` | Paged days (60 in total) with `date`, `day_name`, `value` |
+| `POST /api/v2/reading/streaks/history` JSON `{date: "YYYY-MM-DD", day_name: "Wednesday", value: true, book_ids: [<book UUID>]}` | 201, empty body. Without `book_ids` it returns 400 `{"book_ids":["This field is required."]}`. Repeating it for an already-marked day with the same book created no second entry and left progress unchanged. Marking a day that is not yet marked, dates in the past, and a different book on an already-marked day are not yet verified; a 201 alone does not prove the day was marked |
+| `GET /api/users/{account}/stats/charts/monthly_streaks/?year=` | Streak days per month with their books, best streak, and total |
+
+The first test write's response was lost to a bug in the test script; the read-back showed no change. A resend without `book_ids` was rejected, and the write with `book_ids` was accepted. All three targeted today, which the user had already marked.
+
 ### Implemented Fable matching and progress policy
 
 Match an explicit `fable:` UUID, then exact ISBN-13, ISBN-10 (only if its ISBN-13 found nothing), ASIN (only without ISBN results), then title and author. Title matches compare normalized titles and word-order-independent author names. Several records are accepted only inside one family; the eBook edition with pages is preferred. Conflicts and ambiguity hold.

@@ -1,13 +1,13 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.1/code 13 (sign-in popups). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.2/code 14 (Fable reading streak). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.1 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API, sign-in in popups | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 124 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.2 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API with reading-streak days, sign-in in popups | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 129 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
 | Physical current UI/update | Signed 0.3.1–0.4.1 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
@@ -42,6 +42,22 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Fable reading streak 0.4.2
+
+**Built:** debug and signed diagnostic APKs, version 0.4.2/code 14, not yet committed or installed. Package, certificate, schemas, and vault files are unchanged. Artifact `dist/boox-tracker-0.4.2-diagnostic.apk`, 3,542,438 bytes, SHA-256:
+
+```text
+30b2dfd0989684ac474bb93a1f2b352741f338bd8bf6eee89ee04dc60a74c9a0
+```
+
+When a Fable send raises progress, it first marks the reading day on Fable's streak with the target book; see the [contract](integrations.md#reading-streak-verified-2026-10-07). The day is the device-local date of NeoReader's last saved access, else the queued read time. A rejected streak call (any non-temporary HTTP error) is recorded as `streakError`, warns on the row and header, and does not block progress; temporary failures retry the whole send. The finish-date logic moved into a shared `readingDay` helper used by Hardcover and Fable, with unchanged results.
+
+**API evidence, 2026-10-07:** with the user's approval, three test writes targeted today, which the user had already marked in the Fable app: the first response was lost to a test-script bug, a write without `book_ids` was rejected with 400, and a write with `book_ids` returned 201 without a second entry or a progress change. Marking an unmarked day, a past date, or a different book on a marked day is not verified.
+
+**Automatically tested:** 129 tests, zero failures/errors/skips, empty stderr. New tests cover the streak write before progress with the right date, weekday and book; no streak write for equal or higher remote progress; the sibling edition as the streak book; the read-time fallback; 400 and 403 streak rejections that still send progress; and a temporary streak failure that retries before any progress write. Both builds and lint variants passed with zero lint errors. Both required reviews ran; their findings were fixed with tests. At the user's choice, a rejected streak day on an enabled Fable shows the amber header warning and "Streak day not marked" with the reason on the row; a UI test covers it through the app-open sync.
+
+**Verified on physical BOOX:** nothing yet.
 
 ## Sign-in popups 0.4.1
 

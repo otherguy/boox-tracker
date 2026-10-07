@@ -28,6 +28,8 @@ Completion sync was approved on 2026-10-06 for the detected book only. When NeoR
 
 Fable stores whole percentages, so the app sends the provider percentage rounded down and reads it back. It shelves the book on Currently Reading before the first update and on Finished at completion. An edition the user already shelved keeps receiving progress. A Finished or Did Not Finish edition holds a reading source. Higher remote progress is kept. Only Fable's sign-in tokens are stored, never the password.
 
+Fable's reading streak counts days, not progress, so a progress write alone does not extend it (user request, 2026-10-07). When a send raises Fable progress, the app first marks the day the user read as a streak day, with the book that receives the progress. That day is the device-local date of NeoReader's last saved access, else the queued read time, so an update delivered later still marks the last day of reading. The queue keeps one item per book, so several offline reading days mark only the last one. Equal or lower progress marks no day. A rejected streak day does not block the progress update; on an enabled Fable it shows the amber warning and "Streak day not marked" with the reason until the next sync of that book (user decision, 2026-10-07).
+
 ### Durable collection and delivery
 
 Persist the latest observation per account/service/source book before delivery, while retaining full observation logs. Switching books cannot replace another book's pending item. Acknowledge only the revision sent; retain newer observations. Read remote state before retrying an uncertain write to avoid duplicate reads or reduced progress. Retry transient network/server failures with backoff.
