@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.6/code 18 (edition notes and kept-progress warning). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.6/code 18 (edition notes and kept-progress warning), installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -10,7 +10,7 @@ Updated 2026-10-07 for Boox Tracker 0.4.6/code 18 (edition notes and kept-progre
 | Automatically tested | 147 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
-| Physical current UI/update | Signed 0.3.1–0.4.5 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Physical current UI/update | Signed 0.3.1–0.4.6 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
 | Source / publication | `main` pushed at `84f3c0a` (0.4.0); [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit on 2026-10-07 | No release or prerelease exists; one needs an explicit user request |
 
 APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
@@ -59,7 +59,7 @@ The local `dist/boox-tracker-0.4.5-diagnostic.apk` was overwritten by an interim
 
 **Automatically tested:** 147 tests, zero failures/errors/skips, empty stderr. UI tests cover "same edition" with no warning, "different edition" for a shelved Fable paperback with no warning, ⚠ and the header warning for kept Hardcover progress, and the popup's no-page-count edition text. Sync tests cover the edition facts for an already-Read Hardcover book and a Finished Fable sibling. Each new expectation failed before its change. Both builds and lint variants passed with zero lint errors and ten existing notices. Both required reviews ran. Applied: one edition rule for row and popup, the two sync results, stale doc wording, a test label, and removal of two checks for text the app no longer has. Not applied: showing the kept value on the row, by the user's decision to warn only.
 
-**Verified on physical BOOX:** pending.
+**Verified on physical BOOX:** after [CI passed](https://github.com/otherguy/boox-tracker/actions/runs/37598390114) for `fe9c924`, signed 0.4.6 installed over 0.4.5 via USB at 16:12 on 2026-10-07 (code 18, data inode `129824` unchanged, app not disabled, no uninstall or data clear). Opened by ADB, the screen showed Hardcover "✅ Book matched · different edition" and Fable "✅ Book matched · same edition", both with "⚠ Synced at 14:01 · 51.66%", and the amber header triangle. The Fable popup showed "Progress: 52% · kept, higher than NeoReader": Fable holds 52% and NeoReader's 51.66% sends 51%. The rows still show the 14:01 results because the book has not changed since then.
 
 ## Provider rows and CI diagnostics 0.4.5
 
