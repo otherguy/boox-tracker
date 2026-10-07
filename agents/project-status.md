@@ -1,14 +1,14 @@
 # Project status and handoff
 
-Updated 2026-10-07 after building 0.4.7, which names every current issue at the top of the book and provider popups. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after 0.4.7, which names every current issue at the top of the book and provider popups, and its USB install over 0.4.6. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
 State on 2026-10-07:
 
 - **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`. 0.4.7 is committed locally and not pushed; the last push is `fe9c924` (0.4.6). [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37598390114) for that commit; they [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
-- **Device:** signed 0.4.6/code 18 is installed over 0.4.5 on the GoColor7 by USB at 16:12 on 2026-10-07 and was opened by ADB. Hardcover and Fable both show In the Blood synced at 14:01 at 51.66% with ⚠, because Hardcover keeps 254 pages and Fable keeps 52%.
-- **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. The app row still shows the 14:01 result until NeoReader's progress changes. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
+- **Device:** signed 0.4.7/code 19 is installed over 0.4.6 on the GoColor7 by USB at 17:37 on 2026-10-07 and was opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
+- **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
 
@@ -88,7 +88,7 @@ One device: ONYX GoColor7, Android 12/API 32, build `2026-05-19_23-44_4.2-rel_05
 | Independent local scheduling | Historical app-hidden reads, including cold boot and wake; no exact cadence or regular sleep guarantee |
 | Historical logs/Activity | Reboot/update/export retention and much faster scrolling reported on 0.1.2 |
 | Native sign-in and manual exact sync | User confirmed on 0.3.1: Exact edition matched, Synced at…, progress reached Hardcover; In the Blood screenshot shows 240/480 pages, 50% |
-| Current updates/UI | Signed 0.3.1–0.4.6 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked |
+| Current updates/UI | Signed 0.3.1–0.4.6 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked; 0.4.7 amber row triangle and the issue sections of the book, Hardcover, and Fable popups checked |
 
 The remote screenshots do not prove a selected edition ID, exact raw fraction, or mutation sequence. Those need an export. The 0.3.3 metadata screenshot is `dist/screenshots/boox-tracker-0.3.3-boox-metadata.png`. Future-service tags were absent from this book, so their rendering/rejection has automatic proof only. Data inode `129824` stayed unchanged across the new-package updates; this alone does not prove reboot queue retention.
 
