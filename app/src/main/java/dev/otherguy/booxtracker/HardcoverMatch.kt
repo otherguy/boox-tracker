@@ -4,6 +4,9 @@ import java.text.Normalizer
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** The value of [name] as text, or null when it is missing, JSON null, or blank. */
+fun JSONObject.text(name: String): String? = if (isNull(name)) null else optString(name).takeIf { it.isNotBlank() }
+
 fun JSONObject.records(name: String): List<JSONObject> {
     val array = optJSONArray(name) ?: throw SyncProblem("hardcover_response_missing_$name")
     return (0 until array.length()).map { array.getJSONObject(it) }

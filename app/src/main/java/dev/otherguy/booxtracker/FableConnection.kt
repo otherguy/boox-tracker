@@ -30,6 +30,18 @@ class FableConnection(
 
     override suspend fun deliver(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String) = sync.send(book, identifiers, account, readAt)
 
+    override suspend fun fetchProfile(): JSONObject = auth.authorized { token ->
+        val profile = auth.http.get(token, "/api/settings/profile/")
+        JSONObject().putOpt("username", profile.text("username")).putOpt("name", profile.text("display_name")).putOpt("email", profile.text("email"))
+            .putOpt("createdAt", profile.text("signed_up_at")).putOpt("membership", profile.text("subscription_tier")?.replaceFirstChar { it.uppercase() })
+    }
+
+    override suspend fun signOut() {
+        awaitingCredentials = false
+        cancelSignIn()
+        auth.disconnect()
+    }
+
     /** Signs in with the typed credentials. The password is passed to Fable's sign-in request and is not stored. */
     suspend fun signIn(email: String, password: String) = settingsMutex.withLock {
         if (signingIn || !awaitingCredentials) return@withLock
@@ -45,7 +57,7 @@ class FableConnection(
                 coroutineContext.ensureActive()
                 store.put("fable.account", accountId)
                 store.put("fable.enabled", "true")
-                store.put("fable.status", "Connected")
+                recordSignIn()
                 awaitingCredentials = false
                 diagnostics.event("manual", "fable_connection", detail = JSONObject().put("outcome", "connected"))
                 scheduleDelivery(app)
@@ -64,19 +76,6 @@ class FableConnection(
         }
     }
 
-    suspend fun disconnect() {
-        store.put("fable.enabled", "false")
-        settingsMutex.withLock {
-            cancelSignIn()
-            awaitingCredentials = false
-            store.put("fable.enabled", "false")
-            auth.disconnect()
-            store.put("fable.account", "")
-            store.put("fable.status", "Disconnected")
-            diagnostics.event("manual", "fable_connection", detail = JSONObject().put("outcome", "disconnected"))
-        }
-    }
-
     private suspend fun cancelSignIn() {
         val job = signIn
         signingIn = false
@@ -90,10 +89,7 @@ class FableConnection(
         settingsMutex.withLock {
             if (!value) {
                 awaitingCredentials = false
-                if (signIn?.isActive == true) {
-                    cancelSignIn()
-                    auth.disconnect()
-                }
+                if (signIn?.isActive == true) signOut()
             }
             if (value && !runCatching { auth.connected() }.getOrDefault(false)) {
                 awaitingCredentials = true

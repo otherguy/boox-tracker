@@ -4,13 +4,13 @@ The [public guide](../docs/device-testing.md) gives normal setup; this file reco
 
 ## Recorded Hardcover results
 
-Signed updates from 0.3.1 through 0.4.1 were installed over each other on the GoColor7 by USB with the same certificate and data directory. Hardcover stayed On and connected through 0.3.4. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
+Signed updates from 0.3.1 through 0.4.3 were installed over each other on the GoColor7 by USB with the same certificate and data directory. Hardcover stayed On and connected through 0.3.4. Startup explanation, full ISBN/ASIN/Goodreads popup values, bold labels, OK states, readable dates, and About → Change ebook folder → Back have physical evidence. No folder grant/account approval was changed during the latter checks. Future-service tags were absent, so those have automatic coverage only.
 
 The user confirmed native approval, Exact edition matched, Synced at…, and progress reaching Hardcover on 0.3.1. Their In the Blood screenshots show Currently Reading, 240/480 pages (50%). Preserve this completed manual result. Actual edition ID, raw source fraction, and mutation sequence need an export; the 480-page display cannot prove the edition chosen.
 
 The open checks and their order are in [project status](project-status.md#resume-here).
 
-Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0 and 0.4.1 installs at 11:01, 11:22, and 11:37 on 2026-10-07 did not open the app. No offline/reconnect export from the current package has been inspected yet.
+Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0, 0.4.1, and 0.4.3 installs at 11:01, 11:22, 11:37, and 12:36 on 2026-10-07 did not open the app. No offline/reconnect export from the current package has been inspected yet.
 
 ## Completion sync
 
@@ -29,6 +29,7 @@ Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan]
 4. Finish a book in NeoReader. Expect 100% and Finished on Fable. Reopen it in NeoReader; the next sync must hold with `fable_status_conflict`.
 5. Repeat the offline hidden-app test below with Fable and Hardcover both On. Each service must deliver its own queue.
 6. More than one hour after sign-in, sync again. The ID token must refresh without a new sign-in. This is the first live check of the refresh call.
+7. Tap the Fable and Hardcover rows. Check the account details (Hardcover's first delivery after updating fills them for the existing sign-in), the current book's match and edition, and Log out's confirmation text. Do not confirm Log out unless you plan to sign in again: it deletes that provider's queued updates.
 
 ## Offline collection and hidden-app delivery
 
@@ -58,7 +59,7 @@ Sleep and power-off are different states. Queue retention across reboot does not
 
 The supplied Savage Son EPUB contains ISBN `9781471197376`, Goodreads `58895717`, and Amazon value `1471197379`. In read-only API research, that ISBN/Goodreads pair had no match. The separately supplied ASIN `B07THCSQ27` matched book `484869`, ebook edition `31807724`, 429 pages. Do not substitute that ASIN into the source file to claim the untouched EPUB matched exactly.
 
-Use the untouched source to test unique title/author fallback. A book-only result should show the amber No exact edition state and use a verified permitted page basis. No selection dialog or catalogue edit is allowed. If the source has different metadata on BOOX, record it and use the actual identifiers when interpreting the result. See [integration samples](integrations.md#local-matching-samples-2026-10-06).
+Use the untouched source to test unique title/author fallback. A book-only result should show the amber "⚠ Book matched" row, with the edition and page basis in the row's details popup. No selection dialog or catalogue edit is allowed. If the source has different metadata on BOOX, record it and use the actual identifiers when interpreting the result. See [integration samples](integrations.md#local-matching-samples-2026-10-06).
 
 ## BOOX settings and USB pitfalls
 

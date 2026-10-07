@@ -280,17 +280,18 @@ class MainActivity : AppCompatActivity() {
             .withZone(java.time.ZoneId.systemDefault()).format(java.time.Instant.parse(raw))
     }.getOrDefault("Unknown")
 
-    private fun needsAttention(state: JSONObject): Boolean {
+    /** [warnOnBookMatch] is true for services whose progress depends on an exact edition, such as Hardcover's page count. */
+    private fun needsAttention(state: JSONObject, warnOnBookMatch: Boolean): Boolean {
         val last = state.optJSONObject("last")
         return state.getBoolean("enabled") && (
             state.getBoolean("credentialProblem") || !state.getBoolean("connected") || last?.optString("delivery") == "error" ||
-                last?.optString("matchKind") == "book" || !last?.optString("streakError").isNullOrBlank()
+                (warnOnBookMatch && last?.optString("matchKind") == "book") || !last?.optString("streakError").isNullOrBlank()
             )
     }
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val serviceIssue = needsAttention(hardcover) || needsAttention(fable)
+        val serviceIssue = needsAttention(hardcover, warnOnBookMatch = true) || needsAttention(fable, warnOnBookMatch = false)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -344,12 +345,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun metadataDetails(book: JSONObject?, snapshot: JSONObject?, check: JSONObject?): CharSequence = SpannableStringBuilder().apply {
-        fun row(label: String, value: String) {
-            val start = length
-            append("$label: ")
-            setSpan(StyleSpan(Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            append(value).append('\n')
-        }
         val outcome = when (check?.optString("outcome")) {
             "success" -> "OK"
             "provider_unavailable" -> "Unavailable"
@@ -357,20 +352,20 @@ class MainActivity : AppCompatActivity() {
             "query_failed" -> "Query Failed"
             else -> "Not Checked"
         }
-        row("NeoReader Database", outcome)
+        field("NeoReader Database", outcome)
         if (book != null) {
-            row("Title", value(book, "title"))
-            row("Authors", value(book, "authors"))
-            row("Filename", value(book, "filename"))
+            field("Title", value(book, "title"))
+            field("Authors", value(book, "authors"))
+            field("Filename", value(book, "filename"))
             val identifiers = try {
                 BookIdentifierRepository(this@MainActivity, diagnostics.store).read(book)
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Exception) {
-                row("Identifier Error", if (error is SyncProblem) error.code.replace('_', ' ') else error.javaClass.simpleName)
+                field("Identifier Error", if (error is SyncProblem) error.code.replace('_', ' ') else error.javaClass.simpleName)
                 null
             }
-            row("ISBN", identifiers?.isbns?.sorted()?.joinToString(", ")?.takeIf { it.isNotEmpty() } ?: if (identifiers == null) "Unavailable" else "Not Provided")
+            field("ISBN", identifiers?.isbns?.sorted()?.joinToString(", ")?.takeIf { it.isNotEmpty() } ?: if (identifiers == null) "Unavailable" else "Not Provided")
             identifiers?.tags?.toSortedMap()?.forEach { (tag, values) ->
                 if (tag != "isbn" && values.isNotEmpty()) {
                     val label = when (tag) {
@@ -384,12 +379,12 @@ class MainActivity : AppCompatActivity() {
                         "margins" -> "Margins"
                         else -> tag
                     }
-                    row(label, values.sorted().joinToString(", "))
+                    field(label, values.sorted().joinToString(", "))
                 }
             }
-            row("Raw Progress", value(book, "progress"))
-            row("Calculated Progress", book.optString("percentage").takeUnless { it.isBlank() || it == "null" }?.let { "$it%" } ?: "Unknown")
-            row("Reading Status", value(book, "readingStatus"))
+            field("Raw Progress", value(book, "progress"))
+            field("Calculated Progress", book.optString("percentage").takeUnless { it.isBlank() || it == "null" }?.let { "$it%" } ?: "Unknown")
+            field("Reading Status", value(book, "readingStatus"))
             val progressState = when (book.optJSONObject("progress")?.optString("state")) {
                 "missing" -> "Missing Column"
                 "null" -> "Not Provided"
@@ -397,11 +392,11 @@ class MainActivity : AppCompatActivity() {
                 "value" -> if (book.isNull("progressProblem")) "OK" else book.optString("progressProblem").replaceFirstChar { it.uppercase() }
                 else -> "Unknown"
             }
-            row("Progress State", progressState)
-            row("Last Access", accessTime(book)?.let { readableDate(it) } ?: value(book, "lastAccess"))
+            field("Progress State", progressState)
+            field("Last Access", accessTime(book)?.let { readableDate(it) } ?: value(book, "lastAccess"))
         }
-        row("Read At", readableDate(runCatching { java.time.Instant.parse(snapshot?.optString("readAt")).toEpochMilli() }.getOrNull()))
-        check?.optJSONObject("error")?.let { row("Read Error", it.toString(2)) }
+        field("Read At", readableDate(runCatching { java.time.Instant.parse(snapshot?.optString("readAt")).toEpochMilli() }.getOrNull()))
+        check?.optJSONObject("error")?.let { field("Read Error", it.toString(2)) }
     }
 
     private fun serviceRow(
@@ -464,7 +459,7 @@ class MainActivity : AppCompatActivity() {
         else -> error.replace('_', ' ')
     }
 
-    private fun serviceSummary(state: JSONObject, pending: String?, serviceName: String): String {
+    private fun serviceSummary(state: JSONObject, pending: String?, bookMatch: String): String {
         val connected = state.getBoolean("connected")
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
@@ -475,7 +470,7 @@ class MainActivity : AppCompatActivity() {
             !connected || state.getBoolean("credentialProblem") -> "❌ Reconnect required"
             last?.optString("delivery") == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
             last?.optString("matchKind") == "edition" -> "✅ Exact edition matched"
-            last?.optString("matchKind") == "book" -> "⚠ Book matched · No exact edition"
+            last?.optString("matchKind") == "book" -> bookMatch
             else -> "Pending matching"
         } + if (state.getBoolean("enabled")) {
             "\n" + when {
@@ -487,20 +482,19 @@ class MainActivity : AppCompatActivity() {
         } else {
             ""
         }
-        val editionNote = if (last?.optBoolean("existingEditionPreserved") == true) "\nUsing your $serviceName edition" else ""
         val streakNote = last?.optString("streakError")?.takeIf { it.isNotBlank() && state.getBoolean("enabled") }?.let { "\n⚠ Streak day not marked · ${it.replace('_', ' ')}" }.orEmpty()
         val queueNote = if (state.getBoolean("enabled") && state.optInt("pending") > 0) "\n${state.optInt("pending")} queued update(s)" else ""
-        return summary + editionNote + streakNote + queueNote
+        return summary + streakNote + queueNote
     }
 
     private fun showHardcover(state: JSONObject) {
         serviceRow(
             "Hardcover",
             R.drawable.service_hardcover,
-            serviceSummary(state, if (app.hardcover.signingIn) "Sign-in pending" else null, "Hardcover"),
+            serviceSummary(state, if (app.hardcover.signingIn) "Sign-in pending" else null, "⚠ Book matched"),
             state.getBoolean("enabled") || app.hardcover.signingIn,
             !model.busy,
-            details = { serviceDetails("Hardcover", app.hardcover::state, hardcoverReport) { app.hardcover.disconnect() } },
+            details = { showServiceDetails("Hardcover", app.hardcover, hardcoverReport) },
             changed = { checked ->
                 action {
                     app.hardcover.setEnabled(checked)
@@ -520,10 +514,10 @@ class MainActivity : AppCompatActivity() {
         serviceRow(
             "Fable",
             R.drawable.service_fable,
-            serviceSummary(state, pending, "Fable"),
+            serviceSummary(state, pending, "✅ Book matched"),
             state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
             !model.busy,
-            details = { serviceDetails("Fable", fable::state, fableReport) { fable.disconnect() } },
+            details = { showServiceDetails("Fable", fable, fableReport) },
             changed = { checked ->
                 if (!checked) model.fablePassword = ""
                 action(fableReport) {
@@ -534,11 +528,11 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    /** Turns a pending sign-in Off from its popup. Runs in the app scope so it completes even if the screen closes. */
-    private fun cancelSignIn(report: (Exception) -> Unit, off: suspend () -> Unit) {
+    /** Runs a connection change from a popup in the app scope, so it completes even if the screen closes. */
+    private fun runDetached(report: (Exception) -> Unit, block: suspend () -> Unit) {
         diagnostics.scope.launch {
             try {
-                off()
+                block()
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: Exception) {
@@ -563,7 +557,7 @@ class MainActivity : AppCompatActivity() {
         val dialog = hardcoverSignIn ?: bordered(
             AlertDialog.Builder(this).setTitle("Hardcover sign-in").setMessage(message)
                 .setPositiveButton("Open Hardcover sign-in", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
-                .setOnCancelListener { cancelSignIn(hardcoverReport) { hardcover.setEnabled(false) } }
+                .setOnCancelListener { runDetached(hardcoverReport) { hardcover.setEnabled(false) } }
                 .create().apply { setCanceledOnTouchOutside(false) }
         ).also { dialog ->
             // Open Hardcover sign-in keeps the popup open; it closes when sign-in finishes or is cancelled.
@@ -634,7 +628,7 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("Sign in", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
                 .setOnCancelListener {
                     model.fablePassword = ""
-                    cancelSignIn(fableReport) { fable.setEnabled(false) }
+                    runDetached(fableReport) { fable.setEnabled(false) }
                 }.create().apply { setCanceledOnTouchOutside(false) }
         )
         // Sign in keeps the popup open; it closes when sign-in succeeds or is cancelled.
@@ -702,14 +696,112 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun serviceDetails(title: String, state: () -> JSONObject, report: (Exception) -> Unit, disconnect: suspend () -> Unit) {
+    /** Provider popup: account, connection, and the current book's match and delivery, with Log out. */
+    private fun showServiceDetails(name: String, connection: TrackerConnection, report: (Exception) -> Unit) {
         lifecycleScope.launch {
-            val current = withContext(Dispatchers.IO) { state() }
-            bordered(
-                AlertDialog.Builder(this@MainActivity).setTitle(title).setMessage(current.optJSONObject("last")?.toString(2) ?: current.optString("status"))
-                    .setPositiveButton("Close", null).setNegativeButton("Disconnect") { _, _ -> action(report) { disconnect() } }.create()
-            )
+            val state = withContext(Dispatchers.IO) { connection.state() }
+            val builder = AlertDialog.Builder(this@MainActivity).setTitle(name).setMessage(serviceDetailsText(name, state)).setPositiveButton("Close", null)
+            if (state.getBoolean("connected") || state.getBoolean("credentialProblem") || state.optInt("pending") > 0) {
+                builder.setNegativeButton("Log out") { _, _ -> confirmLogOut(name, connection, report) }
+            }
+            bordered(builder.create())
         }
+    }
+
+    private fun confirmLogOut(name: String, connection: TrackerConnection, report: (Exception) -> Unit) {
+        bordered(
+            AlertDialog.Builder(this).setTitle("Log out of $name?")
+                .setMessage("Boox Tracker will remove your $name sign-in from this device, turn $name off, and delete any updates that have not been sent yet.")
+                .setPositiveButton("Log out") { _, _ -> runDetached(report) { connection.logOut() } }
+                .setNegativeButton("Cancel", null).create()
+        )
+    }
+
+    private fun SpannableStringBuilder.field(label: String, value: String) {
+        val start = length
+        append("$label: ")
+        setSpan(StyleSpan(Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        append(value).append('\n')
+    }
+
+    private fun SpannableStringBuilder.heading(text: String) {
+        val start = length
+        append('\n').append(text).append('\n')
+        setSpan(StyleSpan(Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+    }
+
+    /** A provider date (ISO instant, offset date-time, or date) in the device's date format; the raw value if unparsed. */
+    private fun readableDay(raw: String): String {
+        val date = runCatching { java.time.Instant.parse(raw).atZone(java.time.ZoneId.systemDefault()).toLocalDate() }
+            .recoverCatching { java.time.OffsetDateTime.parse(raw).toLocalDate() }
+            .recoverCatching { java.time.LocalDate.parse(raw.take(10)) }.getOrNull() ?: return raw
+        return android.text.format.DateFormat.getMediumDateFormat(this).format(java.util.Date.from(date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()))
+    }
+
+    private fun serviceDetailsText(name: String, state: JSONObject): CharSequence = SpannableStringBuilder().apply {
+        val profile = state.optJSONObject("profile")
+        if (!state.getBoolean("connected")) {
+            field("Account", if (state.getBoolean("credentialProblem")) "Sign-in can no longer be read; log out and sign in again" else "Not signed in")
+        } else {
+            field("Account", listOfNotNull(profile?.text("username")?.let { "@$it" }, profile?.text("name")).joinToString(" · ").ifEmpty { "Signed in" })
+            profile?.text("email")?.let { field("Email", it) }
+            field("Connected since", state.optLong("connectedAt").takeIf { it > 0 }?.let { android.text.format.DateFormat.getMediumDateFormat(this@MainActivity).format(java.util.Date(it)) } ?: "Unknown")
+            profile?.text("createdAt")?.let { field("Account created", readableDay(it)) }
+            profile?.text("membership")?.let { field("Membership", it) }
+        }
+        field("Sync", if (state.getBoolean("enabled")) "On" else "Off")
+        state.optInt("pending").takeIf { it > 0 }?.let { field("Queued updates", it.toString()) }
+        heading("Current book")
+        val last = state.optJSONObject("last")
+        val result = last?.optJSONObject("lastSuccess")
+        if (last == null || result == null) {
+            // Nothing has reached the provider for this book, so there is no match to describe yet.
+            append("No update has been sent for the current book yet.\n")
+            last?.let { field("Last sync", syncText(it)) }
+            return@apply
+        }
+        field("Book", result.text("title") ?: "Unknown title")
+        // Hardcover reports a book-only match when it keeps your existing edition; the source edition shows the match itself.
+        val exact = if (name == "Hardcover") !result.isNull("sourceEditionId") else result.optString("matchKind") == "edition"
+        val preserved = result.optBoolean("existingEditionPreserved")
+        val pages = result.optInt("editionPages").takeIf { it > 0 }
+        if (name == "Hardcover") {
+            field("Match", if (exact) "Exact edition" else "Book only; your ebook's edition was not found on Hardcover")
+            field(
+                "Edition",
+                when {
+                    preserved -> "Your existing Hardcover edition, not the one your ebook matched"
+                    exact -> "Your ebook's edition"
+                    else -> "A Hardcover edition of this book"
+                } + (pages?.let { " · $it pages" } ?: "")
+            )
+            if (result.optBoolean("finished")) {
+                field("Progress", "Finished" + (result.text("finishedAt")?.let { " on ${readableDay(it)}" } ?: ""))
+            } else {
+                result.optInt("progressPages").takeIf { pages != null }?.let { field("Progress", "$it of $pages pages") }
+            }
+        } else {
+            field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
+            field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
+            field("Progress", if (result.optBoolean("finished")) "Finished" else "${result.optInt("percent")}%")
+            result.text("shelfAfter")?.let { shelf ->
+                field("Shelf", mapOf("current_reading" to "Currently Reading", "want_to_read" to "Want to Read", "finished" to "Finished", "did_not_finish" to "Did Not Finish")[shelf] ?: shelf)
+            }
+            val streakError = result.text("streakError")
+            val streakDate = result.text("streakDate")
+            when {
+                streakError != null -> field("Streak day", "Not marked (${streakError.replace('_', ' ')})")
+                streakDate != null -> field("Streak day", readableDay(streakDate))
+            }
+        }
+        result.text("rawProgress")?.let { raw -> Progress.parse(raw).percent?.let { field("NeoReader progress", "$it%") } }
+        field("Last sync", syncText(last))
+    }
+
+    private fun syncText(last: JSONObject): String = when (last.optString("delivery")) {
+        "pending" -> "Waiting to send"
+        "error" -> "Not sent: ${last.optString("reason").replace('_', ' ')}"
+        else -> last.optJSONObject("lastSuccess")?.text("timestamp")?.let { "Sent at ${time(it)}" } ?: "Sent"
     }
 
     override fun onDestroy() {

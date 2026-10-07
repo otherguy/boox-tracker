@@ -122,7 +122,8 @@ class FableServer : AutoCloseable {
         if (token != "JWT fresh-id" && (token != "JWT old-id" || rejectOldToken)) return 403 to JSONObject().put("detail", "Authentication credentials were not provided.")
         val segments = path.trim('/').split('/')
         return when {
-            path == "/api/settings/profile/" -> 200 to JSONObject().put("id", account).put("email", "reader@example.com")
+            path == "/api/settings/profile/" -> 200 to JSONObject().put("id", account).put("email", "reader@example.com").put("username", "reader")
+                .put("display_name", "Test Reader").put("signed_up_at", "2025-01-02T03:04:05Z").put("subscription_tier", "free").put("pic", JSONObject.NULL)
 
             path == "/api/v2/reading/streaks/history" && method == "POST" -> {
                 val ids = body!!.optJSONArray("book_ids")
@@ -382,7 +383,8 @@ class FableTest {
         val result = sync().send(book(), identifiers, "account-1")
         assertEquals(FABLE_PAPERBACK, result.getString("bookId"))
         assertTrue(result.getBoolean("existingEditionPreserved"))
-        assertEquals("book", result.getString("matchKind"))
+        // The match quality is still the exact ISBN match; using the shelved edition is reported separately.
+        assertEquals("edition", result.getString("matchKind"))
         assertEquals("current_reading", server.shelf[FABLE_PAPERBACK])
         assertNull(server.shelf[FABLE_EBOOK])
         assertEquals("/api/books/$FABLE_PAPERBACK/reading_progress", server.progressWrites().single().getString("path"))
@@ -499,9 +501,16 @@ class FableTest {
         withTimeout(10_000) { while (connection.signingIn || !connection.state().getBoolean("enabled")) delay(10) }
         assertFalse(connection.awaitingCredentials)
         assertEquals("account-1", store.get("fable.account"))
+        withTimeout(10_000) { while (connection.state().isNull("profile")) delay(10) }
+        val profile = connection.state().getJSONObject("profile")
+        assertEquals("reader", profile.getString("username"))
+        assertEquals("Test Reader", profile.getString("name"))
+        assertEquals("reader@example.com", profile.getString("email"))
+        assertEquals("Free", profile.getString("membership"))
+        assertTrue(connection.state().getLong("connectedAt") > 0)
         val export = buildExport(app.diagnostics).toString()
-        listOf("secret-password", "old-id", "old-refresh").forEach { assertFalse(it, export.contains(it)) }
-        assertFalse(store.events().any { it.toString().contains("secret-password") })
+        listOf("secret-password", "old-id", "old-refresh", "reader@example.com").forEach { assertFalse(it, export.contains(it)) }
+        assertFalse(store.events().any { it.toString().contains("secret-password") || it.toString().contains("reader@example.com") })
     }
 
     @Test fun rejectedSignInStaysPendingWithTheReasonUntilCancelled() = runBlocking {
@@ -626,7 +635,7 @@ class FableTest {
         }
     }
 
-    @Test fun disconnectDuringSignInClearsTheSessionAndAccount() = runBlocking {
+    @Test fun logOutDuringSignInClearsTheSessionAndAccount() = runBlocking {
         vault.clear()
         server.signInEntered = java.util.concurrent.CountDownLatch(1)
         server.signInRelease = java.util.concurrent.CountDownLatch(1)
@@ -635,16 +644,40 @@ class FableTest {
         connection.signIn("reader@example.com", "secret-password")
         try {
             assertTrue(server.signInEntered!!.await(5, java.util.concurrent.TimeUnit.SECONDS))
-            val disconnect = async(Dispatchers.IO) { connection.disconnect() }
+            val logOut = async(Dispatchers.IO) { connection.logOut() }
             server.signInRelease!!.countDown()
-            disconnect.await()
+            logOut.await()
             assertFalse(connection.state().getBoolean("connected"))
             assertFalse(connection.state().getBoolean("enabled"))
             assertEquals("", store.get("fable.account"))
-            assertTrue(store.events().any { it.optString("kind") == "fable_connection" && it.optString("outcome") == "disconnected" })
+            assertTrue(store.events().any { it.optString("kind") == "fable_connection" && it.optString("outcome") == "logged_out" })
         } finally {
             server.signInRelease!!.countDown()
         }
+    }
+
+    @Test fun logOutDeletesOnlyThisServicesSessionQueueAndResults() = runBlocking {
+        val connection = FableConnection(app, auth) { false }
+        store.put("fable.account", "account-1")
+        connection.setEnabled(true)
+        store.put("lastCheck", check(book()).toString())
+        connection.send("manual", check(book()))
+        store.put("fable.profile", JSONObject().put("username", "reader").toString())
+        store.put("fable.connectedAt", "1")
+        store.put("fable.match.${digest("first")}", "{}")
+        store.enqueue("1", book(), identifiers, "earlier")
+        assertEquals(1, store.pending("account-1", "fable").size)
+        connection.logOut()
+        val state = connection.state()
+        assertFalse(state.getBoolean("enabled"))
+        assertFalse(state.getBoolean("connected"))
+        assertTrue(state.isNull("profile"))
+        assertTrue(state.isNull("connectedAt"))
+        assertTrue(state.isNull("last"))
+        assertEquals(0, state.getInt("pending"))
+        assertNull(store.get("fable.match.${digest("first")}"))
+        assertEquals(1, store.pending("1").size)
+        assertTrue(store.events().any { it.optString("kind") == "fable_connection" && it.optString("outcome") == "logged_out" && it.optInt("deletedUpdates") == 1 })
     }
 
     @Test fun interruptedFableSendIsReportedOnRecovery() {
@@ -693,6 +726,87 @@ class FableTest {
             store.put("fable.enabled", "true")
             app.diagnostics.updates.value++
             awaitUi { activity.findViewById<View>(R.id.access_warning) != null && toggle()?.contentDescription?.contains("Reconnect required") == true }
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun theFableRowOpensItsDetailsAndLogOutClearsEverything() = capturingStderr {
+        // The user's shelved paperback receives progress for an ebook matched exactly by ISBN.
+        server.shelf[FABLE_PAPERBACK] = "current_reading"
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        vault.clear()
+        app.fable = FableConnection(app, auth) { true }
+        app.fable.setEnabled(true)
+        app.fable.signIn("reader@example.com", "secret-password")
+        withTimeout(10_000) { while (app.fable.signingIn || app.fable.state().isNull("profile")) delay(10) }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        val screen = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
+        fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun views() = descendants(activity.findViewById(android.R.id.content))
+        fun toggle() = views().filterIsInstance<CheckBox>().singleOrNull { it.contentDescription?.startsWith("Fable:") == true }
+        fun latestDialog() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }
+        suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            awaitUi { toggle()?.contentDescription?.contains("Exact edition matched") == true && !screen.busy }
+            assertFalse(toggle()!!.contentDescription.contains("Using your"))
+            assertNull(activity.findViewById<View>(R.id.access_warning))
+            views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.let { (it.parent as View).performClick() }
+            awaitUi { latestDialog()?.findViewById<TextView>(android.R.id.message)?.text?.contains("@reader") == true }
+            val details = latestDialog()!!.findViewById<TextView>(android.R.id.message)!!.text.toString()
+            listOf("Test Reader", "reader@example.com", "Connected since", "Membership: Free", "Synthetic Book", "The edition you shelved on Fable", "Shelf: Currently Reading").forEach { assertTrue(it, details.contains(it)) }
+            val detailsDialog = latestDialog()!!
+            detailsDialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
+            awaitUi { latestDialog()?.let { it !== detailsDialog } == true }
+            val confirm = latestDialog()!!
+            assertEquals(
+                "Boox Tracker will remove your Fable sign-in from this device, turn Fable off, and delete any updates that have not been sent yet.",
+                confirm.findViewById<TextView>(android.R.id.message)!!.text.toString()
+            )
+            confirm.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
+            awaitUi { !app.fable.state().getBoolean("connected") && toggle()?.isChecked == false && toggle()?.contentDescription?.contains("Not connected") == true }
+            assertTrue(app.fable.state().isNull("profile"))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun theDetailsPopupDescribesNoMatchBeforeTheFirstSuccessfulUpdate() = capturingStderr {
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        store.put("fable.account", "account-1")
+        app.fable = FableConnection(app, auth) { false }
+        app.fable.setEnabled(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val activity = controller.get()
+        fun descendants(view: View): List<View> = listOf(view) + if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun views() = descendants(activity.findViewById(android.R.id.content))
+        fun message() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }?.findViewById<TextView>(android.R.id.message)?.text?.toString()
+        suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            // Offline, the app-open sync queues the book without reaching Fable.
+            awaitUi { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Fable:") == true && it.contentDescription.contains("Pending") } }
+            views().filterIsInstance<TextView>().single { it.text.toString() == "Fable" }.let { (it.parent as View).performClick() }
+            awaitUi { message()?.contains("Current book") == true }
+            val text = message()!!
+            assertTrue(text, text.contains("No update has been sent for the current book yet."))
+            assertTrue(text, text.contains("Last sync: Waiting to send"))
+            listOf("Unknown title", "Progress", "Match").forEach { assertFalse(it, text.contains(it)) }
+            assertTrue(server.requests.isEmpty())
         } finally {
             controller.pause().stop().destroy()
         }

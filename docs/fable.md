@@ -20,7 +20,7 @@ Boox Tracker never stores your password. It keeps only Fable's sign-in tokens, e
 
 No book selection or confirmation is required. Boox Tracker tries a `fable:` identifier tag that holds a Fable book ID, then ISBN-13, ISBN-10, and ASIN, then title and author. Each Fable book record is one edition. Several matching records are accepted only when they are editions of the same book; otherwise the update holds.
 
-If you already shelved another edition of the book on Fable, Boox Tracker updates that edition and shows **Using your Fable edition**.
+If you already shelved another edition of the book on Fable, Boox Tracker updates that edition. Tap the Fable row to see which edition receives your progress.
 
 ## Progress and shelves
 
@@ -33,7 +33,13 @@ Fable stores whole percentages. Boox Tracker sends NeoReader's saved percentage 
 - A book on Finished or Did Not Finish on Fable is protected: reopening it in NeoReader holds the update instead of changing it.
 - Boox Tracker does not change ratings, reviews, or other lists.
 
-Offline updates wait in the same queue as other services. Turning Fable Off pauses its updates without affecting Hardcover. **Tap the Fable row → Disconnect** removes the stored session.
+Offline updates wait in the same queue as other services. Turning Fable Off pauses its updates without affecting Hardcover.
+
+## Account details and log out
+
+Tap the Fable row to see your Fable account (username, name, email, membership, sign-up date), when you connected it, and how the current book was matched and updated. Your account details stay on this device and are never included in exports.
+
+**Log out** in that popup removes your Fable sign-in from this device, turns Fable off, and deletes any Fable updates that have not been sent yet. You confirm once before anything is deleted.
 
 ## Problems and privacy
 

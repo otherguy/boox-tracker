@@ -64,6 +64,7 @@ class HardcoverServer : AutoCloseable {
     var graphqlError = false
     var tenOnly = false
     var deviceInterval = 5
+    var failProfile = false
     var tokenEntered: CountDownLatch? = null
     var tokenRelease: CountDownLatch? = null
     var identityEntered: CountDownLatch? = null
@@ -91,7 +92,7 @@ class HardcoverServer : AutoCloseable {
                     tokenRelease?.await(10, TimeUnit.SECONDS)
                 }
                 val response = when {
-                    failConnection || (failIdentity && request.optString("query").startsWith("query Identity")) -> 503 to JSONObject()
+                    failConnection || (failIdentity && request.optString("query").startsWith("query Identity")) || (failProfile && request.optString("query").startsWith("query Profile")) -> 503 to JSONObject()
 
                     path == "/oauth2/device" -> 200 to JSONObject().put("device_code", "synthetic-device-secret").put("user_code", "TEST-CODE").put("verification_uri", "https://hardcover.app/link").put("expires_in", 600).put("interval", deviceInterval)
 
@@ -170,6 +171,10 @@ class HardcoverServer : AutoCloseable {
             query.startsWith("query BookIdentifier") -> JSONObject().put("books_by_pk", JSONObject().put("id", variables.getInt("id")))
 
             query.startsWith("query BookSlug") -> JSONObject().put("books", JSONArray().put(JSONObject().put("id", 10)))
+
+            query.startsWith("query ProfileCreated") -> JSONObject().put("me", JSONArray().put(JSONObject().put("created_at", "2024-05-06T07:08:09.123456+00:00")))
+
+            query.startsWith("query Profile") -> JSONObject().put("me", JSONArray().put(JSONObject().put("username", "hardcover-reader").put("name", "Test Reader").put("pro", true)))
 
             query.startsWith("query Identity") -> {
                 identityEntered?.countDown()
@@ -680,6 +685,41 @@ class HardcoverTest {
             awaitState { !app.hardcover.signingIn && popup() == null && toggle()?.isChecked == false }
             assertFalse(app.hardcover.state().getBoolean("enabled"))
             assertFalse(auth.connected())
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun theDetailsPopupExplainsAKeptHardcoverEdition() = capturingStderr {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        // The user already reads edition 21; the ebook's ISBN matches edition 20 exactly.
+        server.withRead(100, edition = 21)
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.hardcover = HardcoverConnection(app, auth) { true }
+        app.hardcover.setEnabled(true)
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun views() = descendants(controller.get().findViewById(android.R.id.content))
+        fun message() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing }?.findViewById<android.widget.TextView>(android.R.id.message)?.text?.toString()
+        suspend fun awaitState(predicate: () -> Boolean) = withTimeout(10_000) {
+            while (!predicate()) {
+                shadowOf(Looper.getMainLooper()).idle()
+                delay(10)
+            }
+        }
+        try {
+            awaitState { views().filterIsInstance<CheckBox>().any { it.contentDescription?.startsWith("Hardcover:") == true && it.contentDescription.contains("⚠ Book matched") } }
+            assertNotNull(controller.get().findViewById(R.id.access_warning))
+            assertFalse(views().filterIsInstance<CheckBox>().any { it.contentDescription.contains("Using your") })
+            awaitState { !app.hardcover.state().isNull("profile") }
+            views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" }.let { (it.parent as View).performClick() }
+            awaitState { message()?.contains("Current book") == true }
+            val text = message()!!
+            listOf("@hardcover-reader · Test Reader", "Membership: Pro", "Match: Exact edition", "Your existing Hardcover edition, not the one your ebook matched · 502 pages").forEach { assertTrue(text, text.contains(it)) }
+            assertFalse(text, text.contains("Email"))
         } finally {
             controller.pause().stop().destroy()
         }

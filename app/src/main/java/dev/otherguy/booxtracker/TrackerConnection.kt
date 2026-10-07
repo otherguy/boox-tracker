@@ -42,6 +42,12 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
 
     protected abstract suspend fun deliver(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String): JSONObject
 
+    /** Account details for the details popup: `username`, `name`, `email`, `createdAt`, `membership`, each optional. */
+    protected abstract suspend fun fetchProfile(): JSONObject
+
+    /** Removes the stored session and cancels a running sign-in. */
+    protected abstract suspend fun signOut()
+
     protected fun enabled() = store.get("$service.enabled") == "true"
 
     private fun bookStateKey(account: String, key: String) = "$service.book.$account.${digest(key)}"
@@ -52,8 +58,9 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         val account = store.get("$service.account")
         val book = current?.let { store.get(bookStateKey(account.orEmpty(), it)) }?.let(::JSONObject)
         return JSONObject().put("connected", connection.getOrDefault(false)).put("credentialProblem", connection.isFailure)
+            .put("profile", store.get("$service.profile")?.let(::JSONObject) ?: JSONObject.NULL).put("connectedAt", store.get("$service.connectedAt")?.toLongOrNull() ?: JSONObject.NULL)
             .put("enabled", enabled()).put("folder", !store.get("ebook.tree").isNullOrBlank())
-            .put("status", store.get("$service.status") ?: "Not connected").put("connectionError", store.get("$service.connectionError").orEmpty()).put("last", book ?: JSONObject.NULL)
+            .put("connectionError", store.get("$service.connectionError").orEmpty()).put("last", book ?: JSONObject.NULL)
             .put("pending", if (account == null) 0 else store.pending(account, service).size)
     }
 
@@ -126,13 +133,58 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
                 diagnostics.updates.value++
             }
         }
+        // Fetches account details when none are stored, for example for an older sign-in or after a failed fetch.
+        if (enabled() && store.get("$service.profile") == null) refreshProfile()
         retry || store.pending(accountId, service).any { it.getString("revision") !in attempted }
+    }
+
+    /**
+     * Stores the provider's account details on this device for the details popup. They are never written to the
+     * Activity log or exports. A failure keeps the previous details and never blocks syncing.
+     */
+    protected suspend fun refreshProfile() {
+        try {
+            store.put("$service.profile", fetchProfile().toString())
+            if (store.get("$service.connectedAt") == null) store.put("$service.connectedAt", System.currentTimeMillis().toString())
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+        }
+    }
+
+    /** Records a completed sign-in. Clears any earlier account's details; [syncAfterSignIn] fetches the new ones. */
+    protected fun recordSignIn() {
+        store.put("$service.connectedAt", System.currentTimeMillis().toString())
+        store.delete("$service.profile")
+    }
+
+    /**
+     * Logs out: removes the session, turns the service Off, and deletes its queued updates, book results, match cache,
+     * and account details. Waits for a delivery in progress, which stops before its next write once the service is Off.
+     */
+    suspend fun logOut() {
+        store.put("$service.enabled", "false")
+        mutex.withLock {
+            settingsMutex.withLock {
+                signOut()
+                store.put("$service.enabled", "false")
+                val deleted = store.transaction {
+                    listOf("$service.book.", "$service.match.").forEach(store::deletePrefix)
+                    listOf("$service.profile", "$service.connectedAt").forEach(store::delete)
+                    store.put("$service.account", "")
+                    store.put("$service.connectionError", "")
+                    store.deletePrefix("outbox.$service.")
+                }
+                diagnostics.event("manual", "${service}_connection", detail = JSONObject().put("outcome", "logged_out").put("deletedUpdates", deleted))
+            }
+        }
     }
 
     /** Starts the first sync after sign-in as its own job, so switching Off afterwards pauses the service instead of cancelling sign-in. */
     protected fun syncAfterSignIn() {
         diagnostics.scope.launch {
             try {
+                refreshProfile()
                 app.sync("foreground", "sign_in")
             } catch (error: CancellationException) {
                 throw error
@@ -162,7 +214,6 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
 
     fun recordFailure(source: String, kind: String, error: Exception, runId: String? = null) {
         val reason = failureReason(error)
-        store.put("$service.status", reason.replace('_', ' '))
         diagnostics.event(source, kind, runId, JSONObject().put("outcome", "held").put("reason", reason).put("errorClass", error.javaClass.name), true)
     }
 }

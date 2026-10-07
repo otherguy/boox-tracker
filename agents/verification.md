@@ -1,16 +1,16 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.2/code 14 (Fable reading streak). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.3/code 15 (provider details popup). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
-| Built | 0.4.2 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API with reading-streak days, sign-in in popups | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 129 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Built | 0.4.3 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
+| Automatically tested | 135 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
-| Physical current UI/update | Signed 0.3.1–0.4.1 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Physical current UI/update | Signed 0.3.1–0.4.3 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
 | Source / publication | `main` pushed at `84f3c0a` (0.4.0); [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit on 2026-10-07 | No release or prerelease exists; one needs an explicit user request |
 
 APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
@@ -43,9 +43,23 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Provider details popup 0.4.3
+
+**Built:** debug and signed diagnostic APKs, version 0.4.3/code 15. Package, certificate, and schemas are unchanged. Artifact `dist/boox-tracker-0.4.3-diagnostic.apk`, 3,548,262 bytes, SHA-256:
+
+```text
+fd0495c7da270fa9cbaf1084c91c6c89eb6c73e1ac0329145a21b20bf5885dbb
+```
+
+Tapping a provider row opens its details popup: account (username and name, email for Fable, connected since, account created, membership), Sync On/Off, queued updates, and the current book's match, edition, progress, Fable shelf and streak day, NeoReader progress, and last sync. Account details are fetched in the background after sign-in, or after the next delivery for older sign-ins, and stored in the state table only; they never reach events or exports. Log out confirms once, then removes the session, turns the provider Off, and deletes its queued updates, book results, match cache, and account details in one transaction. Rows no longer show the edition line; Fable no longer warns for the match kind, and its `matchKind` now reports the match itself. Hardcover keeps "⚠ Book matched" with the amber warning. The unused per-service `status` state value was removed.
+
+**Automatically tested:** 135 tests, zero failures/errors/skips, empty stderr. New tests cover account details at sign-in and on a later delivery for both providers, a failed account-details fetch that still delivers, Log out deleting only that provider's data, the Fable popup and Log out confirmation end to end, the popup before a first successful update, and the Hardcover popup for a kept edition. Both builds and lint variants passed with zero lint errors. Both required reviews ran. The code review found five issues, fixed with tests: invented match text before a first success, contradictory Hardcover edition text, sign-in waiting for the profile fetch, an old account's details surviving a new sign-in, and prefix deletes for exact keys. The simplification review's cleanups were applied.
+
+**Verified on physical BOOX:** the signed 0.4.3 update installed over 0.4.1 via USB on 2026-10-07 at 12:36 local time; package metadata reports code 15/version 0.4.3, data inode `129824` unchanged, app not disabled, no uninstall or data clear. 0.4.2 was never installed. The app was not opened, so the popups, account queries, and streak write are not yet checked on the device.
+
 ## Fable reading streak 0.4.2
 
-**Built:** debug and signed diagnostic APKs, version 0.4.2/code 14, not yet committed or installed. Package, certificate, schemas, and vault files are unchanged. Artifact `dist/boox-tracker-0.4.2-diagnostic.apk`, 3,542,438 bytes, SHA-256:
+**Built:** debug and signed diagnostic APKs, version 0.4.2/code 14, committed as `4a48219`, not installed. Package, certificate, schemas, and vault files are unchanged. Artifact `dist/boox-tracker-0.4.2-diagnostic.apk`, 3,542,438 bytes, SHA-256:
 
 ```text
 30b2dfd0989684ac474bb93a1f2b352741f338bd8bf6eee89ee04dc60a74c9a0

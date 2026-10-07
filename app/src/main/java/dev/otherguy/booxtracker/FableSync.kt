@@ -82,7 +82,7 @@ class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore
         val target = shelved.entries.firstOrNull { it.value == "current_reading" }?.key ?: shelved.entries.firstOrNull { it.value == "want_to_read" }?.key ?: matched
         val shelfBefore = shelved[target]
         val detail = JSONObject().put("bookId", target).put("matchedBookId", matched).put("title", editions.firstOrNull { it.optString("id") == target }?.optString("title").orEmpty())
-            .put("matchKind", if (target == matched) match.getString("matchKind") else "book").put("existingEditionPreserved", target != matched)
+            .put("matchKind", match.getString("matchKind")).put("existingEditionPreserved", target != matched)
             .put("rawProgress", book.raw("progress")).put("percent", percent).put("finished", finished).put("shelfBefore", shelfBefore ?: JSONObject.NULL)
         if (finished && "finished" in shelved.values) return@authorized detail.put("outcome", "already_current").put("unchanged", true).put("shelfAfter", "finished")
         if ("finished" in shelved.values || "did_not_finish" in shelved.values) throw SyncProblem("fable_status_conflict")

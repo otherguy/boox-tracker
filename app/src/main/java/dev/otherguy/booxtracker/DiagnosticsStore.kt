@@ -65,6 +65,24 @@ class DiagnosticsStore(
         buildList { while (cursor.moveToNext()) add(JSONObject(cursor.getString(0))) }
     }
 
+    @Synchronized fun delete(name: String) {
+        writableDatabase.delete("state", "name=?", arrayOf(name))
+    }
+
+    /** Runs [block] in one database transaction, so its writes land together or not at all. */
+    @Synchronized fun <T> transaction(block: () -> T): T {
+        val db = writableDatabase
+        db.beginTransaction()
+        return try {
+            block().also { db.setTransactionSuccessful() }
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Deletes every state row whose name starts with [prefix] and returns how many were deleted. */
+    @Synchronized fun deletePrefix(prefix: String): Int = writableDatabase.delete("state", "substr(name, 1, ?) = ?", arrayOf(prefix.length.toString(), prefix))
+
     @Synchronized fun acknowledge(item: JSONObject): Boolean {
         val db = writableDatabase
         db.beginTransaction()

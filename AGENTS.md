@@ -28,6 +28,8 @@ Current state, versions, device results, and next steps are in [project status](
 - `BookIdentifiers.kt` is the only identifier-tag allowlist. The metadata popup labels its output and does not filter again. Tags for services without an integration are display-only.
 - The service switch drives the connection. On opens that service's sign-in popup when no session exists; Cancel or Back in the popup turns the switch Off. Off cancels sign-in or pauses sends and keeps queued items. A failed Hardcover connection returns Off with a message on the row; a rejected Fable email or password keeps the popup open with the reason. Only enabled services can show a warning.
 - Fable uses Fable's unofficial app API by the user's decision; public docs must say so. Never store the Fable password, only its tokens.
+- Every provider row opens that provider's details popup: account details stored at sign-in (never in the Activity log or exports), connected since, the current book's match, edition, progress, and last sync, and Log out. Log out asks once, removes the session, turns the provider Off, and deletes its queued updates, book results, and account details. Each new provider implements `fetchProfile` and `signOut` on `TrackerConnection` to get this.
+- Match explanations such as "no exact edition" or "your existing edition" belong in the details popup, not on the row. The row may warn only where the provider's progress depends on the matched edition.
 - Read [integration research](agents/integrations.md) before adding or changing a tracker.
 
 ## Queue and background work

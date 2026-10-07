@@ -26,7 +26,7 @@ Tap the book title to see available identifiers. `asin:` and `amazon:` values ca
 | Result | Meaning |
 | --- | --- |
 | ✅ Exact edition matched | Progress uses the matched source edition. |
-| ⚠ Book matched · No exact edition | The book is identified; another valid Hardcover edition supplies the page basis. |
+| ⚠ Book matched | The book is identified; another valid Hardcover edition supplies the page basis. Tap the row for the edition and page count used. |
 | ❌ Specific error | Matching, account access, or safe progress delivery cannot proceed. |
 
 An existing Hardcover read's edition is preserved. Otherwise, the app uses the exact matched edition with pages, the default ebook edition, then the default physical edition. It verifies that the edition belongs to the matched book. Missing usable page counts hold the update.
@@ -41,7 +41,9 @@ Delivery is shown separately as **Pending**, **Synced at…**, or a failure. The
 
 The device retains the latest pending update for each account and book, including when you switch books, restart, or reboot. Local collection requests a fifteen-minute schedule without a network requirement. Separate delivery work waits for a network and retries temporary failures. Android and BOOX decide when work can run.
 
-Turn Hardcover Off to pause sends and retain pending items. Turn it On for the same account to resume. **Tap the Hardcover row → Disconnect** to clear credentials. Another account cannot receive the previous account's queue. Background work never opens sign-in.
+Turn Hardcover Off to pause sends and retain pending items. Turn it On for the same account to resume. Another account cannot receive the previous account's queue.
+
+Tap the Hardcover row to see your account (username, name, membership), when you connected it, and how the current book was matched, including the edition and page count used. **Log out** there removes your Hardcover sign-in from this device, turns Hardcover off, and deletes any Hardcover updates that have not been sent yet; you confirm once first. Hardcover does not share your email with Boox Tracker. Background work never opens sign-in.
 
 ## Problems and privacy
 

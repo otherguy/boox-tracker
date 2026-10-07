@@ -115,6 +115,12 @@ The user signed in on fable.co in the built-in browser. Read-only probes and use
 
 No rate-limit headers were observed.
 
+### Account details for the provider popup
+
+`GET /api/settings/profile/` returned these keys on 2026-10-06, among others: `id`, `username`, `display_name`, `email`, `pic`, `signed_up_at`, `subscription_tier`, `followers_count`, `following_count`, `timezone`. Their values were not recorded. The app stores `username`, `display_name`, `email`, `signed_up_at`, and `subscription_tier` on the device for the details popup only.
+
+Hardcover's documented "my information" query uses `me { id username name pro … }`; the app asks `me { username name pro }`. `email` needs the `read:me:email` scope, which the app does not request, so Hardcover shows no email. `created_at` is in the users schema but not in the documented query; the app asks for it separately and leaves it out when refused. Neither query has run against a real account yet.
+
 ### Reading streak, verified 2026-10-07
 
 Fable's reading streak is a per-day record, separate from progress. Progress writes on 2026-10-06 created no streak day; the user's "I read today" tap in the Fable app on 2026-10-07 did, linked to In the Blood, and also moved progress to 52%. The streak screen is native to the app; the website only reads streak stats. `GET https://api.fable.co/api/` lists the API routes, including the `v2/reading` family.

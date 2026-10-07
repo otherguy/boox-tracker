@@ -100,7 +100,7 @@ class OfflineSyncTest {
         assertTrue(connection.state().isNull("last"))
     }
 
-    @Test fun disconnectWinsOverAnEarlierOnWaitingForIdentity() = runBlocking {
+    @Test fun logOutWinsOverAnEarlierOnWaitingForIdentity() = runBlocking {
         connection.setEnabled(false)
         store.put("hardcover.account", "")
         server.identityEntered = CountDownLatch(1)
@@ -108,10 +108,10 @@ class OfflineSyncTest {
         val on = async(Dispatchers.IO) { connection.setEnabled(true) }
         try {
             assertTrue(server.identityEntered!!.await(5, TimeUnit.SECONDS))
-            val disconnect = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { connection.disconnect() }
+            val logOut = async(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { connection.logOut() }
             server.identityRelease!!.countDown()
             on.await()
-            disconnect.await()
+            logOut.await()
             assertFalse(connection.state().getBoolean("enabled"))
             assertFalse(connection.state().getBoolean("connected"))
             assertEquals("", store.get("hardcover.account"))
@@ -119,6 +119,34 @@ class OfflineSyncTest {
             server.identityRelease!!.countDown()
             on.cancelAndJoin()
         }
+    }
+
+    @Test fun anExistingSessionGetsAccountDetailsOnItsNextDelivery() = runBlocking {
+        connection.send("manual", check(book()))
+        assertTrue(connection.state().isNull("profile"))
+        online = true
+        connection.drain("delivery")
+        val profile = connection.state().getJSONObject("profile")
+        assertEquals("hardcover-reader", profile.getString("username"))
+        assertEquals("Pro", profile.getString("membership"))
+        assertEquals("2024-05-06T07:08:09.123456+00:00", profile.getString("createdAt"))
+        assertFalse(profile.has("email"))
+        assertTrue(connection.state().getLong("connectedAt") > 0)
+        val profileQueries = server.requests.count { it.optString("query").startsWith("query Profile") }
+        connection.drain("delivery")
+        assertEquals(profileQueries, server.requests.count { it.optString("query").startsWith("query Profile") })
+    }
+
+    @Test fun aFailedAccountDetailsFetchNeverBlocksDelivery() = runBlocking {
+        connection.send("manual", check(book()))
+        online = true
+        server.failProfile = true
+        assertFalse(connection.drain("delivery"))
+        assertTrue(store.pending("1").isEmpty())
+        assertTrue(connection.state().isNull("profile"))
+        server.failProfile = false
+        connection.drain("delivery")
+        assertFalse(connection.state().isNull("profile"))
     }
 
     @Test fun offlineCollectionCoalescesEachBookAndSurvivesDatabaseReopen() = runBlocking {
