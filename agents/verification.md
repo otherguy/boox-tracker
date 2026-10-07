@@ -1,16 +1,16 @@
 # Verification record
 
-Updated 2026-10-07 for Boox Tracker 0.4.3/code 15 (provider details popup). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-07 for Boox Tracker 0.4.4/code 16 (Hardcover duplicate reads). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
 | Category | Confirmed evidence | Limits / next proof |
 | --- | --- | --- |
 | Built | 0.4.3 debug/signed APKs: Hardcover with completion sync, Fable through its unofficial app API with reading-streak days, sign-in popups, provider details popups with Log out | Goodreads/StoryGraph/Margins, rereads, website, updater and statistics are not implemented |
-| Automatically tested | 135 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
+| Automatically tested | 144 tests, zero failures/errors/skips, empty stderr; both builds/lint variants, static checks and both reviews passed | Ten existing lint notices per variant; synthetic source/local HTTP do not prove firmware or production scheduling |
 | Physical provider/background | Historical ordinary-UID reads, independent scheduled reads after boot/near wake, logs retained on GoColor7/API 32 firmware below | No exact cadence, regular sleep, repeat-boot, or wider-device guarantee; new delivery needs separate proof |
 | Physical Hardcover | User confirmed native approval, exact matching, Synced at…, and remote 240/480 pages (50%) on 0.3.1 | Chosen edition/raw fraction/mutation sequence await export; book-only and hidden-app offline/reconnect remain pending |
-| Physical current UI/update | Signed 0.3.1–0.4.3 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
+| Physical current UI/update | Signed 0.3.1–0.4.4 USB updates with the same data inode; prompt, merged identifiers, readable-grant cancellation checked | 0.4.x launch, the sign-in popups, and Fable are not yet checked; future tags and revoked-grant/recreation cases have automatic evidence only; unchanged data inode is not queue-reboot proof |
 | Source / publication | `main` pushed at `84f3c0a` (0.4.0); [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit on 2026-10-07 | No release or prerelease exists; one needs an explicit user request |
 
 APK bytes/checksum and existing test reports were rechecked during the documentation refresh. No new app build, device operation, or remote workflow was performed for that docs-only work. Foreground checks around 22:03–22:04 and 22:31–22:32 on 2026-10-06 must be excluded from independent background evidence. Opening the app collects/sends automatically.
@@ -42,6 +42,20 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Hardcover duplicate reads 0.4.4
+
+**Built:** debug and signed diagnostic APKs, version 0.4.4/code 16. Package, certificate, and schemas are unchanged. Artifact `dist/boox-tracker-0.4.4-diagnostic.apk`, 3,549,982 bytes, SHA-256:
+
+```text
+77f2d13610d25f9acb7bc694bbc805b75b6e9956350b1d8894471960d35ff59f
+```
+
+On the GoColor7, 0.4.3 showed `hardcover_read_history_conflict` for In the Blood. The user's logged-in Hardcover page showed two reads on edition 33373487: 7080312 (started 2026-10-06, 0 pages) and 7080314 (no dates, 240 pages). Hardcover creates a dated read when a book becomes Currently Reading; the first sync on 2026-10-06 then inserted its own undated read, so every later sync held. The sync now re-reads the reads after it adds a book or moves it to Currently Reading and advances Hardcover's read instead of inserting one. Two open reads on one edition with exactly one dated are treated as that pair: progress goes to the dated read, the higher progress of both is kept, and the undated read is left unchanged. A failed finish on the pair resumes with only the status update.
+
+**Automatically tested:** 144 tests, zero failures/errors/skips, empty stderr. New tests cover a new book and a Want to Read book advancing Hardcover's read, the pair advancing the dated read and keeping higher progress, finishing with the pair and resuming a failed finish, a new finished book, two created reads holding, a percentage-only read in the pair holding, and other multi-read histories holding. Both builds and lint variants passed with zero lint errors. Both required reviews ran; the code review's stuck-finish and percentage-only findings were fixed with tests, and the simplification review's cleanups were applied.
+
+**Verified on physical BOOX and Hardcover:** 0.4.4 installed over 0.4.3 via USB on 2026-10-07 at 12:56 local time (code 16, data inode `129824` unchanged, app not disabled, no uninstall or data clear). Opening the app synced In the Blood at 52.93%: the row showed "Exact edition matched · Synced at 12:56", and Hardcover then showed read 7080312 at 254 pages (52.92%) with its start date kept and read 7080314 unchanged at 240 pages. The user then deleted the undated read on Hardcover; the page afterwards showed only read 7080312 at 254 pages.
 
 ## Provider details popup 0.4.3
 

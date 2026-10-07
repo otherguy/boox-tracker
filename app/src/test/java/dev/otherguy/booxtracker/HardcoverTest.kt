@@ -43,6 +43,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowContentResolver
 
+private fun userBookRead(id: Int, pages: Int, started: String?, finished: String? = null, edition: Int = 20) = JSONObject().put("id", id).put("edition_id", edition)
+    .put("progress_pages", pages).put("progress", 0).put("progress_seconds", JSONObject.NULL).put("started_at", started ?: JSONObject.NULL)
+    .put("finished_at", finished ?: JSONObject.NULL).put("paused_at", JSONObject.NULL)
+
 class HardcoverServer : AutoCloseable {
     val requests = CopyOnWriteArrayList<JSONObject>()
     var failIdentity = false
@@ -65,6 +69,9 @@ class HardcoverServer : AutoCloseable {
     var tenOnly = false
     var deviceInterval = 5
     var failProfile = false
+
+    /** How many empty dated reads to create when a book becomes Currently Reading; real Hardcover creates one. */
+    var readsCreatedWhenStarted = 0
     var tokenEntered: CountDownLatch? = null
     var tokenRelease: CountDownLatch? = null
     var identityEntered: CountDownLatch? = null
@@ -182,6 +189,8 @@ class HardcoverServer : AutoCloseable {
                 JSONObject().put("me", JSONArray().put(JSONObject().put("id", identity)))
             }
 
+            query.startsWith("query StartedReads") -> JSONObject().put("user_book_reads", library.getJSONObject(0).getJSONArray("user_book_reads"))
+
             query.startsWith("query Library") -> {
                 libraryEntered?.countDown()
                 libraryRelease?.await(5, TimeUnit.SECONDS)
@@ -198,12 +207,20 @@ class HardcoverServer : AutoCloseable {
                 if (mutationRejected) return JSONObject().put(field, JSONObject().put("error", "synthetic rejection").put("id", JSONObject.NULL))
                 if (field == "insert_user_book") library.put(JSONObject().put("id", 30).put("status_id", 2).put("edition_id", 20).put("user_book_reads", JSONArray()))
                 if (field == "update_user_book") library.getJSONObject(0).put("status_id", variables.getJSONObject("object").getInt("status_id"))
+                val startedReading = field == "insert_user_book" || (field == "update_user_book" && variables.getJSONObject("object").getInt("status_id") == 2)
+                if (startedReading) repeat(readsCreatedWhenStarted) { library.getJSONObject(0).getJSONArray("user_book_reads").put(userBookRead(41 + it, 0, "2026-10-06")) }
                 if (field == "insert_user_book_read") library.getJSONObject(0).getJSONArray("user_book_reads").put(JSONObject(variables.getJSONObject("read").toString()).put("id", 40))
                 if (field == "update_user_book_read") {
                     val read = variables.getJSONObject("read")
-                    library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).put("progress_pages", read.getInt("progress_pages")).put("finished_at", read.opt("finished_at") ?: JSONObject.NULL)
+                    val target = library.getJSONObject(0).records("user_book_reads").single { it.getInt("id") == variables.getInt("id") }
+                    target.put("progress_pages", read.getInt("progress_pages")).put("finished_at", read.opt("finished_at") ?: JSONObject.NULL)
                 }
-                JSONObject().put(field, JSONObject().put("id", if (field.endsWith("read")) 40 else 30).put("error", JSONObject.NULL))
+                val id = when (field) {
+                    "update_user_book_read" -> variables.getInt("id")
+                    "insert_user_book_read" -> 40
+                    else -> 30
+                }
+                JSONObject().put(field, JSONObject().put("id", id).put("error", JSONObject.NULL))
             }
         }
     }
@@ -373,6 +390,105 @@ class HardcoverTest {
         assertEquals("already_current", sync.send(book(), identifiers).getString("outcome"))
         assertEquals(2, server.mutations().size)
         assertEquals(1, server.library.length())
+    }
+
+    private fun reads() = server.library.getJSONObject(0).records("user_book_reads")
+
+    private fun twoReads(first: JSONObject, second: JSONObject) {
+        server.library = JSONArray().put(JSONObject().put("id", 30).put("status_id", 2).put("edition_id", 20).put("user_book_reads", JSONArray().put(first).put(second)))
+    }
+
+    @Test fun aNewBookAdvancesTheReadHardcoverCreatedInsteadOfAddingOne() = runBlocking {
+        server.readsCreatedWhenStarted = 1
+        val result = HardcoverSync(auth).send(book(), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertEquals(41, result.getInt("readId"))
+        assertEquals(listOf("AddBook", "AdvanceRead"), mutationNames())
+        val read = reads().single()
+        assertEquals(237, read.getInt("progress_pages"))
+        assertEquals("2026-10-06", read.getString("started_at"))
+    }
+
+    @Test fun startingAWantToReadBookAdvancesTheReadHardcoverCreated() = runBlocking {
+        server.library = JSONArray().put(JSONObject().put("id", 30).put("status_id", 1).put("edition_id", 20).put("user_book_reads", JSONArray()))
+        server.readsCreatedWhenStarted = 1
+        assertEquals(41, HardcoverSync(auth).send(book(), identifiers).getInt("readId"))
+        assertEquals(1, reads().size)
+        assertTrue(server.mutations().none { it.getString("query").contains("insert_user_book_read(") })
+    }
+
+    @Test fun anUndatedDuplicateReadIsLeftAloneWhileTheDatedReadAdvances() = runBlocking {
+        // Hardcover's dated empty read plus an undated read with progress on the same edition.
+        twoReads(userBookRead(40, 240, null), userBookRead(41, 0, "2026-10-06"))
+        val sync = HardcoverSync(auth)
+        val result = sync.send(book("5293/10000"), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertEquals(41, result.getInt("readId"))
+        assertEquals(40, result.getInt("duplicateReadId"))
+        assertEquals(266, reads().single { it.getInt("id") == 41 }.getInt("progress_pages"))
+        assertEquals(240, reads().single { it.getInt("id") == 40 }.getInt("progress_pages"))
+        // The undated read's higher progress is kept, and an unchanged source is current afterwards.
+        assertEquals("kept_higher_remote_progress", sync.send(book("4723/10000"), identifiers).getString("outcome"))
+        assertEquals("already_current", sync.send(book("5293/10000"), identifiers).getString("outcome"))
+        assertEquals(1, server.mutations().size)
+    }
+
+    private fun mutationNames() = server.mutations().map { it.getString("query").substringAfter("mutation ").substringBefore("(") }
+
+    @Test fun finishingWithTheDuplicatePairCompletesTheDatedRead() = runBlocking {
+        twoReads(userBookRead(40, 240, null), userBookRead(41, 0, "2026-10-06"))
+        val result = HardcoverSync(auth).send(finished(), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertEquals(listOf("AdvanceRead", "FinishBook"), mutationNames())
+        val dated = reads().single { it.getInt("id") == 41 }
+        assertEquals(502, dated.getInt("progress_pages"))
+        assertEquals("2026-10-06", dated.getString("finished_at"))
+        val undated = reads().single { it.getInt("id") == 40 }
+        assertEquals(240, undated.getInt("progress_pages"))
+        assertTrue(undated.isNull("finished_at"))
+    }
+
+    @Test fun aFailedFinishWithTheDuplicatePairOnlyMarksTheBookReadOnRetry() = runBlocking {
+        twoReads(userBookRead(40, 240, null), userBookRead(41, 502, "2026-10-06", finished = "2026-10-06"))
+        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals(listOf("FinishBook"), mutationNames())
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun aNewFinishedBookCompletesTheReadHardcoverCreated() = runBlocking {
+        server.readsCreatedWhenStarted = 1
+        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals(listOf("AddBook", "AdvanceRead", "FinishBook"), mutationNames())
+        val read = reads().single()
+        assertEquals("2026-10-06", read.getString("finished_at"))
+        assertEquals(502, read.getInt("progress_pages"))
+    }
+
+    @Test fun twoReadsCreatedOnStartHoldWithoutAddingAThird() = runBlocking {
+        server.readsCreatedWhenStarted = 2
+        assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }.code)
+        assertEquals(listOf("AddBook"), mutationNames())
+        assertEquals(2, reads().size)
+    }
+
+    @Test fun aPercentageOnlyReadInThePairHolds() = runBlocking {
+        twoReads(userBookRead(40, 0, null).put("progress_pages", JSONObject.NULL).put("progress", 0.6), userBookRead(41, 0, "2026-10-06"))
+        assertEquals("hardcover_progress_format_unsupported", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5293/10000"), identifiers) } }.code)
+        assertTrue(server.mutations().isEmpty())
+    }
+
+    @Test fun otherReadHistoriesStillHold() = runBlocking {
+        val held = listOf(
+            userBookRead(40, 0, null) to userBookRead(41, 0, null),
+            userBookRead(40, 0, "2026-10-01") to userBookRead(41, 0, "2026-10-06"),
+            userBookRead(40, 240, null) to userBookRead(41, 0, "2026-10-06", finished = "2026-10-06"),
+            userBookRead(40, 240, null, edition = 21) to userBookRead(41, 0, "2026-10-06")
+        )
+        for ((first, second) in held) {
+            twoReads(first, second)
+            assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5293/10000"), identifiers) } }.code)
+        }
+        assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun advancesExistingReadAndKeepsHigherRemoteProgress() = runBlocking {

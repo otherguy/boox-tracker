@@ -1,13 +1,14 @@
 # Project status and handoff
 
-Updated 2026-10-07 after the 0.4.3 provider details build and its USB install over 0.4.1. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-07 after the 0.4.4 Hardcover duplicate-read fix and its USB install over 0.4.3. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
 State on 2026-10-07:
 
 - **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`, pushed at `84f3c0a`. [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37569442407) for that commit.
-- **Device:** signed 0.4.3/code 15 is installed over 0.4.1 on the GoColor7 by USB. The app has not been opened since the 0.4.0 install. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
+- **Device:** signed 0.4.4/code 16 is installed over 0.4.3 on the GoColor7 by USB and was opened at 12:56 on 2026-10-07; Hardcover and Fable both show In the Blood at 52.93%.
+- **Hardcover account:** In the Blood has one read, 7080312 (started 2026-10-06, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** In the Blood is on Currently Reading at 50%. The UK paperback sibling has a stray 0% record on no list.
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
 
@@ -20,7 +21,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.3 / code 15
+## Built: 0.4.4 / code 16
 
 | Item | Current value |
 | --- | --- |
@@ -30,8 +31,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.4.3-diagnostic.apk`, 3,548,262 bytes |
-| Diagnostic APK SHA-256 | `fd0495c7da270fa9cbaf1084c91c6c89eb6c73e1ac0329145a21b20bf5885dbb` |
+| Diagnostic APK | `dist/boox-tracker-0.4.4-diagnostic.apk`, 3,549,982 bytes |
+| Diagnostic APK SHA-256 | `77f2d13610d25f9acb7bc694bbc805b75b6e9956350b1d8894471960d35ff59f` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 
@@ -73,7 +74,7 @@ Activity uses recycled rows and lazy details, shows the latest 250 events, and r
 
 ## Automatically tested
 
-The 0.4.3 reports contain **135 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings, which were applied with tests. Packaging verified signatures; delivered APK hashes were checked separately.
+The 0.4.4 reports contain **144 tests, zero failures/errors/skips, and empty stderr**. Both APKs and both Android lint variants passed. Lint has zero errors and ten existing dependency/tool notices per variant. ktlint and Markdown checks passed. Both required reviews returned findings, which were applied with tests. Packaging verified signatures; delivered APK hashes were checked separately.
 
 Tests exercise shipping provider, SQLite, SAF, UI, OAuth/connector, and worker paths with synthetic ebook metadata and a local HTTP server. They cover matching, edition fallback, history protection, multi-book/account queues, reopening storage, uncertain writes, revision races, offline toggles, folder gating/recreation, and Activity rendering. Fable tests use a local fake of the response shapes observed on 2026-10-06. They do not establish actual BOOX scheduling or production catalogue/API behavior. See [the evidence record](verification.md#fable-sync-040).
 
@@ -87,7 +88,7 @@ One device: ONYX GoColor7, Android 12/API 32, build `2026-05-19_23-44_4.2-rel_05
 | Independent local scheduling | Historical app-hidden reads, including cold boot and wake; no exact cadence or regular sleep guarantee |
 | Historical logs/Activity | Reboot/update/export retention and much faster scrolling reported on 0.1.2 |
 | Native sign-in and manual exact sync | User confirmed on 0.3.1: Exact edition matched, Synced at…, progress reached Hardcover; In the Blood screenshot shows 240/480 pages, 50% |
-| Current updates/UI | Signed 0.3.1–0.4.3 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.x not yet launched |
+| Current updates/UI | Signed 0.3.1–0.4.4 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once |
 
 The remote screenshots do not prove a selected edition ID, exact raw fraction, or mutation sequence. Those need an export. The 0.3.3 metadata screenshot is `dist/screenshots/boox-tracker-0.3.3-boox-metadata.png`. Future-service tags were absent from this book, so their rendering/rejection has automatic proof only. Data inode `129824` stayed unchanged across the new-package updates; this alone does not prove reboot queue retention.
 
