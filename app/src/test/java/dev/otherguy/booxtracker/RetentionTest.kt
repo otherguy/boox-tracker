@@ -163,8 +163,11 @@ class RetentionTest {
 
     @Test fun theCheckEventKeepsABookSummaryAndTheLastCheckKeepsTheFullRecord() = runBlocking {
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.visible = false
         app.diagnostics.collect("scheduled", "periodic", "job")
         val logged = store.events().single { it.optString("kind") == "query" }
+        assertEquals("scheduled", logged.getString("source"))
+        assertFalse(logged.getBoolean("appVisibleAtStart"))
         assertFalse(logged.has("columns"))
         val selected = logged.getJSONObject("selected")
         assertEquals(setOf("key", "title", "authors", "percentage", "readingStatus", "lastAccess"), selected.keys().asSequence().toSet())

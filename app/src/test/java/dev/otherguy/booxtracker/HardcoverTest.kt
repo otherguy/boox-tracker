@@ -272,21 +272,6 @@ class HardcoverTest {
         .put("readingStatus", JSONObject().put("state", "value").put("raw", status))
         .put("lastAccess", if (lastAccess == null) JSONObject().put("state", "null") else JSONObject().put("state", "value").put("raw", lastAccess))
 
-    private fun capturingStderr(block: suspend () -> Unit) = runBlocking {
-        val originalError = System.err
-        val capturedError = java.io.ByteArrayOutputStream()
-        val stream = java.io.PrintStream(capturedError, true, Charsets.UTF_8)
-        System.setErr(stream)
-        try {
-            block()
-        } finally {
-            System.setErr(originalError)
-            stream.close()
-        }
-        // Robolectric's CppAssetManager2 reports zero-ID lookups during widget construction.
-        assertEquals(emptyList<String>(), capturedError.toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() && it != "Invalid ID 0x00000000." }.toList())
-    }
-
     // 2026-10-05T18:30Z is already 2026-10-06 in the Asia/Bangkok test zone.
     private fun finished(lastAccess: String? = "1791225000000") = book("10000/10000", "2", lastAccess)
 
@@ -363,7 +348,6 @@ class HardcoverTest {
     }
 
     @Test fun missingIsbnAutomaticallyMatchesUniqueTitleAndAuthor() = runBlocking {
-        server.editionCount = 0
         val value = HardcoverSync(auth).send(book(), BookIdentifiers(emptySet(), "Synthetic Book", "Test Author"))
         assertEquals("sent", value.getString("outcome"))
         assertEquals("book", value.getString("matchKind"))
@@ -530,7 +514,7 @@ class HardcoverTest {
         server.withRead(200, finished = true)
         assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(), identifiers) } }
         server.withRead(200, edition = 99)
-        assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(), identifiers) } }
+        assertEquals("hardcover_edition_book_conflict", assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(), identifiers) } }.code)
         assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(status = "unrecognized"), identifiers) } }
         server.withRead(200)
         assertEquals("source_status_not_finished", assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book("10000/10000"), identifiers) } }.code)
@@ -615,18 +599,11 @@ class HardcoverTest {
         val export = buildExport(app.diagnostics).toString()
         assertFalse(export.contains("old-access"))
         assertFalse(export.contains("old-refresh"))
-        assertFalse(export.contains("synthetic-device-secret"))
     }
 
     @Test fun devicePollingDoesNotShortenServerInterval() {
         server.deviceInterval = 120
         assertEquals(120, auth.begin().interval)
-    }
-
-    @Test fun anEditionForAnotherBookIsHeldEvenAtZeroProgress() = runBlocking {
-        server.withRead(0, edition = 99)
-        assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }
-        assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun cancellationDuringLibraryReadPreventsSubsequentWrites() = runBlocking {

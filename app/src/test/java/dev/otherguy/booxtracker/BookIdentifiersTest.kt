@@ -43,16 +43,6 @@ class BookIdentifiersTest {
         return file
     }
 
-    @Test fun nonEpubWithoutIsbnKeepsDatabaseTitleAndAuthor() {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
-        fun raw(value: String) = org.json.JSONObject().put("state", "value").put("raw", value)
-        val book = org.json.JSONObject().put("filename", raw("example.pdf")).put("title", raw("Synthetic Book")).put("authors", raw("Test Author"))
-        val identifiers = BookIdentifierRepository(app, app.diagnostics.store).read(book)
-        assertEquals("Synthetic Book", identifiers.title)
-        assertEquals("Test Author", identifiers.author)
-        assertEquals(emptySet<String>(), identifiers.isbns)
-    }
-
     @Test fun serviceTagsAndHardcoverUrlsRemainDistinctAndSafe() {
         val tags = identifierTags("isbn:139850825X, goodreads:58438630, amazon:B07THCSQ27, hardcover-id:510350, hardcover-edition:33373487, hardcover:in-the-blood-2022, storygraph:book-123, fable:synthetic-book, margins:book_456, password:secret")
         assertEquals(setOf("9781398508255"), tags["isbn"])

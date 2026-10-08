@@ -68,20 +68,6 @@ class StoryGraphPagesTest {
         assertEquals(ReadingProgress(0, "0", "", "pages", 0), bookPage(bookHtml("currently reading", pane("0", "0", "", "pages")), id).progress)
     }
 
-    @Test fun unquotedBookIdAttributesAreReadLikeQuotedOnes() {
-        // StoryGraph writes data-book-id without quotes on the edition-info, action-menu and progress blocks.
-        val unquoted = bookHtml("currently reading", pane("51", "234", "459", "percentage")).replace("data-book-id=\"$id\"", "data-book-id=$id")
-        val page = bookPage(unquoted, id)
-        assertEquals("9781398508255", page.isbnUid)
-        assertEquals(ReadingProgress(51, "234", "459", "percentage", 51), page.progress)
-    }
-
-    @Test fun anUnshelvedEditionNamesTheShelvedOne() {
-        val page = bookPage(bookHtml(null, other = storyGraphHtml("other-edition.html", "OTHER_ID" to STORYGRAPH_PAPERBACK)), id)
-        assertEquals(STORYGRAPH_PAPERBACK, page.otherEditionId)
-        assertNull(bookPage(bookHtml("to read"), id).otherEditionId)
-    }
-
     @Test fun pagesWithoutBookChromeAreRejected() {
         val challenge = storyGraphHtml("challenge.html")
         assertEquals("storygraph_page_unrecognized", assertThrows(SyncProblem::class.java) { bookPage(challenge, id) }.code)

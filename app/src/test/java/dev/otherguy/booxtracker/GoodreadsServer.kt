@@ -42,7 +42,9 @@ class GoodreadsEdition(
     var pages: Int = 480,
     var shelf: String? = null,
     var percent: Int? = null,
-    val sessions: MutableList<ReadingSessionFixture> = mutableListOf()
+    val sessions: MutableList<ReadingSessionFixture> = mutableListOf(),
+    /** The ISBN that search finds this edition by, when it differs from the ISBN-13 its page shows. */
+    var searchIsbn: String? = null
 )
 
 /** A WebView profile with its own in-memory cookie jar, as a separate `androidx.webkit` profile keeps its own store. */
@@ -223,7 +225,7 @@ class GoodreadsServer : AutoCloseable {
 
             path == "/search" -> {
                 val query = url.queryParameter("q").orEmpty().trim()
-                val exact = books.values.filter { it.isbn13 != null && (it.isbn13 == query || isbn10(it.isbn13!!) == query) }
+                val exact = books.values.filter { book -> (book.searchIsbn ?: book.isbn13)?.let { isbn -> isbn == query || isbn10(isbn) == query } == true }
                 if (exact.size == 1 && exactSearchLocation) {
                     val book = exact.single()
                     return html(goodreadsHtml("book.html", "TITLE" to book.title, "AUTHOR" to book.author, "NEXT_DATA" to nextData(book))).setHeader("Location", "/book/show/${book.id}")

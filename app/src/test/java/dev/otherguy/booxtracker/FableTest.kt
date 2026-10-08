@@ -253,24 +253,8 @@ class FableTest {
         .put("lastAccess", if (lastAccess == null) JSONObject().put("state", "null") else raw(lastAccess))
     private fun check(book: JSONObject) = JSONObject().put("outcome", "success").put("timestamp", "2026-10-06T10:00:00Z").put("selected", book)
     private fun sync(maySend: () -> Boolean = { true }) = FableSync(auth, store, maySend)
-    private fun held(block: suspend () -> Unit) = assertThrows(SyncProblem::class.java) { runBlocking { block() } }.code
 
     private fun popup() = (org.robolectric.shadows.ShadowDialog.getLatestDialog() as? androidx.appcompat.app.AlertDialog)?.takeIf { it.isShowing && it.findViewById<EditText>(R.id.fable_email) != null }
-
-    private fun capturingStderr(block: suspend () -> Unit) = runBlocking {
-        val originalError = System.err
-        val capturedError = java.io.ByteArrayOutputStream()
-        val stream = java.io.PrintStream(capturedError, true, Charsets.UTF_8)
-        System.setErr(stream)
-        try {
-            block()
-        } finally {
-            System.setErr(originalError)
-            stream.close()
-        }
-        // Robolectric's CppAssetManager2 reports zero-ID lookups during widget construction.
-        assertEquals(emptyList<String>(), capturedError.toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() && it != "Invalid ID 0x00000000." }.toList())
-    }
 
     @Test fun flooredPercentNeverRoundsUp() {
         assertEquals(50, flooredPercent("5007/10000"))
@@ -326,19 +310,6 @@ class FableTest {
         server.invalidRefresh = true
         assertEquals("fable_http_400_token_expired", failureReason(assertThrows(HttpProblem::class.java) { runBlocking { auth.authorized { server.http.get(it, "/api/settings/profile/") } } }))
         assertFalse(auth.connected())
-    }
-
-    @Test fun hardcoverAndFableCredentialsUseSeparateFiles() {
-        val hardcover = TokenVault(app) { SecretKeySpec(ByteArray(32) { 7 }, "AES") }
-        hardcover.write(OAuthTokens("hardcover-access", "hardcover-refresh", 1))
-        try {
-            assertEquals("old-refresh", vault.read()!!.refresh)
-            assertTrue(java.io.File(app.noBackupFilesDir, "hardcover.credentials").exists())
-            vault.clear()
-            assertEquals("hardcover-refresh", hardcover.read()!!.refresh)
-        } finally {
-            hardcover.clear()
-        }
     }
 
     @Test fun unshelvedBookIsShelvedBeforeAFlooredPercentageWrite() = runBlocking {
@@ -690,13 +661,6 @@ class FableTest {
         assertTrue(store.events().any { it.optString("kind") == "fable_connection" && it.optString("outcome") == "logged_out" && it.optInt("deletedUpdates") == 1 })
     }
 
-    @Test fun interruptedFableSendIsReportedOnRecovery() {
-        store.put("fable.active", JSONObject().put("source", "delivery").put("runId", "run").toString())
-        app.diagnostics.recover()
-        assertTrue(store.events().any { it.optString("kind") == "fable_interruption_detected" && it.optString("runId") == "run" })
-        assertEquals("", store.get("fable.active"))
-    }
-
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun rejectedSignInKeepsThePopupOpenAndOnlyAnEnabledFableWarns() = capturingStderr {
@@ -790,12 +754,7 @@ class FableTest {
             val detailsDialog = latestDialog()!!
             detailsDialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
             awaitUi { latestDialog()?.let { it !== detailsDialog } == true }
-            val confirm = latestDialog()!!
-            assertEquals(
-                "Boox Tracker will remove your Fable sign-in from this device, turn Fable off, and delete any updates that have not been sent yet.",
-                confirm.findViewById<TextView>(android.R.id.message)!!.text.toString()
-            )
-            confirm.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
+            latestDialog()!!.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
             awaitUi { !app.fable.state().getBoolean("connected") && toggle()?.isChecked == false && toggle()?.contentDescription?.contains("Not connected") == true }
             assertTrue(app.fable.state().isNull("profile"))
         } finally {

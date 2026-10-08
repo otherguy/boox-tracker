@@ -6,8 +6,8 @@ import org.json.JSONTokener
 
 const val GOODREADS_ORIGIN = "https://www.goodreads.com"
 
-/** What the app reads from an edition's book page: its title, ISBN-13, contributors, and the work it belongs to. */
-data class GoodreadsBook(val id: String, val title: String?, val isbn13: String?, val authors: List<String>, val workId: String)
+/** What the app reads from an edition's book page: its title, ISBN-13, and the work it belongs to. */
+data class GoodreadsBook(val id: String, val title: String?, val isbn13: String?, val workId: String)
 
 /** One edition of a work on the user's shelves, with its exclusive shelf and the progress its update form shows. */
 data class ShelvedEdition(val bookId: String, val title: String?, val shelf: String?, val percent: Int?)
@@ -61,10 +61,8 @@ internal fun goodreadsBook(html: String, id: String): GoodreadsBook {
     val work = ref(book.optJSONObject("work"))
     val workId = work?.opt("legacyId")?.toString()?.takeIf { it.matches(Regex("\\d+")) } ?: throw SyncProblem("goodreads_page_unrecognized")
     val details = book.optJSONObject("details")
-    val contributors = listOfNotNull(book.optJSONObject("primaryContributorEdge")) + book.optJSONArray("secondaryContributorEdges")?.objects().orEmpty()
-    val authors = contributors.mapNotNull { edge -> ref(edge.optJSONObject("node"))?.text("name") }
     val isbn = listOfNotNull(details?.text("isbn13"), details?.text("isbn")).firstNotNullOfOrNull(::isbn13)
-    return GoodreadsBook(id, book.text("title"), isbn, authors, workId)
+    return GoodreadsBook(id, book.text("title"), isbn, workId)
 }
 
 /**

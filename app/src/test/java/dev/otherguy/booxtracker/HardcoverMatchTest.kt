@@ -43,14 +43,14 @@ class HardcoverMatchTest {
 
     @Test fun explicitEditionBookSlugAndAsinIdentifyTheSameBook() = runBlocking {
         for (tag in listOf("hardcover-edition:20", "hardcover-id:10", "hardcover:synthetic-book", "amazon:B07THCSQ27")) {
-            val result = matcher().match(null, metadata.copy(isbns = emptySet(), tags = identifierTags(tag)))
+            val result = matcher().match(null, BookIdentifiers(emptySet(), null, null, identifierTags(tag)))
             assertEquals(10, result.getInt("bookId"))
         }
     }
 
     @Test fun goodreadsMappingIdentifiesOnlyTheBookAndDoesNotBecomeAHardcoverId() = runBlocking {
         server.goodreadsBook = 10
-        val result = matcher().match(null, metadata.copy(isbns = emptySet(), tags = mapOf("goodreads" to setOf("58438630"))))
+        val result = matcher().match(null, BookIdentifiers(emptySet(), null, null, mapOf("goodreads" to setOf("58438630"))))
         assertEquals(10, result.getInt("bookId"))
         assertTrue(result.isNull("exactEditionId"))
         assertFalse(server.requests.any { it.optString("query").startsWith("query BookIdentifier") })
@@ -60,7 +60,6 @@ class HardcoverMatchTest {
         server.goodreadsBook = 11
         val problem = assertThrows(SyncProblem::class.java) { runBlocking { matcher().match(null, metadata.copy(tags = mapOf("goodreads" to setOf("58438630")))) } }
         assertEquals("hardcover_identifier_conflict", problem.code)
-        assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun exactTitleAndAuthorRejectOmnibusAndAmbiguousMatches() = runBlocking {

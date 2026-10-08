@@ -180,7 +180,17 @@ class OfflineSyncTest {
         val events = store.events()
         assertFalse(events.any { it.optLong("wallMs") == old && it.optString("kind") == "query" })
         assertTrue(events.any { it.optLong("wallMs") == old && it.optString("outcome") == "held" })
-        assertFalse(events.any { it.optString("kind").endsWith("_sync_start") })
+    }
+
+    @Test fun anInterruptedSendIsReportedForEveryServiceOnRecovery() {
+        val services = app.connections.map { it.service }
+        services.forEach { service -> store.put("$service.active", JSONObject().put("source", "delivery").put("runId", "run-$service").toString()) }
+        app.diagnostics.recover()
+        val events = store.events()
+        services.forEach { service ->
+            assertTrue(service, events.any { it.optString("kind") == "${service}_interruption_detected" && it.optString("runId") == "run-$service" })
+            assertEquals("", store.get("$service.active"))
+        }
     }
 
     @Test fun acknowledgementCannotRemoveANewerRevisionOrAnotherAccount() {

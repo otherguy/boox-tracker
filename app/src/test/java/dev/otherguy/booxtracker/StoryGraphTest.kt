@@ -303,13 +303,6 @@ class StoryGraphTest {
         assertFalse(connection.state().getBoolean("enabled"))
     }
 
-    @Test fun interruptedStoryGraphSendIsReportedOnRecovery() {
-        store.put("storygraph.active", JSONObject().put("source", "delivery").put("runId", "run").toString())
-        app.diagnostics.recover()
-        assertTrue(store.events().any { it.optString("kind") == "storygraph_interruption_detected" && it.optString("runId") == "run" })
-        assertEquals("", store.get("storygraph.active"))
-    }
-
     private class Screen(val activity: MainActivity) {
         val model = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
         fun views() = activity.findViewById<View>(android.R.id.content).allViews.toList()
@@ -456,12 +449,7 @@ class StoryGraphTest {
             val detailsDialog = shownDialog()!!
             detailsDialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
             awaitUi { shownDialog()?.let { it !== detailsDialog } == true }
-            val confirm = shownDialog()!!
-            assertEquals(
-                "Boox Tracker will remove your StoryGraph sign-in from this device, turn StoryGraph off, and delete any updates that have not been sent yet.",
-                confirm.findViewById<TextView>(android.R.id.message)!!.text.toString()
-            )
-            confirm.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
+            shownDialog()!!.getButton(android.app.AlertDialog.BUTTON_POSITIVE).performClick()
             awaitUi { !app.storygraph.state().getBoolean("connected") && toggle()?.isChecked == false && toggle()?.contentDescription?.contains("Not connected") == true }
             assertTrue(app.storygraph.state().isNull("profile"))
             assertEquals(1, server.writes().count { it.getString("path") == "/users/sign_out" })

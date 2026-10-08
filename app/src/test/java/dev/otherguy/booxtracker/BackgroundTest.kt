@@ -61,7 +61,7 @@ class BackgroundTest {
         assertTrue(d.store.events().any { it.optString("kind") == "interruption_detected" && it.optString("runId") == "interrupted" })
     }
 
-    @Test fun uniquePeriodicWorkAndCancellationUseShippingPath() = runBlocking {
+    @Test fun collectionIsOneUniqueFifteenMinuteWork() = runBlocking {
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         scheduleCollection(app)
         scheduleCollection(app)
@@ -71,23 +71,13 @@ class BackgroundTest {
         assertEquals(900_000, periodicRequest().workSpec.intervalDuration)
     }
 
-    @Test fun selectedChangesAndExportRetainEvidenceWithoutSecrets() = runBlocking {
+    @Test fun exportKeepsTheErrorClassAndDropsItsMessage() {
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
-        val provider = FixtureProvider()
-        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, provider)
-        app.visible = false
-        app.diagnostics.collect("scheduled", "periodic", "job")
-        val event = app.diagnostics.store.events().first { it.optString("kind") == "query" }
-        assertFalse(event.getBoolean("appVisibleAtStart"))
-        assertEquals("scheduled", event.getString("source"))
         app.diagnostics.event("manual", "error", detail = JSONObject().put("error", JSONObject().put("class", "SecurityException").put("message", "Authorization: Bearer SECRET /目录/private/file")))
         val exported = buildExport(app.diagnostics).toString()
         assertFalse(exported.contains("SECRET"))
         assertFalse(exported.contains("/目录/"))
         assertTrue(exported.contains("SecurityException"))
-        val old = JSONObject().put("books", JSONArray().put(JSONObject().put("key", "a").put("progress", JSONObject().put("raw", "1/2"))))
-        val current = JSONObject().put("books", JSONArray().put(JSONObject().put("key", "a").put("progress", JSONObject().put("raw", "2/2"))))
-        assertEquals(1, changes(old, current).length())
     }
 
     @Test fun nullFieldsAndUnmatchableRecordsDoNotProduceFalseChanges() {
@@ -98,8 +88,13 @@ class BackgroundTest {
             assertEquals("null", record.getJSONObject("progress").getString("state"))
             assertTrue(record.isNull("percentage"))
             assertTrue(record.isNull("key"))
-            val snapshot = JSONObject().put("books", JSONArray().put(record))
-            assertEquals(0, changes(snapshot, snapshot).length())
+            fun snapshot(vararg books: JSONObject) = JSONObject().put("books", JSONArray(books.toList()))
+            fun book(key: String?, progress: String) = JSONObject().put("key", key ?: JSONObject.NULL).put("progress", JSONObject().put("raw", progress))
+            assertEquals(1, changes(snapshot(book("a", "1/2")), snapshot(book("a", "2/2"))).length())
+            // A record without a key, or with a key another record shares, cannot be followed across snapshots.
+            val before = snapshot(record, book("shared", "1/2"), book("shared", "1/3"))
+            val after = snapshot(book(null, "2/2"), book("shared", "2/2"), book("shared", "2/3"))
+            assertEquals(0, changes(before, after).length())
         }
     }
 

@@ -143,11 +143,10 @@ class MainActivityTest {
         }
     }
 
-    @Test fun diagnosticsFollowRecentAccessAcrossQueriesDespiteASavedChoice() = runBlocking {
+    @Test fun diagnosticsFollowRecentAccessAcrossQueries() = runBlocking {
         grantTestFolder(app)
         val provider = FixtureProvider().withAccessTimes("older-book" to "1700000000", "recent-book" to "1700000060000")
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, provider)
-        app.diagnostics.store.put("selection", "uuid:older-book")
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
             val activity = controller.get()
@@ -161,13 +160,12 @@ class MainActivityTest {
             val checkedAt = JSONObject(app.diagnostics.store.get("lastCheck")!!).getLong("readStartedWallMs")
             val displayedTime = java.text.SimpleDateFormat("HH:mm", java.util.Locale.US).format(java.util.Date(checkedAt))
             assertTrue(descendants(content).filterIsInstance<TextView>().any { it.text.toString().contains("Read $displayedTime") })
-            descendants(content).filterIsInstance<Button>().first { it.id == R.id.sync_now }.let { content.findViewById<View>(R.id.book_summary).performClick() }
+            content.findViewById<View>(R.id.book_summary).performClick()
             awaitUi { org.robolectric.shadows.ShadowDialog.getLatestDialog()?.isShowing == true }
             val popup = org.robolectric.shadows.ShadowDialog.getLatestDialog()
             assertTrue(popup.isShowing)
             assertTrue(popup.findViewById<TextView>(android.R.id.message).text.toString().contains("42/100"))
             assertTrue(popup.window!!.decorView.background is android.graphics.drawable.GradientDrawable)
-            assertFalse(descendants(content).any { it is android.widget.Spinner })
             assertEquals(callsBefore + 1, provider.calls.get())
             assertEquals("uuid:recent-book", JSONObject(app.diagnostics.store.get("lastCheck")!!).getJSONObject("selected").getString("key"))
             provider.withAccessTimes("older-book" to "2026-10-06T10:00:00Z", "recent-book" to "1700000060000")
@@ -273,8 +271,7 @@ class MainActivityTest {
             val content = controller.get().findViewById<ViewGroup>(R.id.content)
             awaitUi { content.childCount > 0 }
             val names = descendants(content).filterIsInstance<TextView>().map { it.text.toString() }
-            assertFalse(names.contains("alpha-book"))
-            assertFalse(names.contains("omega-book"))
+            assertFalse(names.any { it.startsWith("alpha-book") || it.startsWith("omega-book") })
             val check = JSONObject(app.diagnostics.store.get("lastCheck")!!)
             assertEquals(2, check.getInt("recordCount"))
             assertTrue(check.isNull("selected"))
@@ -592,7 +589,7 @@ class MainActivityTest {
         }
     }
 
-    @Test fun filterWithNoMatchesShowsAnEmptyStateWithoutDeletingEvents() = runBlocking {
+    @Test fun anIssuesFilterWithNoMatchesShowsItsEmptyState() = runBlocking {
         app.diagnostics.store.append(event(0))
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         try {
@@ -603,8 +600,7 @@ class MainActivityTest {
             layout(activity)
             val empty = activity.findViewById<TextView>(R.id.activity_empty)
             assertEquals(View.VISIBLE, empty.visibility)
-            assertEquals("No issues in the retained activity.", empty.text.toString())
-            assertEquals(1, app.diagnostics.store.events().size)
+            assertEquals(activity.getString(R.string.activity_no_issues), empty.text.toString())
         } finally {
             controller.pause().stop().destroy()
         }

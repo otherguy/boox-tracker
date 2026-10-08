@@ -433,13 +433,6 @@ class GoodreadsTest {
         assertEquals(2, refresher.calls.size)
     }
 
-    @Test fun interruptedGoodreadsSendIsReportedOnRecovery() {
-        store.put("goodreads.active", JSONObject().put("source", "delivery").put("runId", "run").toString())
-        app.diagnostics.recover()
-        assertTrue(store.events().any { it.optString("kind") == "goodreads_interruption_detected" && it.optString("runId") == "run" })
-        assertEquals("", store.get("goodreads.active"))
-    }
-
     private class Screen(val activity: MainActivity) {
         val model = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
         fun views() = activity.findViewById<View>(android.R.id.content).allViews.toList()

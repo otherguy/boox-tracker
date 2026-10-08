@@ -77,10 +77,10 @@ class GoodreadsPagesTest {
         assertTrue(goodreadsSearchHits(goodreadsHtml("search.html", "QUERY" to "x", "ITEMS" to "")).isEmpty())
     }
 
-    @Test fun theBookPageGivesTheEditionsIsbnAuthorsAndWork() {
+    @Test fun theBookPageGivesTheEditionsIsbnAndWork() {
         GoodreadsServer().use { server ->
             val page = java.net.URL("${server.origin}/book/show/$GOODREADS_PAPERBACK-in-the-blood").readText()
-            assertEquals(GoodreadsBook(GOODREADS_PAPERBACK, "Synthetic Book", "9781398508255", listOf("Test Author"), GOODREADS_WORK), goodreadsBook(page, GOODREADS_PAPERBACK))
+            assertEquals(GoodreadsBook(GOODREADS_PAPERBACK, "Synthetic Book", "9781398508255", GOODREADS_WORK), goodreadsBook(page, GOODREADS_PAPERBACK))
             // The page's Apollo cache is keyed by the edition id it was asked for.
             assertEquals("goodreads_page_unrecognized", assertThrows(SyncProblem::class.java) { goodreadsBook(page, GOODREADS_EBOOK) }.code)
         }

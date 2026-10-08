@@ -52,21 +52,25 @@ class GoodreadsMatchTest {
         assertEquals("edition", result.getString("matchKind"))
         assertEquals(listOf("q=9781398508255"), searches())
         // A search hit whose own page shows another ISBN is no evidence, so the title decides.
-        server.books.getValue(GOODREADS_PAPERBACK).isbn13 = "9780000000002"
-        server.book("70000001", GOODREADS_OTHER_WORK, "9781398508255", title = "Mislabelled", author = "Someone")
-        server.books.getValue("70000001").isbn13 = "9789999999991"
-        val fuzzy = matcher().match("other", identifiers(setOf("9789999999991")))
-        assertEquals("edition", fuzzy.getString("matchKind"))
-        assertEquals("70000001", fuzzy.getString("bookId"))
+        server.books.getValue(GOODREADS_PAPERBACK).isbn13 = null
+        server.books.getValue(GOODREADS_OTHER).searchIsbn = "9781398508255"
+        val fuzzy = matcher().match("other", identifiers(setOf("9781398508255")))
+        assertTrue(pages().contains("/book/show/$GOODREADS_OTHER"))
+        assertEquals("book", fuzzy.getString("matchKind"))
+        assertEquals(GOODREADS_WORK, fuzzy.getString("workId"))
     }
 
     @Test fun anIsbn10SearchIsTriedWhenTheIsbn13FindsNothing() = runBlocking {
-        server.books.getValue(GOODREADS_EBOOK).isbn13 = "9781982181680"
-        // The fake answers an ISBN-10 query with the edition whose ISBN-13 it converts to.
+        // Search finds this edition by its ISBN-10 only; its page shows the ISBN-13.
+        val ebook = server.books.getValue(GOODREADS_EBOOK)
+        ebook.searchIsbn = "1982181680"
         val result = matcher().match("key", identifiers(setOf("9781982181680"), title = null, author = null))
         assertEquals(GOODREADS_EBOOK, result.getString("bookId"))
+        assertEquals("edition", result.getString("matchKind"))
+        assertEquals(listOf("q=9781982181680", "q=1982181680"), searches())
         server.requests.clear()
-        server.books.getValue(GOODREADS_EBOOK).isbn13 = null
+        ebook.searchIsbn = null
+        ebook.isbn13 = null
         assertEquals("book_title_missing", held { matcher().match("none", identifiers(setOf("9781982181680"), title = null, author = null)) })
         assertEquals(listOf("q=9781982181680", "q=1982181680"), searches())
     }
