@@ -67,6 +67,8 @@ class TestReadingSyncApp : ReadingSyncApp() {
             androidx.work.Configuration.Builder().setExecutor(androidx.work.testing.SynchronousExecutor()).build()
         )
         super.onCreate()
+        // Startup recovery prunes the event log on a background thread; a test must not race it.
+        kotlinx.coroutines.runBlocking { diagnostics.ensureRecovered() }
     }
 }
 

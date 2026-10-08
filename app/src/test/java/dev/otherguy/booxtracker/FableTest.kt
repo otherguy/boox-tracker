@@ -857,7 +857,12 @@ class FableTest {
             }
         }
         try {
-            awaitUi { activity.findViewById<View>(R.id.access_warning) != null && descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().any { it.text.startsWith("⚠ Synced at ") } }
+            val screen = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
+            // The row is tapped once the app-open sync and the profile fetch have stopped rebuilding the rows.
+            awaitUi {
+                !screen.busy && !app.fable.state().isNull("profile") && activity.findViewById<View>(R.id.access_warning) != null &&
+                    descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().any { it.text.startsWith("⚠ Synced at ") }
+            }
             assertTrue(server.progressWrites().isEmpty())
             tap(descendants(activity.findViewById(android.R.id.content)).filterIsInstance<TextView>().single { it.text.toString() == "Fable" })
             awaitUi { popupMessage()?.contains("Current book") == true }
