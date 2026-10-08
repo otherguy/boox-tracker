@@ -56,6 +56,8 @@ Activity has an outlined Clear button beside Export. After one confirmation it d
 
 **Verified on physical BOOX:** installed over 0.6.1 by USB at 00:28 device time on 2026-10-09, versionCode 26 → 27, data inode `129824` unchanged, no uninstall or data clear. Started by ADB with no crash logged; Sync showed all four services matched as before, and Activity showed the outlined Clear button beside Export with the retained log. Clear was not tapped on the device, so the device log is intact.
 
+**GitHub CI:** pushed on `main` at `439d898` on 2026-10-09; [Android checks](https://github.com/otherguy/boox-tracker/actions/runs/37817672555) and [Lint](https://github.com/otherguy/boox-tracker/actions/runs/37817672458) passed.
+
 **Artifact note:** a packaging run after that failed check overwrote `dist/boox-tracker-0.6.1-*` with a build of the 0.6.2 source. Those files were rebuilt from `0d59d4f` (0.6.1 source); the diagnostic APK is now 3,714,819 bytes, SHA-256 `4ad09d9f50b8fde6717a10721759e44da72f4405a2ac75ca11772e38cf96c323`, so the build is not byte-for-byte reproducible. The APK installed on the GoColor7 was the original.
 
 ## Sign-in page width 0.6.1
