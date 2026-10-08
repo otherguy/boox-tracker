@@ -54,7 +54,7 @@ Keep the same package and certificate for compatible updates, and increase `vers
 
 The toolchain, wrapper, and dependencies are pinned. Byte-identical builds are not guaranteed; verify each APK against its own checksum.
 
-Published downloads, when available, are listed on [GitHub Releases](https://github.com/otherguy/boox-tracker/releases). GitHub Actions produces development build artifacts on pushes and pull requests. Development artifacts use the debug package and certificate.
+Published downloads, when available, are listed on [GitHub Releases](https://github.com/otherguy/boox-tracker/releases). GitHub Actions lints every push to `main` and every pull request, and builds development artifacts when app or build files change. Development artifacts use the debug package and certificate.
 
 ## Hardcover development
 

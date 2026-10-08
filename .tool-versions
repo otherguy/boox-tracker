@@ -8,3 +8,5 @@ actionlint 1.7.12
 python 3.14.8
 github-cli 2.102.0
 ruff 0.16.10
+yamllint 1.38.0
+lefthook 2.1.14

@@ -1,0 +1,51 @@
+---
+# Git hook gates. They mirror the Lint and Android checks workflows in .github/workflows/, so a commit that
+# passes locally passes there too. Every tool runs through mise at the version pinned in .tool-versions.
+#
+# Install once per clone:  mise install && mise exec -- lefthook install
+# Skip for one commit:     LEFTHOOK=0 git commit ...
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: whitespace
+      run: git diff --cached --check
+
+    - name: ktlint
+      glob: "*.{kt,kts}"
+      run: mise exec -- ktlint {staged_files}
+
+    - name: ruff
+      glob: "scripts/*.py"
+      run: mise exec -- ruff format --check {staged_files} && mise exec -- ruff check {staged_files}
+
+    - name: markdownlint
+      glob: "*.md"
+      run: mise exec -- markdownlint-cli2 {staged_files}
+
+    - name: yamllint
+      glob: "*.{yml,yaml}"
+      run: mise exec -- yamllint --strict {staged_files}
+
+    - name: actionlint
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: mise exec -- actionlint {staged_files}
+
+pre-push:
+  parallel: true
+  jobs:
+    - name: lint
+      run: >-
+        mise exec -- ktlint '**/*.kt' '**/*.kts' &&
+        mise exec -- ruff format --check scripts && mise exec -- ruff check scripts &&
+        mise exec -- markdownlint-cli2 && mise exec -- yamllint --strict . && mise exec -- actionlint
+
+    - name: android
+      glob:
+        - "app/**"
+        - "gradle/**"
+        - "*.gradle.kts"
+        - "gradle.properties"
+        - ".tool-versions"
+        - ".editorconfig"
+      run: mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug

@@ -1,0 +1,19 @@
+---
+# YAML style gate for workflows and tool configuration. Enforced in CI
+# (.github/workflows/lint.yml) and on commit (lefthook.yml).
+extends: default
+
+rules:
+  # Workflow scripts and long commands read better on one line.
+  line-length:
+    max: 300
+    level: warning
+  # GitHub Actions' `on:` key is quoted as 'on' so YAML 1.1 parsers keep it a string.
+  truthy:
+    allowed-values: ['true', 'false']
+  comments:
+    min-spaces-from-content: 1
+  document-start: enable
+
+ignore-from-file:
+  - .gitignore

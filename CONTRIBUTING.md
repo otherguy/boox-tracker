@@ -27,10 +27,31 @@ mise exec -- ktlint '**/*.kt' '**/*.kts'
 mise exec -- ruff format --check scripts
 mise exec -- ruff check scripts
 mise exec -- markdownlint-cli2
+mise exec -- yamllint --strict .
 mise exec -- actionlint
 ```
 
-GitHub Actions runs these checks for pushes and pull requests. Signing credentials are not needed for the debug build or these checks.
+GitHub Actions runs the same checks for pull requests and pushes to `main`. The Lint workflow runs every time; the Android checks workflow runs when app, Gradle, or tool-version files change. A newer push to the same pull request cancels the older run. Signing credentials are not needed for the debug build or these checks.
+
+## Git hooks
+
+The repository uses [lefthook](https://github.com/evilmartians/lefthook) to run the CI checks before they reach GitHub. `mise install` installs the pinned version with the other tools; then enable the hooks once in your clone:
+
+```sh
+mise install
+mise exec -- lefthook install
+```
+
+- **Before a commit:** whitespace, ktlint, ruff, markdownlint, yamllint, and actionlint run on the staged files they apply to. They take a few seconds.
+- **Before a push:** every linter runs over the repository, and the Gradle tests, Android lint, and debug build run when the pushed commits change app or build files.
+
+The hook commands are in `lefthook.yml` and match the workflows in `.github/workflows/`. Fix a failure and commit again; `ktlint --format` and `ruff format` correct most style findings. To skip the hooks for one commit, for example a work-in-progress commit on your own branch, set `LEFTHOOK=0`:
+
+```sh
+LEFTHOOK=0 git commit -m "Work in progress"
+```
+
+CI still runs every check on your pull request. If you change a check, change it in `lefthook.yml` and the workflow together.
 
 ## Pull requests
 

@@ -46,6 +46,7 @@ mise exec -- ktlint '**/*.kt' '**/*.kts'
 mise exec -- ruff format --check scripts
 mise exec -- ruff check scripts
 mise exec -- markdownlint-cli2
+mise exec -- yamllint --strict .
 mise exec -- actionlint
 ```
 
@@ -65,7 +66,9 @@ Package identity changed in 0.3.0/code 7; it starts fresh and can coexist with `
 
 Remote: [otherguy/boox-tracker](https://github.com/otherguy/boox-tracker). Check status before committing and never stage unrelated files. Do not force-push `main`.
 
-`android.yml` runs on push/pull request: static checks, tests, both lint variants, debug assembly, and artifact/report upload. It does not need the diagnostic signer. Local passing checks are not proof of GitHub CI; check the run for the pushed commit.
+Two workflows save runner minutes on this public repository. `lint.yml` runs every static check (whitespace, ktlint, ruff, markdownlint, yamllint, actionlint) in one job on pushes to `main` and on pull requests, installing only the linters. `android.yml` runs tests, both lint variants, debug assembly, and artifact/report upload (kept 14 days), only when app, Gradle, tool-version, or editorconfig files change, or by manual dispatch; `setup-gradle` caches Gradle, and only `main` writes the cache. Both cancel a run that a newer push to the same branch or pull request replaces, and both have timeouts. Actions are pinned to release tags at least two weeks old. Neither needs the diagnostic signer. Local passing checks are not proof of GitHub CI; check the runs for the pushed commit, and remember that a docs-only push runs Lint alone.
+
+`lefthook.yml` mirrors both workflows: staged-file linters before a commit, the full lint set and the Gradle checks before a push. Contributors install it with `mise exec -- lefthook install`; see [CONTRIBUTING](../CONTRIBUTING.md#git-hooks).
 
 `prerelease.yml` is a manual workflow that builds/checks signed artifacts and creates a **draft prerelease**. It is the documented publishing path, not authorization to run it. When the user asks for a release, verify the intended source/tag, increasing versionCode, trusted signing configuration, and completed checks before dispatch. Review the draft before publication. A source push alone does not publish an APK.
 

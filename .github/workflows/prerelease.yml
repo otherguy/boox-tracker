@@ -1,5 +1,6 @@
+---
 name: Diagnostic prerelease
-on:
+'on':
   workflow_dispatch:
     inputs:
       tag:
@@ -10,14 +11,24 @@ on:
         description: Increasing Android version code
         required: true
         type: string
+
 permissions:
   contents: write
+
+# One prerelease at a time; a second dispatch waits instead of cancelling a release in progress.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v4.3.0
+        with:
+          install_args: java android-sdk gradle python node ktlint markdownlint-cli2 actionlint ruff yamllint github-cli
       - name: SDK
         run: |
           set +o pipefail
@@ -56,6 +67,7 @@ jobs:
           mise exec -- ruff check scripts
           mise exec -- ktlint '**/*.kt' '**/*.kts'
           mise exec -- markdownlint-cli2
+          mise exec -- yamllint --strict .
           mise exec -- actionlint
           mise exec -- ./gradlew testDebugUnitTest lintDebug lintDiagnostic assembleDebug assembleDiagnostic "-PversionCode=$VERSION_CODE"
           mise exec -- python scripts/package-artifacts.py
@@ -66,4 +78,6 @@ jobs:
           TAG: ${{ inputs.tag }}
           COMMIT: ${{ github.sha }}
         run: |
-          mise exec -- gh release create "$TAG" --target "$COMMIT" --draft --prerelease --title "Boox Tracker $TAG" --notes "Diagnostic APK. See README.md for current features and service support, and docs/device-testing.md for compatibility testing." dist/boox-tracker-*-diagnostic.apk dist/boox-tracker-*-diagnostic.apk.sha256 dist/build-info.json
+          mise exec -- gh release create "$TAG" --target "$COMMIT" --draft --prerelease --title "Boox Tracker $TAG" \
+            --notes "Diagnostic APK. See README.md for current features and service support, and docs/device-testing.md for compatibility testing." \
+            dist/boox-tracker-*-diagnostic.apk dist/boox-tracker-*-diagnostic.apk.sha256 dist/build-info.json

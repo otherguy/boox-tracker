@@ -1,0 +1,42 @@
+---
+name: Lint
+
+'on':
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch or pull request cancels the run it replaces.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Every static check in one job: each takes seconds, and separate jobs would each bill a full minute.
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: jdx/mise-action@v4.3.0
+        with:
+          # The linters only; the Android SDK and Gradle are installed by the Android workflow.
+          install_args: java node python ktlint markdownlint-cli2 actionlint ruff yamllint
+      - name: Whitespace
+        run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD
+      - name: Kotlin
+        run: mise exec -- ktlint '**/*.kt' '**/*.kts'
+      - name: Python
+        run: |
+          mise exec -- ruff format --check scripts
+          mise exec -- ruff check scripts
+      - name: Markdown
+        run: mise exec -- markdownlint-cli2
+      - name: YAML
+        run: mise exec -- yamllint --strict .
+      - name: Workflows
+        run: mise exec -- actionlint

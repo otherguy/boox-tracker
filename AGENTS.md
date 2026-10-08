@@ -79,8 +79,11 @@ mise exec -- ktlint '**/*.kt' '**/*.kts'
 mise exec -- ruff format --check scripts
 mise exec -- ruff check scripts
 mise exec -- markdownlint-cli2
+mise exec -- yamllint --strict .
 mise exec -- actionlint
 ```
+
+`lefthook.yml` runs these linters on staged files before a commit and the full set, with the Gradle checks when app or build files changed, before a push; install it with `mise exec -- lefthook install`. Keep the hooks, the Lint workflow, and the Android checks workflow running the same commands, and add a new linter to all three.
 
 `package-artifacts.py` writes the signed APKs, their checksums, and `dist/build-info.json`. Do not edit `dist/` by hand. Debug builds and CI need no signing key; `assembleDiagnostic` and packaging do. [Build and release](agents/build-and-release.md) covers signing and CI.
 

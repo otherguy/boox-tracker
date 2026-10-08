@@ -39,6 +39,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 
 ### Test and device handling
 
+- The app's startup coroutine recovers and prunes the event log on a background thread. `TestReadingSyncApp` finishes that recovery before a test starts; without it, `RetentionTest` raced the prune and failed on CI after 0.6.0 added a service to recovery (`1b52866`, `edc73dc`; fixed in `e85e8c5`). A screen test that taps a provider row waits until the app-open sync and the profile fetch stop rebuilding the rows; the Fable popup test timed out on CI once the Goodreads row moved its row down.
 - Await rendered book state before UI taps; provider-call counts can advance before snapshot rendering. Use explicit latches/clock control, not arbitrary sleeps.
 - Test denial must throw before cursor allocation. A throw inside cursor construction can leak a resource before production code receives it.
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
