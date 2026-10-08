@@ -105,6 +105,44 @@ class MainActivityTest {
         shadowOf(Looper.getMainLooper()).idle()
     }
 
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
+    fun syncNowShowsSyncingWithASpinnerAtTheSameWidthWhileBusy() = runBlocking {
+        grantTestFolder(app)
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            val content = activity.findViewById<ViewGroup>(R.id.content)
+            val screen = androidx.lifecycle.ViewModelProvider(activity)[ScreenModel::class.java]
+            fun syncButton() = descendants(content).filterIsInstance<Button>().singleOrNull { it.id == R.id.sync_now }
+            awaitUi { syncButton()?.isEnabled == true && !screen.busy }
+            layout(activity)
+            val idle = syncButton()!!
+            assertEquals("Sync Now", idle.text.toString())
+            assertTrue(idle.width > 0)
+            val idleWidth = idle.width
+            // A running sync must be visible: the label changes and a spinner appears, without moving the header.
+            screen.busy = true
+            app.diagnostics.updates.value++
+            awaitUi { syncButton()?.text?.toString() == "Syncing" }
+            layout(activity)
+            val busy = syncButton()!!
+            assertFalse(busy.isEnabled)
+            val spinner = busy.compoundDrawables[0] as SyncSpinner
+            assertTrue(spinner.running)
+            assertEquals(idleWidth, busy.width)
+            assertEquals(1, busy.lineCount)
+            screen.busy = false
+            app.diagnostics.updates.value++
+            awaitUi { syncButton()?.text?.toString() == "Sync Now" && syncButton()?.isEnabled == true }
+            // The replaced button left the window, which stops its spinner.
+            assertFalse(spinner.running)
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
     @Test fun diagnosticsFollowRecentAccessAcrossQueriesDespiteASavedChoice() = runBlocking {
         grantTestFolder(app)
         val provider = FixtureProvider().withAccessTimes("older-book" to "1700000000", "recent-book" to "1700000060000")

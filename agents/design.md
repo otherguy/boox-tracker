@@ -52,7 +52,7 @@ The mockup's service rows illustrated Hardcover and Goodreads enabled/synced, St
 
 - Use strong contrast, readable black body text, flat surfaces, and clear separators. Essential text must not be pale.
 - Keep touch targets at least 48 × 48 dp where feasible; the current primary buttons use 56 dp minimum height. Colour must remain supplementary on monochrome devices.
-- Keep transitions static. Avoid spinners, animated switches, fading, marquees, and rapidly updating timers.
+- Keep transitions static. Avoid spinners, animated switches, fading, marquees, and rapidly updating timers. The one exception, by the user's decision on 2026-10-08: while a sync runs, the Sync Now button reads "Syncing" with a twelve-spoke spinner that steps one spoke every 100 ms, at the same width as "Sync Now", because the disabled white button alone did not show that anything was happening.
 - Avoid gradients, shadows, decorative charts, unnecessary cover imagery, and large decorative filled regions. Retain black action buttons from the approved concept.
 - Avoid unnecessary redraws and unexpected log movement while the user reads it. Further UI work must preserve useful diagnostic evidence and state.
 

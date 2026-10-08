@@ -299,6 +299,21 @@ class MainActivity : AppCompatActivity() {
         setOnClickListener { action() }
     }
 
+    // The absolute left slot, because a start-side drawable only counts towards the width once the view is attached.
+    private fun syncSpinner(button: Button): SyncSpinner = SyncSpinner(dp(20)).also {
+        button.setCompoundDrawablesWithIntrinsicBounds(it, null, null, null)
+        button.compoundDrawablePadding = dp(8)
+    }
+
+    /** The wider of the button's two states, so the header never moves when Sync Now becomes Syncing. */
+    private fun syncButtonWidth(): Int = listOf("Sync Now" to false, "Syncing" to true).maxOf { (label, syncing) ->
+        Button(this, null, 0, R.style.PrimaryButton).apply {
+            text = label
+            if (syncing) syncSpinner(this)
+            measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        }.measuredWidth
+    }
+
     private fun separator(strong: Boolean = false) {
         content.addView(View(this).apply { setBackgroundColor(if (strong) Color.BLACK else Color.rgb(170, 170, 170)) }, LinearLayout.LayoutParams(-1, dp(1)))
     }
@@ -427,10 +442,22 @@ class MainActivity : AppCompatActivity() {
                 if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) notice(SpannableStringBuilder().appendIssues(issues).append(details))
             }
         }
-        button("Sync Now", row) { action { app.sync("manual", "sync_now") } }.apply {
+        button(if (model.busy) "Syncing" else "Sync Now", row) { action { app.sync("manual", "sync_now") } }.apply {
             id = R.id.sync_now
-            layoutParams = LinearLayout.LayoutParams(-2, -2).apply { marginStart = dp(8) }
+            maxLines = 1
             isEnabled = !model.busy && !model.pickerActive
+            // A running sync shows: the label changes and the spinner turns while this button is on screen.
+            if (model.busy) {
+                val spinner = syncSpinner(this)
+                // The button joined an attached row already, so the attach callback will not fire for it.
+                if (isAttachedToWindow) spinner.start()
+                addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                    override fun onViewAttachedToWindow(v: View) = spinner.start()
+
+                    override fun onViewDetachedFromWindow(v: View) = spinner.stop()
+                })
+            }
+            layoutParams = LinearLayout.LayoutParams(syncButtonWidth(), -2).apply { marginStart = dp(8) }
         }
         if (providerIssue) label(if (check.optString("outcome") != "success") "NeoReader: ${check.optString("outcome").replace('_', ' ')}" else "Saved book or progress unavailable", size = 16f)
         separator(true)
