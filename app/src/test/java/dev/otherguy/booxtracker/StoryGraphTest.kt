@@ -8,7 +8,9 @@ import android.widget.CheckBox
 import android.widget.TextView
 import androidx.core.view.allViews
 import androidx.core.view.children
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -286,6 +288,19 @@ class StoryGraphTest {
         assertNull(store.get("storygraph.match.${digest("first")}"))
         assertEquals(1, store.pending("1").size)
         assertTrue(store.events().any { it.optString("kind") == "storygraph_connection" && it.optString("outcome") == "logged_out" && it.optInt("deletedUpdates") == 1 })
+    }
+
+    @Test
+    @Config(shadows = [LooperCheckingCookieManager::class])
+    fun logOutFromABackgroundThreadClearsTheWebViewCookies() = runBlocking {
+        val connection = enabledConnection { false }
+        // Log out runs detached on an I/O thread, which has no Looper.
+        val logOut = async(Dispatchers.IO) { connection.logOut() }
+        awaitUi { logOut.isCompleted }
+        logOut.await()
+        assertTrue(CookieManager.getInstance().getCookie(server.origin)?.contains("_storygraph_session=") != true)
+        assertNull(store.get("storygraph.session"))
+        assertFalse(connection.state().getBoolean("enabled"))
     }
 
     @Test fun interruptedStoryGraphSendIsReportedOnRecovery() {

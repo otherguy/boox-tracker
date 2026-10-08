@@ -1,0 +1,15 @@
+<div class="mainContentFloat">
+<h1>Editions in My Books of '{{TITLE}}'</h1>
+<table cellspacing="0" cellpadding="0" border="0" width="100%" class="tableList">
+<!-- Add query string params -->
+<script type="text/javascript" charset="utf-8">
+//<![CDATA[
+  function submitShelfLink(unique_id, book_id, shelf_id, shelf_name, submit_form, exclusive) {
+    new Ajax.Request('/shelf/add_to_shelf', {asynchronous:true, evalScripts:true, parameters:'book_id=' + book_id + '&name=' + shelf_name + '&a=' + action + '&authenticity_token=' + encodeURIComponent('{{CSRF}}')})
+  }
+//]]>
+</script>
+{{ROWS}}
+</table>
+<a href="https://www.goodreads.com/review/list/{{USER_ID}}">my books</a> <a href="/review/duplicates">duplicates</a>
+</div>

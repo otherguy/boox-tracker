@@ -20,6 +20,7 @@ import org.json.JSONObject
 
 const val WORK_NAME = "boox-tracker.collection"
 const val DELIVERY_WORK_NAME = "boox-tracker.delivery"
+const val GOODREADS_RENEWAL_WORK_NAME = "boox-tracker.goodreads-renewal"
 
 fun periodicRequest() = PeriodicWorkRequestBuilder<ScheduledCheckWorker>(15, TimeUnit.MINUTES).setInitialDelay(15, TimeUnit.MINUTES).build()
 
@@ -34,6 +35,18 @@ fun scheduleDelivery(app: ReadingSyncApp) {
         ExistingWorkPolicy.APPEND_OR_REPLACE,
         OneTimeWorkRequestBuilder<DeliveryWorker>().setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
     )
+}
+
+fun goodreadsRenewalRequest() = PeriodicWorkRequestBuilder<GoodreadsRenewalWorker>(GOODREADS_RENEWAL_MS, TimeUnit.MILLISECONDS)
+    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
+
+/** Renews the Goodreads session in a hidden browser every six hours while a network is available. */
+fun scheduleGoodreadsRenewal(app: ReadingSyncApp) {
+    WorkManager.getInstance(app).enqueueUniquePeriodicWork(GOODREADS_RENEWAL_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, goodreadsRenewalRequest())
+}
+
+fun cancelGoodreadsRenewal(app: ReadingSyncApp) {
+    WorkManager.getInstance(app).cancelUniqueWork(GOODREADS_RENEWAL_WORK_NAME)
 }
 
 class ScheduledCheckWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
@@ -89,5 +102,26 @@ class DeliveryWorker(context: Context, parameters: WorkerParameters) : Coroutine
         }
         app.diagnostics.stopRun("delivery", run, outcome, failed)
         return if (retry) Result.retry() else Result.success()
+    }
+}
+
+/** Loads Goodreads in a hidden browser so its bot check and session cookies stay current between sends. */
+class GoodreadsRenewalWorker(context: Context, parameters: WorkerParameters) : CoroutineWorker(context, parameters) {
+    override suspend fun doWork(): Result {
+        val app = applicationContext as ReadingSyncApp
+        if (!app.goodreads.renewable()) return Result.success()
+        val run = "$id:$runAttemptCount:${UUID.randomUUID()}"
+        app.diagnostics.startRun("renewal", run)
+        try {
+            // A failed renewal records its own issue; the run event only marks that the worker ran.
+            app.diagnostics.stopRun("renewal", run, app.goodreads.renew("renewal").name.lowercase())
+        } catch (error: CancellationException) {
+            withContext(NonCancellable + Dispatchers.IO) { app.diagnostics.stopRun("renewal", run, "worker_cancelled", true) }
+            throw error
+        } catch (error: Exception) {
+            app.diagnostics.event("renewal", "worker_failed", run, JSONObject().put("service", "goodreads").put("reason", failureReason(error)), true)
+            app.diagnostics.stopRun("renewal", run, "failed", true)
+        }
+        return Result.success()
     }
 }

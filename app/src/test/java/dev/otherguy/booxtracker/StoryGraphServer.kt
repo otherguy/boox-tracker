@@ -201,7 +201,7 @@ fun storyGraphSession(store: DiagnosticsStore, server: StoryGraphServer, capture
         CookieManager.getInstance().setCookie(server.origin, "remember_user_token=test-remember; Path=/; HttpOnly")
         session.capture("test-agent")
     } else {
-        session.clear()
+        kotlinx.coroutines.runBlocking { session.clear() }
     }
     return session
 }

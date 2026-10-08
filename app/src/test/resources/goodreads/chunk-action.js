@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[9067],{29067:(e,t,r)=>{r.d(t,{default:()=>z});var n=r(95155),N=r(77197);function a(e){let{bookId:t,shelving:o}=e;return(0,n.jsx)("div",{children:o})}var $=r(73321),E=r(21973);let D=(0,N.createServerReference)("{{ACTION_ID}}",N.callServer,void 0,N.findSourceMapURL,"submitReviewFormAction");var z=a}}]);

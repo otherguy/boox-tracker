@@ -29,9 +29,10 @@ open class ReadingSyncApp :
     Application.ActivityLifecycleCallbacks {
     lateinit var diagnostics: Diagnostics
     lateinit var hardcover: HardcoverConnection
+    lateinit var goodreads: GoodreadsConnection
     lateinit var fable: FableConnection
     lateinit var storygraph: StoryGraphConnection
-    val connections: List<TrackerConnection> get() = listOf(hardcover, fable, storygraph)
+    val connections: List<TrackerConnection> get() = listOf(hardcover, goodreads, storygraph, fable)
 
     @Volatile var visible = false
 
@@ -41,6 +42,7 @@ open class ReadingSyncApp :
         super.onCreate()
         diagnostics = Diagnostics(this)
         hardcover = HardcoverConnection(this)
+        goodreads = GoodreadsConnection(this)
         fable = FableConnection(this)
         storygraph = StoryGraphConnection(this)
         registerActivityLifecycleCallbacks(this)
@@ -48,6 +50,7 @@ open class ReadingSyncApp :
             diagnostics.ensureRecovered()
             try {
                 scheduleCollection(this@ReadingSyncApp)
+                if (goodreads.session.connected()) scheduleGoodreadsRenewal(this@ReadingSyncApp)
             } catch (error: Exception) {
                 diagnostics.event("system", "schedule_failed", detail = errorDetails(error, "schedule collection"), issue = true)
             }
@@ -249,7 +252,7 @@ class Diagnostics(
     }
 
     fun recover() {
-        listOf("hardcover", "fable", "storygraph").forEach { service ->
+        listOf("hardcover", "goodreads", "fable", "storygraph").forEach { service ->
             store.get("$service.active")?.takeIf { it.isNotEmpty() }?.let { value ->
                 val active = JSONObject(value)
                 val detail = JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry.")
@@ -258,7 +261,7 @@ class Diagnostics(
                 store.put("$service.active", "")
             }
         }
-        listOf("scheduled", "delivery").forEach { source ->
+        listOf("scheduled", "delivery", "renewal").forEach { source ->
             store.get("active.$source")?.takeIf { it.isNotEmpty() }?.let { value ->
                 // Older versions stored only the run id.
                 val active = if (value.startsWith("{")) JSONObject(value) else JSONObject().put("id", value)

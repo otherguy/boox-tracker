@@ -25,7 +25,7 @@ class ActivityEntry(val events: List<JSONObject>) {
 /** A row's words: a title, a detail line that starts with where the event came from, and a status mark. */
 data class EventText(val title: String, val detail: String, val mark: String)
 
-private val sources = mapOf("scheduled" to "Background", "delivery" to "Background delivery", "foreground" to "App open", "manual" to "Manual", "system" to "System")
+private val sources = mapOf("scheduled" to "Background", "delivery" to "Background delivery", "renewal" to "Background renewal", "foreground" to "App open", "manual" to "Manual", "system" to "System")
 
 fun sourceText(event: JSONObject): String = sources[event.optString("source")] ?: words(event.optString("source"))
 
@@ -98,8 +98,14 @@ fun bookParts(book: JSONObject?): List<String> = if (book == null) emptyList() e
 /** The progress a tracker holds after a send: pages for Hardcover, a percentage for Fable. */
 private fun progressText(result: JSONObject, kept: Boolean): String? = when {
     result.optBoolean("finished") -> "Finished"
+
+    // Goodreads holds its own value until NeoReader is a full step ahead.
+    result.optInt("nextUpdateAt") > 0 -> "${result.optInt("remotePercent")}%"
+
     result.optInt("editionPages") > 0 -> "${result.optInt(if (kept) "remoteProgressPages" else "progressPages")} of ${result.optInt("editionPages")} pages"
+
     result.has(if (kept) "remotePercent" else "percent") -> "${result.optInt(if (kept) "remotePercent" else "percent")}%"
+
     else -> null
 }
 
@@ -191,6 +197,8 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
         kind.endsWith("_setting") -> "$service turned ${if (event.optBoolean("enabled")) "On" else "Off"}"
 
         kind.endsWith("_operation") -> "$service action failed".also { parts += listOfNotNull(reason) }
+
+        kind.endsWith("_renewal") -> "$service session not renewed".also { parts += listOfNotNull(words(outcome).ifEmpty { null }) }
 
         kind.endsWith("_interruption_detected") -> "$service send interrupted".also { parts += "the app stopped during a send" }
 

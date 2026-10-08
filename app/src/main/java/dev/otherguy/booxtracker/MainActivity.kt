@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
+import android.net.Uri
 import android.os.Bundle
 import android.text.InputType
 import android.text.SpannableStringBuilder
@@ -82,14 +83,15 @@ class MainActivity : AppCompatActivity() {
      */
     private var hardcoverSignIn: AlertDialog? = null
     private var fableSignIn: FableSignInViews? = null
-    private var storyGraphSignIn: StoryGraphSignInViews? = null
-
-    /** The last main-frame load failure of the StoryGraph sign-in page, shown in its popup. */
-    private var storyGraphLoadError: String? = null
+    private var storyGraphSignIn: WebSignInViews? = null
+    private var goodreadsSignIn: WebSignInViews? = null
 
     private class FableSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView)
 
-    private class StoryGraphSignInViews(val dialog: AlertDialog, val status: TextView)
+    /** A website sign-in popup and the last main-frame load failure of its page, shown on its status line. */
+    private class WebSignInViews(val dialog: AlertDialog, val status: TextView) {
+        var loadError: String? = null
+    }
     private val ebookFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         model.pickerActive = false
         val uri = result.data?.data
@@ -263,13 +265,15 @@ class MainActivity : AppCompatActivity() {
                 val check = withContext(Dispatchers.IO) { diagnostics.store.get("lastCheck")?.let(::JSONObject) }
                 val selected = mostRecentlyAccessedBook(snapshot)
                 val hardcover = withContext(Dispatchers.IO) { app.hardcover.state() }
+                val goodreads = withContext(Dispatchers.IO) { app.goodreads.state() }
                 val fable = withContext(Dispatchers.IO) { app.fable.state() }
                 val storygraph = withContext(Dispatchers.IO) { app.storygraph.state() }
                 content.removeAllViews()
-                showSync(snapshot, check, selected, hardcover, fable, storygraph)
+                showSync(snapshot, check, selected, hardcover, goodreads, fable, storygraph)
                 updateHardcoverSignIn()
                 updateFableSignIn(fable)
                 updateStoryGraphSignIn(storygraph)
+                updateGoodreadsSignIn(goodreads)
             }
         }
     }
@@ -341,6 +345,8 @@ class MainActivity : AppCompatActivity() {
                     when (connectionError) {
                         "storygraph_browser_check_required" -> "StoryGraph asked for a browser check. Turn StoryGraph off and on to pass it in the sign-in popup."
                         "storygraph_session_expired" -> "StoryGraph signed you out. Turn StoryGraph off and on to sign in again."
+                        "goodreads_browser_check_required" -> "Goodreads asked for a browser check that Boox Tracker could not pass. Turn Goodreads off and on to sign in again."
+                        "goodreads_session_expired" -> "Goodreads signed you out. Turn Goodreads off and on to sign in again."
                         else -> "$name is not signed in. Turn $name off and on again to sign in."
                     }
                 )
@@ -349,6 +355,7 @@ class MainActivity : AppCompatActivity() {
             // A held update whose reason is the session problem named above is the same issue, not a second one.
             if (last.optString("delivery") == "error" && last.optString("reason") != connectionError) add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
             last.text("streakError")?.let { add("$name did not mark the streak day: ${it.replace('_', ' ')}.") }
+            last.text("finishDateError")?.let { add("$name marked the book Read but did not set its finish date: ${it.replace('_', ' ')}.") }
             if (last.keptHigherProgress()) {
                 // Each tracker compares in its own unit: Hardcover in pages, Fable in whole percent rounded down.
                 val (held, compared) = if (last.has("remoteProgressPages")) {
@@ -406,9 +413,10 @@ class MainActivity : AppCompatActivity() {
     /** The latest update found the tracker ahead of NeoReader and left its progress unchanged. */
     private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
-    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject, storygraph: JSONObject) {
+    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("StoryGraph", storygraph) + serviceIssues("Fable", fable)
+        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Goodreads", goodreads) + serviceIssues("StoryGraph", storygraph) +
+            serviceIssues("Fable", fable)
         val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -462,7 +470,7 @@ class MainActivity : AppCompatActivity() {
         if (providerIssue) label(if (check.optString("outcome") != "success") "NeoReader: ${check.optString("outcome").replace('_', ' ')}" else "Saved book or progress unavailable", size = 16f)
         separator(true)
         showHardcover(hardcover)
-        serviceRow("Goodreads", R.drawable.service_goodreads, getString(R.string.coming_soon))
+        showGoodreads(goodreads)
         showStoryGraph(storygraph)
         showFable(fable)
         serviceRow("Margins", R.drawable.service_margins, getString(R.string.coming_soon))
@@ -603,6 +611,9 @@ class MainActivity : AppCompatActivity() {
         error == "storygraph_browser_check_required" -> "StoryGraph asked for a browser check; sign in again"
         error == "storygraph_session_expired" -> "StoryGraph signed you out; sign in again"
         error == "storygraph_session_cookie_missing" -> "No StoryGraph session was saved; sign in again"
+        error == "goodreads_browser_check_required" -> "Goodreads asked for a browser check; sign in again"
+        error == "goodreads_session_expired" -> "Goodreads signed you out; sign in again"
+        error == "goodreads_webview_profiles_unsupported" -> "Goodreads needs a newer Android System WebView"
         else -> error.replace('_', ' ')
     }
 
@@ -616,6 +627,7 @@ class MainActivity : AppCompatActivity() {
         val last = state.optJSONObject("last")
         val success = last?.optJSONObject("lastSuccess")
         val streakError = last?.text("streakError")
+        val finishDateError = last?.text("finishDateError")
         val delivery = last?.optString("delivery")
         val edition = when (last?.sameEdition(name)) {
             true -> " · same edition"
@@ -627,6 +639,7 @@ class MainActivity : AppCompatActivity() {
             !connected || state.getBoolean("credentialProblem") -> "❌ Reconnect required"
             delivery == "error" -> "❌ ${last.optString("reason").replace('_', ' ')}"
             streakError != null -> "⚠ Streak day not marked · ${streakError.replace('_', ' ')}"
+            finishDateError != null -> "⚠ Finish date not set · ${finishDateError.replace('_', ' ')}"
             last?.optString("matchKind") in setOf("edition", "book") -> "✅ Book matched$edition"
             else -> "Not matched yet"
         }
@@ -684,6 +697,29 @@ class MainActivity : AppCompatActivity() {
                 action(fableReport) {
                     fable.setEnabled(checked)
                     if (checked && fable.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
+                }
+            }
+        )
+    }
+
+    private fun showGoodreads(state: JSONObject) {
+        val goodreads = app.goodreads
+        val signIn = when {
+            goodreads.signingIn -> "Signing in…\nReading your Goodreads session"
+            goodreads.awaitingCredentials -> "Sign-in required\nSign in to Goodreads in the popup"
+            else -> null
+        }
+        serviceRow(
+            "Goodreads",
+            R.drawable.service_goodreads,
+            signIn ?: serviceSummary(state, "Goodreads"),
+            state.getBoolean("enabled") || goodreads.signingIn || goodreads.awaitingCredentials,
+            !model.busy,
+            details = { showServiceDetails("Goodreads", goodreads, goodreadsReport) },
+            changed = { checked ->
+                action(goodreadsReport) {
+                    goodreads.setEnabled(checked)
+                    if (checked && goodreads.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
                 }
             }
         )
@@ -788,33 +824,84 @@ class MainActivity : AppCompatActivity() {
             storyGraphSignIn = null
             return
         }
-        val form = storyGraphSignIn ?: storyGraphSignInDialog().also { storyGraphSignIn = it }
+        val form = storyGraphSignIn ?: webSignInDialog(
+            "StoryGraph",
+            "Sign in on StoryGraph's own website. Boox Tracker never sees or remembers your password; it keeps the browser session on this device.",
+            R.id.storygraph_sign_in_web,
+            R.id.storygraph_sign_in_status,
+            storygraph.http.origin,
+            "/users/sign_in",
+            homeLoaded = { userAgent ->
+                if (storygraph.awaitingCredentials && !storygraph.signingIn) runDetached(storyGraphReport) { storygraph.sessionCaptured(userAgent) }
+            },
+            cancelled = { runDetached(storyGraphReport) { storygraph.setEnabled(false) } }
+        ).also { storyGraphSignIn = it }
+        showWebSignInStatus(form, "StoryGraph", storygraph.signingIn, state)
+    }
+
+    private fun updateGoodreadsSignIn(state: JSONObject) {
+        val goodreads = app.goodreads
+        if (!goodreads.awaitingCredentials && !goodreads.signingIn) {
+            goodreadsSignIn?.dialog?.dismiss()
+            goodreadsSignIn = null
+            return
+        }
+        val form = goodreadsSignIn ?: webSignInDialog(
+            "Goodreads",
+            "Sign in on Goodreads' own website. Boox Tracker never sees or remembers your password; it keeps the browser session on this device.",
+            R.id.goodreads_sign_in_web,
+            R.id.goodreads_sign_in_status,
+            goodreads.http.origin,
+            "/user/sign_in",
+            // Goodreads signs in through Amazon's pages on its own host; Apple, Google, and Facebook sign-in leave it.
+            otherSites = listOf("goodreads.com", "amazon.com", "apple.com", "google.com", "facebook.com"),
+            prepare = goodreads.session.profile::attach,
+            homeLoaded = { userAgent ->
+                if (goodreads.awaitingCredentials && !goodreads.signingIn) runDetached(goodreadsReport) { goodreads.sessionCaptured(userAgent) }
+            },
+            cancelled = { runDetached(goodreadsReport) { goodreads.setEnabled(false) } }
+        ).also { goodreadsSignIn = it }
+        showWebSignInStatus(form, "Goodreads", goodreads.signingIn, state)
+    }
+
+    /** The sign-in popup's status line: the session read while it runs, else the connection problem, else the page's load failure. */
+    private fun showWebSignInStatus(form: WebSignInViews, name: String, signingIn: Boolean, state: JSONObject) {
         val error = state.optString("connectionError")
         form.status.text = when {
-            storygraph.signingIn -> "Reading your StoryGraph session…"
+            signingIn -> "Reading your $name session…"
             error.isNotBlank() -> connectionText(error)
-            else -> storyGraphLoadError.orEmpty()
+            else -> form.loadError.orEmpty()
         }
         form.status.isGone = form.status.text.isEmpty()
     }
 
     /**
-     * StoryGraph's own sign-in page in a WebView, so the password never reaches the app and Cloudflare sees a browser.
-     * The page is loaded once; screen updates only change the status line. A live session redirects to the home page,
-     * which is captured like a fresh sign-in.
+     * A website's own sign-in page in a WebView, so the password never reaches the app and the site sees a browser.
+     * The WebView stays on [origin] and [otherSites] with their subdomains. [prepare] runs before anything else touches
+     * the WebView. The page is loaded once; screen updates only change the status line. Every load of the origin's home
+     * page, as a finished page or a history update, goes to [homeLoaded] with the WebView's User-Agent.
      */
     @SuppressLint("SetJavaScriptEnabled")
-    private fun storyGraphSignInDialog(): StoryGraphSignInViews {
-        storyGraphLoadError = null
-        val storygraph = app.storygraph
-        val origin = storygraph.http.origin.toUri()
+    private fun webSignInDialog(
+        name: String,
+        intro: String,
+        webId: Int,
+        statusId: Int,
+        origin: String,
+        signInPath: String,
+        otherSites: List<String> = emptyList(),
+        prepare: (WebView) -> Unit = {},
+        homeLoaded: (userAgent: String) -> Unit,
+        cancelled: () -> Unit
+    ): WebSignInViews {
+        val host = origin.toUri().host
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), 0)
         }
-        label("Sign in on StoryGraph's own website. Boox Tracker never sees or remembers your password; it keeps the browser session on this device.", parent = body, size = 17f).setTextIsSelectable(false)
-        val web = WebView(this).apply {
-            id = R.id.storygraph_sign_in_web
+        label(intro, parent = body, size = 17f).setTextIsSelectable(false)
+        val web = WebView(this).also(prepare).apply {
+            id = webId
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             setBackgroundColor(Color.WHITE)
@@ -824,45 +911,49 @@ class MainActivity : AppCompatActivity() {
             body.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
         }
         val status = label("", parent = body, size = 17f).apply {
-            id = R.id.storygraph_sign_in_status
+            id = statusId
             setTextIsSelectable(false)
         }
+        lateinit var views: WebSignInViews
 
         // WebView settings are read here on the main thread; the capture itself runs detached, because it is a page
         // event rather than a tap and must not be dropped while another action keeps the screen busy.
-        fun captureIfHome(url: String?) {
+        fun capture(url: String?) {
             val uri = url?.toUri() ?: return
-            if (uri.host != origin.host || uri.path.orEmpty().trimEnd('/').isNotEmpty()) return
-            if (!storygraph.awaitingCredentials || storygraph.signingIn) return
-            val userAgent = web.settings.userAgentString
-            runDetached(storyGraphReport) { storygraph.sessionCaptured(userAgent) }
+            if (uri.host == host && uri.path.orEmpty().trimEnd('/').isEmpty()) homeLoaded(web.settings.userAgentString)
+        }
+
+        fun allowed(uri: Uri): Boolean {
+            val target = uri.host.orEmpty()
+            return uri.host == host || otherSites.any { target == it || target.endsWith(".$it") }
         }
         web.webViewClient = object : WebViewClient() {
-            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = request.isForMainFrame && request.url.host != origin.host
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = request.isForMainFrame && !allowed(request.url)
 
-            override fun onPageFinished(view: WebView, url: String?) = captureIfHome(url)
+            override fun onPageFinished(view: WebView, url: String?) = capture(url)
 
-            // Turbo can finish the visit after sign-in by replacing history instead of a full page load.
-            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) = captureIfHome(url)
+            // A single-page sign-in can finish by replacing history instead of a full page load.
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) = capture(url)
 
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
                 if (!request.isForMainFrame) return
-                storyGraphLoadError = "StoryGraph could not be loaded: ${error.description}. Check the connection, then turn StoryGraph off and on."
+                views.loadError = "$name could not be loaded: ${error.description}. Check the connection, then turn $name off and on."
                 refresh()
             }
         }
         val dialog = bordered(
-            AlertDialog.Builder(this).setTitle("StoryGraph sign-in").setView(body)
+            AlertDialog.Builder(this).setTitle("$name sign-in").setView(body)
                 .setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
-                .setOnCancelListener { runDetached(storyGraphReport) { storygraph.setEnabled(false) } }
+                .setOnCancelListener { cancelled() }
                 .create().apply { setCanceledOnTouchOutside(false) }
         ) { web.destroy() }
         // The dialog marks itself as no input-method target when its view has no text editor at show time, and a
         // WebView has none until its page focuses a field; the page's fields can raise the keyboard only without that mark.
         dialog.window?.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
-        web.loadUrl("${storygraph.http.origin}/users/sign_in")
-        return StoryGraphSignInViews(dialog, status)
+        web.loadUrl(origin + signInPath)
+        views = WebSignInViews(dialog, status)
+        return views
     }
 
     private fun fableReady() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !app.fable.signingIn
@@ -934,6 +1025,7 @@ class MainActivity : AppCompatActivity() {
     private val hardcoverReport: (Exception) -> Unit = { app.hardcover.recordFailure("manual", "hardcover_operation", it) }
     private val fableReport: (Exception) -> Unit = { app.fable.recordFailure("manual", "fable_operation", it) }
     private val storyGraphReport: (Exception) -> Unit = { app.storygraph.recordFailure("manual", "storygraph_operation", it) }
+    private val goodreadsReport: (Exception) -> Unit = { app.goodreads.recordFailure("manual", "goodreads_operation", it) }
 
     private fun action(report: (Exception) -> Unit = hardcoverReport, block: suspend () -> Unit) {
         if (model.busy) return
@@ -1072,7 +1164,19 @@ class MainActivity : AppCompatActivity() {
         } else {
             field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
             field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
-            field("Progress", if (result.optBoolean("finished")) "Finished" else "${result.optInt(if (kept) "remotePercent" else "percent")}%$keptNote")
+            val waiting = result.optInt("nextUpdateAt").takeIf { it > 0 }
+            field(
+                "Progress",
+                when {
+                    result.optBoolean("finished") -> "Finished" + (result.text("finishDate")?.let { " on ${readableDay(it)}" } ?: "")
+
+                    // Goodreads posts every update to friends' feeds, so a small step waits for the next one.
+                    waiting != null -> "${result.optInt("remotePercent")}% · the next update is sent at $waiting%"
+
+                    else -> "${result.optInt(if (kept) "remotePercent" else "percent")}%$keptNote"
+                }
+            )
+            result.text("finishDateError")?.let { field("Finish date", "Not set (${it.replace('_', ' ')})") }
             result.text("shelfAfter")?.let { shelf ->
                 field("Shelf", mapOf("current_reading" to "Currently Reading", "currently_reading" to "Currently Reading", "want_to_read" to "Want to Read", "to_read" to "To Read", "finished" to "Finished", "read" to "Read", "did_not_finish" to "Did Not Finish", "paused" to "Paused", "rereading" to "Rereading")[shelf] ?: shelf)
             }

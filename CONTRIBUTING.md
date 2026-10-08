@@ -1,6 +1,6 @@
 # Contributing to Boox Tracker
 
-Boox Tracker is a native Kotlin Android app. It reads NeoReader metadata, keeps local logs, and sends progress to Hardcover, Fable, and StoryGraph.
+Boox Tracker is a native Kotlin Android app. It reads NeoReader metadata, keeps local logs, and sends progress to Hardcover, Goodreads, Fable, and StoryGraph.
 
 ## Issues and device reports
 

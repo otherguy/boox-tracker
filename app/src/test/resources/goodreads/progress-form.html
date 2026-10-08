@@ -1,0 +1,28 @@
+<div class='wtrPrompt wtrUserStatusPrompt'>
+<div class='wtrPromptInstruction'>Update your reading progress:</div>
+I’m on page <input type="text" id="" value="{{PAGE}}" pattern="\d*" /> of {{PAGES}}.
+<a class="viewShelfLink" href="/review/list/{{USER_ID}}?shelf=currently-reading">View shelf</a>
+</div>
+<div class='wtrFloatingBox wtrNewUserStatus'>
+<form autocomplete="off" class="gr-form gr-form--compact" action="/user_status" accept-charset="UTF-8" method="post"><input name="utf8" type="hidden" value="&#x2713;" /><input type="hidden" name="authenticity_token" value="{{CSRF}}" /><div class='wtrPromptInstruction'>Update your reading progress:</div>
+<div class='wtrNewUserStatusProgress'>
+I’m on
+<button class='wtrNewUserStatusProgressTypeToggle wtrSecondaryCtrl' title='switch to percentage' type='button'>
+page
+</button>
+<input value="{{PAGE}}" pattern="\d*" type="text" name="user_status[page]" id="1_book_{{BOOK_ID}}_user_status_page" />
+of {{PAGES}}.
+</div>
+<div class='wtrNewUserStatusProgress' style='display:none'>
+I’m
+<input value="{{PERCENT}}" pattern="\d*" disabled="disabled" type="text" name="user_status[percent]" id="1_book_{{BOOK_ID}}_user_status_percent" />
+<button class='wtrNewUserStatusProgressTypeToggle wtrSecondaryCtrl' disabled title='switch to pages' type='button'>
+%
+</button>
+done.
+</div>
+<textarea maxlength="420" placeholder="Write a comment (up to 420 characters)" name="user_status[body]" id="1_book_{{BOOK_ID}}_user_status_body" cols="40" rows="20">
+</textarea>
+<input value="{{BOOK_ID}}" type="hidden" name="user_status[book_id]" id="1_book_{{BOOK_ID}}_user_status_book_id" />
+</form>
+</div>

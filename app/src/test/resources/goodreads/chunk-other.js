@@ -1,0 +1,1 @@
+"use strict";(self.webpackChunk_N_E=self.webpackChunk_N_E||[]).push([[4968],{14968:(e,t,r)=>{r.d(t,{A:()=>o});let n=(0,r(77197).createServerReference)("00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00",r.callServer,void 0,r.findSourceMapURL,"refreshShelvesAction");var o=n}}]);

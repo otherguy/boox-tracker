@@ -33,10 +33,10 @@ private fun element(tag: String, cssClass: String? = null): Regex {
 private fun Regex.text(html: String): String? = find(html)?.groupValues?.get(1)?.let(::htmlText)?.takeIf { it.isNotBlank() }
 
 /** Every opening tag named [name] whose attributes contain [marker], whatever the attribute order. */
-private fun tags(html: String, name: String, marker: String): List<String> = Regex("<$name\\b[^>]*>").findAll(html).map { it.value }.filter { it.contains(marker) }.toList()
+internal fun tags(html: String, name: String, marker: String): List<String> = Regex("<$name\\b[^>]*>").findAll(html).map { it.value }.filter { it.contains(marker) }.toList()
 
 /** An attribute's value, whether StoryGraph quotes it or not; `data-book-id` is written bare on the page's own blocks. */
-private fun attribute(tag: String, name: String): String? = Regex("\\b$name=(?:\"([^\"]*)\"|'([^']*)'|([^\\s>\"']+))").find(tag)
+internal fun attribute(tag: String, name: String): String? = Regex("\\b$name=(?:\"([^\"]*)\"|'([^']*)'|([^\\s>\"']+))").find(tag)
     ?.let { match -> match.groupValues.drop(1).firstOrNull { it.isNotEmpty() }.orEmpty() }?.let(::unescape)
 
 /** The opening tag of the `div` with [marker] in its attributes that belongs to edition [id]. */

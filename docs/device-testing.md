@@ -30,6 +30,14 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 4. Finish the book in NeoReader. After a sync, StoryGraph must show the book as read with that day's date. Reopening it must hold the update.
 5. Export and confirm that the export contains no cookie or user ID.
 
+## Goodreads
+
+1. Turn **Goodreads On**. The popup must show Goodreads' own sign-in page; sign in there with your email or Amazon account. The popup must close by itself, and the details popup must show your name and username. **Cancel** must turn Goodreads Off.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Goodreads, the book must be on Currently Reading with the percentage rounded down. Read a few pages, sync again, and confirm that nothing new is posted until the percentage is 5 points higher. Higher progress on Goodreads must stay unchanged.
+3. Leave the device online for more than six hours with Boox Tracker hidden, then export. A background renewal run must appear, and Goodreads must stay connected.
+4. Finish the book in NeoReader. After a sync, Goodreads must show the book on Read with the finish date of the day you last read it. Reopening it must hold the update.
+5. Log out of Goodreads in its details popup. StoryGraph, if connected, must stay connected. Export and confirm that the export contains no cookie, token, or user ID.
+
 ## Offline collection and reconnect
 
 1. After one successful manual sync, keep Hardcover On and disconnect Wi-Fi. Read the first book, return to the NeoReader library, and press Sync Now. Confirm **Pending** without a request to enable Wi-Fi.

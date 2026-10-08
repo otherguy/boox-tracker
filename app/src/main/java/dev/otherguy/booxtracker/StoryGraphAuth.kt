@@ -5,17 +5,21 @@ import android.webkit.WebStorage
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.coroutines.resume
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 
 const val STORYGRAPH_ORIGIN = "https://app.thestorygraph.com"
 
 /** The User-Agent for requests made before a sign-in stored the WebView's own string. */
-private const val FALLBACK_USER_AGENT = "Mozilla/5.0 (Linux; Android 12; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36"
+internal const val FALLBACK_USER_AGENT = "Mozilla/5.0 (Linux; Android 12; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/120.0.0.0 Mobile Safari/537.36"
 
 /** A response with lower-case header names, so `cf-mitigated` and `Set-Cookie` are found whatever the server's casing. */
-private class StoryGraphResponse(val status: Int, val headers: Map<String, List<String>>, val text: String)
+internal class WebResponse(val status: Int, val headers: Map<String, List<String>>, val text: String)
 
-/** Sends one request with `HttpURLConnection`, never following redirects, and reads at most 2 MiB. */
-private fun fetch(method: String, url: String, headers: Map<String, String>, body: String?): StoryGraphResponse {
+/** Sends one request with `HttpURLConnection`, never following redirects, and reads at most [limit] bytes. */
+internal fun fetchPage(method: String, url: String, headers: Map<String, String>, body: String?, limit: Int = 2 * 1024 * 1024): WebResponse {
     val connection = URL(url).openConnection() as HttpURLConnection
     try {
         connection.requestMethod = method
@@ -29,8 +33,8 @@ private fun fetch(method: String, url: String, headers: Map<String, String>, bod
         }
         val status = connection.responseCode
         val stream = if (status >= 400) connection.errorStream else connection.inputStream
-        val text = stream?.use { readLimited(it, 2 * 1024 * 1024).toString(Charsets.UTF_8) }.orEmpty()
-        return StoryGraphResponse(status, connection.headerFields.filterKeys { it != null }.mapKeys { it.key.lowercase() }, text)
+        val text = stream?.use { readLimited(it, limit).toString(Charsets.UTF_8) }.orEmpty()
+        return WebResponse(status, connection.headerFields.filterKeys { it != null }.mapKeys { it.key.lowercase() }, text)
     } finally {
         connection.disconnect()
     }
@@ -73,11 +77,18 @@ class StoryGraphSession(private val store: DiagnosticsStore, val origin: String 
         store.put("storygraph.connectionError", problem)
     }
 
-    /** Removes the browser session from this device. StoryGraph is the only WebView user, so clearing every cookie is safe. */
-    fun clear() {
-        val manager = cookies()
-        manager.removeAllCookies { manager.flush() }
-        runCatching { WebStorage.getInstance().deleteAllData() }
+    /**
+     * Removes the browser session from this device. StoryGraph is the only user of the default WebView profile, so
+     * clearing every cookie in it is safe. WebView answers a cookie callback on the calling thread's Looper and
+     * refuses a thread without one, so the removal runs on the main thread.
+     */
+    suspend fun clear() {
+        withContext(Dispatchers.Main.immediate) {
+            val manager = cookies()
+            suspendCancellableCoroutine { done -> manager.removeAllCookies { done.resume(Unit) } }
+            manager.flush()
+            runCatching { WebStorage.getInstance().deleteAllData() }
+        }
         store.delete("storygraph.session")
         store.delete("storygraph.userAgent")
     }
@@ -117,7 +128,7 @@ class StoryGraphHttp(val session: StoryGraphSession) {
             put("User-Agent", session.userAgent())
             session.cookieHeader()?.let { put("Cookie", it) }
         }
-        val response = fetch(method, origin + path, sent, body)
+        val response = fetchPage(method, origin + path, sent, body)
         session.accept(response.headers["set-cookie"].orEmpty())
         when {
             isChallenge(response.status, response.headers, response.text) -> throw problem("storygraph_browser_check_required")

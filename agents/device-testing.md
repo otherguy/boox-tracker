@@ -44,6 +44,16 @@ StoryGraph is built in 0.5.0 through its website session; see the [StoryGraph pl
 7. Repeat the offline hidden-app test below with all three services On. Each service must deliver its own queue.
 8. Explicit `storygraph:` tag: add the shelved edition's UUID to the EPUB in calibre, send it to the device over the same path, open it in NeoReader, and sync. The book popup must show a StoryGraph row and the StoryGraph row must read "same edition". The user deferred this on 2026-10-08; the tag path has automatic coverage only. The device's EPUB is calibre's current export (title "Terminal List #05 – In the Blood", ISBN 9781982181680, ASIN B09841ZBHY), not the older export that was in the repository folder.
 
+## Goodreads sync
+
+Goodreads is built in 0.6.0 through its website session; see the [Goodreads plan](plan-20261008-goodreads-sync.md). In the Blood is on Currently Reading on Goodreads on the Kindle edition 58467253 (ISBN 9781982181680), with one update at page 240 of 480 (50%) that the user posted on 2026-10-08. The UK paperback 60174472 and the hardcover 58438630 (the older EPUB export's `goodreads:` tag) belong to the same work 91709220. No challenge was seen during the research probes.
+
+1. Goodreads On: the popup must show Goodreads' sign-in page; sign in with email or Amazon. The popup must close by itself; the details popup must show the name and `@username`; Activity must show the connection event. Then confirm that StoryGraph is still connected.
+2. Sync Now with In the Blood at about 52.9% in NeoReader. Expect "Book matched · same edition" on the shelved Kindle edition and no new post on Goodreads, because 52 is less than 5 points above 50; the details popup must say the next update is sent at 55%. Read past 55% and sync: Goodreads must show the floored percentage, and the status list must have exactly one new update.
+3. Leave the device online with Boox Tracker hidden for more than six hours. Export: a `run` event from source `renewal` must appear, and no `goodreads_renewal` issue. Record any `goodreads_browser_check_required` with its time and network.
+4. Finish a test book in NeoReader on one day and sync on a later day. Goodreads must show it on Read with the finish date of the reading day, not the sync day. Reopen it; the next sync must hold with `goodreads_status_conflict`.
+5. Cancel on a fresh popup must turn Goodreads Off. Log out must clear the Goodreads session (the next On shows the sign-in page), keep StoryGraph connected, and stop the renewal job. Export and confirm the absence of any cookie value, token, and the user id.
+
 ## Offline collection and hidden-app delivery
 
 Start with the existing BOOX settings and an awake test. There is no background toggle or observation session in 0.3.x. Keep Hardcover On; do not force-stop Boox Tracker. Record Wi-Fi, app-open, book exit, sleep/wake, and boot times. All times in previous records are local UTC+07:00.
