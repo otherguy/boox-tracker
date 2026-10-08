@@ -12,6 +12,7 @@ State on 2026-10-07:
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
 - **StoryGraph account:** In the Blood is currently reading at 52% on StoryGraph on the Kindle edition (ISBN 9781982181680, the ebook's own ISBN) since 18:19 on 2026-10-08, when the user had the edition switched from the hardcover that the 2026-10-07 write test had shelved. The 18:25 delivery after the next page turn reported "same edition" at 52.93%. Cloudflare accepted the app's `HttpURLConnection` requests with the WebView's cookies minutes after sign-in; the spike's later intervals are open. See [StoryGraph device checks](device-testing.md#storygraph-sync).
 - **CI and hooks:** two CI races exposed by 0.6.0 are fixed at `e85e8c5`, whose [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37794372757). CI is now split into a Lint workflow and a path-filtered Android checks workflow, both cancelling superseded runs, and `lefthook.yml` mirrors them; see [build and release](build-and-release.md#github-delivery).
+- **Clear activity:** an outlined Clear button beside Export deletes every Activity event after one confirmation and leaves one "Activity cleared" event ([plan](plan-20261008-clear-activity.md)). Built and automatically tested as 0.6.2/code 27 (see [verification](verification.md#clear-activity-062)).
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
 
 Next physical checks, in order:
@@ -25,7 +26,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.6.1 / code 26
+## Built: 0.6.2 / code 27
 
 | Item | Current value |
 | --- | --- |
@@ -35,8 +36,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.6.1-diagnostic.apk`, 3,714,891 bytes |
-| Diagnostic APK SHA-256 | `f7fedfea9d0154c3473209292d3d085b4029eca71e8b65e9b2ac7284d7c2d22a` |
+| Diagnostic APK | `dist/boox-tracker-0.6.2-diagnostic.apk`, 3,717,055 bytes |
+| Diagnostic APK SHA-256 | `e48e38d29d3a7942a404c89c1ebb96bc97fbae14bd4a1215a3838c699c90960b` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 

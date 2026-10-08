@@ -46,6 +46,16 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Clear activity 0.6.2
+
+**Built:** debug and signed diagnostic APKs, version 0.6.2/code 27. Artifact `dist/boox-tracker-0.6.2-diagnostic.apk`, 3,717,055 bytes, SHA-256 `e48e38d29d3a7942a404c89c1ebb96bc97fbae14bd4a1215a3838c699c90960b`. Certificate, package, and schemas are unchanged.
+
+Activity has an outlined Clear button beside Export. After one confirmation it deletes every event and writes one `activity_cleared` event in the same transaction; the `state` table is untouched. A failure is recorded as an `activity_clear_failed` issue. See the [plan](plan-20261008-clear-activity.md).
+
+**Automatically tested:** 258 tests, zero failures/errors on ten consecutive runs. `RetentionTest` checks the marker and the untouched state; `MainActivityTest` checks Cancel and Clear; both failed before the change. Both lint variants, both assemblies, and ktlint passed. One earlier full run on 2026-10-09 reported "258 tests completed, 1 failed"; it ran with `-q`, so the failing test is unknown, and it did not recur. On the API 32 emulator at 1264 × 1880 and density 340, Clear fitted beside Export, the confirmation was bordered, Cancel kept the list, and Clear left one "Activity cleared · Manual · 181 events deleted" row.
+
+**Artifact note:** a packaging run after that failed check overwrote `dist/boox-tracker-0.6.1-*` with a build of the 0.6.2 source. Those files were rebuilt from `0d59d4f` (0.6.1 source); the diagnostic APK is now 3,714,819 bytes, SHA-256 `4ad09d9f50b8fde6717a10721759e44da72f4405a2ac75ca11772e38cf96c323`, so the build is not byte-for-byte reproducible. The APK installed on the GoColor7 was the original.
+
 ## Sign-in page width 0.6.1
 
 **Built:** debug and signed diagnostic APKs, version 0.6.1/code 26. Artifact `dist/boox-tracker-0.6.1-diagnostic.apk`, 3,714,891 bytes, SHA-256 `f7fedfea9d0154c3473209292d3d085b4029eca71e8b65e9b2ac7284d7c2d22a`. Certificate, package, and schemas are unchanged.

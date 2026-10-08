@@ -205,6 +205,9 @@ class MainActivity : AppCompatActivity() {
                 startActivity(Intent.createChooser(intent, "Export diagnostics"))
             }
         }
+        findViewById<Button>(R.id.clear_activity).setOnClickListener {
+            confirmClearActivity()
+        }
         findViewById<Button>(R.id.device_info).setOnClickListener {
             lifecycleScope.launch {
                 val info = withContext(Dispatchers.IO) { deviceInfo().toString(2) + "\nColumns: " + diagnostics.snapshot()?.optJSONArray("columns") }
@@ -1090,6 +1093,18 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun confirmClearActivity() {
+        bordered(
+            AlertDialog.Builder(this).setTitle("Clear activity?")
+                .setMessage("Boox Tracker will delete every event in Activity on this device and keep your sync state and queued updates.")
+                .setPositiveButton("Clear") { _, _ ->
+                    resetActivityScroll = true
+                    runDetached({ diagnostics.event("manual", "activity_clear_failed", detail = errorDetails(it, "clear"), issue = true) }) { diagnostics.clearActivity() }
+                }
+                .setNegativeButton("Cancel", null).create()
+        )
+    }
+
     private fun SpannableStringBuilder.field(label: String, value: String) {
         val start = length
         append("$label: ")
@@ -1339,6 +1354,7 @@ class MainActivity : AppCompatActivity() {
                 resultFields(serviceName(event), event)
         }
         event.optInt("deletedUpdates").takeIf { it > 0 }?.let { field("Queued updates deleted", it.toString()) }
+        if (kind == "activity_cleared") field("Events deleted", event.optInt("deletedEvents").toString())
         event.text("startedAt")?.let { field("Started", readableDate(isoMillis(it))) }
         if (event.has("durationMs")) field("Duration", duration(event.optLong("durationMs")))
         // Background evidence needs the app hidden from the start of a read or run until its event.

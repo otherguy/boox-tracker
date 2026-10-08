@@ -65,7 +65,7 @@ No observation service or app-managed wake lock is used in 0.3.0. WorkManager ma
 
 ## Logs and reports
 
-Activity shows the retained events; tap an entry for its **Summary** and **JSON** tabs. **Export** writes the same retained history as text and JSON. The log keeps at most 1,000 events and nothing older than 30 days; routine checks and waiting sends from before the last successful sync are removed once they are two days old, so export within two days of a background test. Use **All / Issues**. Provider denial, unavailable provider, empty library, unknown progress, queued waiting, and tracker errors are separate results.
+Activity shows the retained events; tap an entry for its **Summary** and **JSON** tabs. **Export** writes the same retained history as text and JSON. **Clear** asks once, then deletes every event and leaves one "Activity cleared" entry; export first when you need the history. The log keeps at most 1,000 events and nothing older than 30 days; routine checks and waiting sends from before the last successful sync are removed once they are two days old, so export within two days of a background test. Use **All / Issues**. Provider denial, unavailable provider, empty library, unknown progress, queued waiting, and tracker errors are separate results.
 
 Compatible signed updates preserve data. The 0.3.0 package change starts a new data store and leaves old logs in the old app. Do not uninstall or clear storage to test retention.
 

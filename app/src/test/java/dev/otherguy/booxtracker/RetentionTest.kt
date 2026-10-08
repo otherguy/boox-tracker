@@ -93,6 +93,19 @@ class RetentionTest {
         assertEquals("{}", store.get("snapshot"))
     }
 
+    @Test fun clearingActivityLeavesOneMarkerAndNeverTouchesSyncState() {
+        store.put("outbox.hardcover.1.book", "{}")
+        store.put("lastSyncMs", now.toString())
+        store.append(event("hardcover_sync", day, issue = true, outcome = "held"))
+        repeat(3) { store.append(event("query", hour)) }
+        app.diagnostics.clearActivity()
+        val marker = store.events().single()
+        assertEquals("activity_cleared", marker.getString("kind"))
+        assertEquals(4, marker.getInt("deletedEvents"))
+        assertEquals("{}", store.get("outbox.hardcover.1.book"))
+        assertEquals(now.toString(), store.get("lastSyncMs"))
+    }
+
     @Test fun theCountCapRemovesRoutineEventsBeforeIssues() {
         store.append(event("hardcover_sync", 5 * day, issue = true, outcome = "held"))
         repeat(DiagnosticsStore.MAX_EVENTS) { store.append(event("query", hour)) }

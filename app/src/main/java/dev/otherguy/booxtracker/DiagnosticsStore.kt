@@ -130,14 +130,22 @@ class DiagnosticsStore(
         } finally {
             db.endTransaction()
         }
+        vacuumAfter(deleted)
+        return deleted
+    }
+
+    /** Deletes every event and returns how many were deleted. The `state` table is never touched. */
+    @Synchronized fun clearEvents(): Int = writableDatabase.delete("events", "1", null)
+
+    /** Shrinks the file after a large delete. It must run outside a transaction. */
+    @Synchronized fun vacuumAfter(deleted: Int) {
         // VACUUM needs free space about the size of the database; without it the file only stops growing.
         if (deleted > VACUUM_AFTER) {
             try {
-                db.execSQL("VACUUM")
+                writableDatabase.execSQL("VACUUM")
             } catch (_: android.database.sqlite.SQLiteException) {
             }
         }
-        return deleted
     }
 
     companion object {

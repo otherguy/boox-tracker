@@ -11,6 +11,7 @@
     <string name="filter_all">All</string>
     <string name="filter_issues">Issues</string>
     <string name="export_diagnostics">Export</string>
+    <string name="clear_activity">Clear</string>
     <string name="activity_empty">No activity yet.</string>
     <string name="activity_no_issues">No issues in the retained activity.</string>
     <string name="chevron">›</string>

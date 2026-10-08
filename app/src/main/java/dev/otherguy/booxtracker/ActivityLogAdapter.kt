@@ -212,6 +212,8 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
 
         kind == "ebook_folder" -> "Ebook folder access granted"
 
+        kind == "activity_cleared" -> "Activity cleared".also { parts += count(event.optInt("deletedEvents"), "event") + " deleted" }
+
         else -> words(kind).replaceFirstChar { it.uppercase() }.also { parts += listOfNotNull(words(outcome).ifEmpty { null }, reason) }
     }
     if (entry.events.size > 1) {

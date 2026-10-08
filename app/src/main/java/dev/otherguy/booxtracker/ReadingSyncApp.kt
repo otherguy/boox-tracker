@@ -274,6 +274,14 @@ class Diagnostics(
         prune()
     }
 
+    /** Deletes every Activity event and records one `activity_cleared` event in the same transaction. */
+    fun clearActivity() {
+        val deleted = store.transaction {
+            store.clearEvents().also { event("manual", "activity_cleared", detail = JSONObject().put("deletedEvents", it)) }
+        }
+        store.vacuumAfter(deleted)
+    }
+
     @Volatile private var pruneFailed = false
 
     /** Applies the event retention limits, measured from the last successful sync. A failure is logged once per process. */

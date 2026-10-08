@@ -474,6 +474,29 @@ class MainActivityTest {
         }
     }
 
+    @Test fun clearAsksFirstAndThenLeavesOnlyTheClearedMarker() = runBlocking {
+        repeat(5) { app.diagnostics.store.append(event(it)) }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            val list = openActivity(controller, 5)
+            suspend fun confirmation(): androidx.appcompat.app.AlertDialog {
+                val shown = org.robolectric.shadows.ShadowDialog.getLatestDialog()
+                activity.findViewById<Button>(R.id.clear_activity).performClick()
+                awaitUi { org.robolectric.shadows.ShadowDialog.getLatestDialog().let { it !== shown && it?.isShowing == true } }
+                return org.robolectric.shadows.ShadowDialog.getLatestDialog() as androidx.appcompat.app.AlertDialog
+            }
+            confirmation().getButton(android.content.DialogInterface.BUTTON_NEGATIVE).performClick()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(5, app.diagnostics.store.events().size)
+            confirmation().getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            awaitUi { list.adapter.count == 1 }
+            assertEquals("activity_cleared", (list.adapter as ActivityLogAdapter).getItem(0).events.single().getString("kind"))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
     @Test fun theIssuesFilterShowsOnlyIssuesAndKeepsEveryEvent() = runBlocking {
         repeat(3) { app.diagnostics.store.append(event(it, unchanged = true)) }
         app.diagnostics.store.append(event(3, issue = true))
