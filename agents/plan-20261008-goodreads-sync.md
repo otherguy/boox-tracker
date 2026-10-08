@@ -141,7 +141,7 @@ Clone `storyGraphSignInDialog()`: profile attached before `loadUrl("https://www.
 ### Physical (GoColor7, WebView 151)
 
 - [ ] Install 0.6.0 over 0.5.3 without data loss (done 2026-10-08 21:25, inode unchanged, StoryGraph still connected); StoryGraph stays connected after the Goodreads profile is created at sign-in.
-- [ ] Sign in through the popup with email; the popup closes; the details popup shows the account; a `goodreads_refresh` run event appears after the job's first slot.
+- [ ] Sign in through the popup with email; the popup closes; the details popup shows the account (done 2026-10-08 on 0.6.1); a `goodreads_refresh` run event appears after the job's first slot.
 - [ ] First sync: In the Blood matched by ISBN-13, the shelved Kindle edition kept, progress written and read back from the widget; a second sync within 5 points is `already_current` with no new status update on the site.
 - [ ] Challenge: force one if possible (many requests in a short time or a new network); otherwise record that none occurred over the test window. Measure the `aws-waf-token` lifetime if one is set.
 - [ ] Finish on a test book: Read shelf and the finish date on the site; then a finish with the editor action disabled (fixture flag or airplane mode between the two writes) still shelves Read and warns.
