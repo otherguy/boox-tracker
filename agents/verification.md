@@ -54,6 +54,8 @@ Activity has an outlined Clear button beside Export. After one confirmation it d
 
 **Automatically tested:** 258 tests, zero failures/errors on ten consecutive runs. `RetentionTest` checks the marker and the untouched state; `MainActivityTest` checks Cancel and Clear; both failed before the change. Both lint variants, both assemblies, and ktlint passed. One earlier full run on 2026-10-09 reported "258 tests completed, 1 failed"; it ran with `-q`, so the failing test is unknown, and it did not recur. On the API 32 emulator at 1264 × 1880 and density 340, Clear fitted beside Export, the confirmation was bordered, Cancel kept the list, and Clear left one "Activity cleared · Manual · 181 events deleted" row.
 
+**Verified on physical BOOX:** installed over 0.6.1 by USB at 00:28 device time on 2026-10-09, versionCode 26 → 27, data inode `129824` unchanged, no uninstall or data clear. Started by ADB with no crash logged; Sync showed all four services matched as before, and Activity showed the outlined Clear button beside Export with the retained log. Clear was not tapped on the device, so the device log is intact.
+
 **Artifact note:** a packaging run after that failed check overwrote `dist/boox-tracker-0.6.1-*` with a build of the 0.6.2 source. Those files were rebuilt from `0d59d4f` (0.6.1 source); the diagnostic APK is now 3,714,819 bytes, SHA-256 `4ad09d9f50b8fde6717a10721759e44da72f4405a2ac75ca11772e38cf96c323`, so the build is not byte-for-byte reproducible. The APK installed on the GoColor7 was the original.
 
 ## Sign-in page width 0.6.1
