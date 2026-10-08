@@ -904,6 +904,12 @@ class MainActivity : AppCompatActivity() {
             id = webId
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            // A site that serves a tablet its desktop page without a viewport tag, such as Goodreads, is zoomed out
+            // to the popup's width instead of scrolling sideways; pages with a viewport tag keep their own layout.
+            settings.useWideViewPort = true
+            settings.loadWithOverviewMode = true
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
             setBackgroundColor(Color.WHITE)
         }
         fixedPane(0.6f).apply {

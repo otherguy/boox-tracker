@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-08 for Boox Tracker 0.6.0/code 25 (Goodreads), pushed at `1b52866` and installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-08 for Boox Tracker 0.6.1/code 26 (Goodreads sign-in page fitted to the popup), installed on the GoColor7; 0.6.0/code 25 added Goodreads at `1b52866`. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -45,6 +45,16 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Sign-in page width 0.6.1
+
+**Built:** debug and signed diagnostic APKs, version 0.6.1/code 26. Artifact `dist/boox-tracker-0.6.1-diagnostic.apk`, 3,714,891 bytes, SHA-256 `f7fedfea9d0154c3473209292d3d085b4029eca71e8b65e9b2ac7284d7c2d22a`. Certificate, package, and schemas are unchanged.
+
+On 0.6.0 the GoColor7 showed Goodreads' sign-in page wider than the popup, cut off on the right, so it needed sideways scrolling. Goodreads serves a tablet User-Agent its desktop sign-in page without a viewport tag, and its phone page with `width=device-width` only to a phone User-Agent (both fetched with `curl` on 2026-10-08). The shared sign-in WebView now uses a wide viewport with overview mode and pinch zoom without on-screen controls: a page without a viewport tag is zoomed out to the popup's width, and a page with one keeps its own layout. The User-Agent stays the WebView's own, because the session's requests and the hidden renewal use it.
+
+**Automatically tested:** 256 tests, zero failures/errors; the Goodreads popup test asserts the four WebView settings and failed before the change. Both lint variants, both assemblies, ktlint, and the lefthook hooks passed.
+
+**Verified on physical BOOX:** installed over 0.6.0 by USB at 22:27 device time on 2026-10-08, data inode `129824` unchanged, no uninstall or data clear. Turning Goodreads On by an ADB tap showed the whole desktop sign-in card inside the popup without sideways scrolling, in smaller type. "Sign in with email" opened Goodreads' Amazon sign-in page at full size, fitting the popup; nothing was typed. The popup was left open for the user to sign in.
 
 ## Goodreads tracker 0.6.0
 

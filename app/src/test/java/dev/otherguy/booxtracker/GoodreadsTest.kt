@@ -465,6 +465,11 @@ class GoodreadsTest {
             assertEquals("${server.origin}/user/sign_in", shadowOf(web).lastLoadedUrl)
             assertEquals(1, profile.attached)
             assertTrue(web.settings.javaScriptEnabled)
+            // Goodreads serves a tablet its desktop page without a viewport tag; it is zoomed out to the popup's width.
+            assertTrue(web.settings.useWideViewPort)
+            assertTrue(web.settings.loadWithOverviewMode)
+            assertTrue(web.settings.builtInZoomControls)
+            assertFalse(web.settings.displayZoomControls)
             assertEquals(0, dialog.window!!.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
             assertEquals(listOf("Goodreads", "Sign-in required", "Sign in to Goodreads in the popup"), rowLines())
             fun status() = dialog.findViewById<TextView>(R.id.goodreads_sign_in_status)?.text?.toString()
