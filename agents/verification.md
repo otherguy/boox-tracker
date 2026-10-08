@@ -46,6 +46,18 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Renewal start delay and timeout state 0.6.3
+
+On 0.6.1 the Activity log showed "Goodreads session not renewed · timeout" at 23:20 on 2026-10-08. Logcat showed `GoodreadsRenewalWorker` starting at 23:20:21 and ending at 23:20:51: the job's first period ran right after sign-in, and the hidden WebView reached neither state within 30 seconds. The session stayed connected, and the first sync at 23:20 was sent. Logcat named no cause.
+
+**Change:** the renewal job's first run comes one interval after the last renewal, so a sign-in (which renews) is not repeated at once and a stale session renews at once when the work is enqueued again. A timeout records `pageState` in the `goodreads_renewal` event (`no_page`, `page_finished`, `loading`, or `checking`), and the Activity row names it. Existing enqueued work keeps its schedule under `KEEP`.
+
+**Built:** debug and signed diagnostic APKs, version 0.6.3/code 28. Artifact `dist/boox-tracker-0.6.3-diagnostic.apk`, 3,717,667 bytes, SHA-256 `09da9c771d5e8caa52961030a65cdaeb454736a92b07369ab369e12547d4d135`. Certificate, package, and schemas are unchanged.
+
+**Automatically tested:** 258 tests, zero failures/errors. The renewal worker test checks the initial delay for a stale and a just-renewed session, and that a timeout keeps the session and records `pageState`. Both lint variants, both assemblies, and ktlint passed. The hidden WebView's page state has no automatic test, because Robolectric runs no page JavaScript.
+
+**Verified on physical BOOX:** not yet.
+
 ## Clear activity 0.6.2
 
 **Built:** debug and signed diagnostic APKs, version 0.6.2/code 27. Artifact `dist/boox-tracker-0.6.2-diagnostic.apk`, 3,717,055 bytes, SHA-256 `e48e38d29d3a7942a404c89c1ebb96bc97fbae14bd4a1215a3838c699c90960b`. Certificate, package, and schemas are unchanged.

@@ -37,12 +37,15 @@ fun scheduleDelivery(app: ReadingSyncApp) {
     )
 }
 
-fun goodreadsRenewalRequest() = PeriodicWorkRequestBuilder<GoodreadsRenewalWorker>(GOODREADS_RENEWAL_MS, TimeUnit.MILLISECONDS)
+/** The first run comes one interval after the last renewal [renewedAt], so a sign-in, which renews, is not repeated at once. */
+fun goodreadsRenewalRequest(renewedAt: Long?) = PeriodicWorkRequestBuilder<GoodreadsRenewalWorker>(GOODREADS_RENEWAL_MS, TimeUnit.MILLISECONDS)
+    .setInitialDelay((GOODREADS_RENEWAL_MS - (System.currentTimeMillis() - (renewedAt ?: 0))).coerceIn(0, GOODREADS_RENEWAL_MS), TimeUnit.MILLISECONDS)
     .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()
 
 /** Renews the Goodreads session in a hidden browser every six hours while a network is available. */
 fun scheduleGoodreadsRenewal(app: ReadingSyncApp) {
-    WorkManager.getInstance(app).enqueueUniquePeriodicWork(GOODREADS_RENEWAL_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, goodreadsRenewalRequest())
+    val request = goodreadsRenewalRequest(app.goodreads.session.renewedAt())
+    WorkManager.getInstance(app).enqueueUniquePeriodicWork(GOODREADS_RENEWAL_WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
 }
 
 fun cancelGoodreadsRenewal(app: ReadingSyncApp) {

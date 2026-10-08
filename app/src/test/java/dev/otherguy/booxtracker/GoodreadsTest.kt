@@ -412,15 +412,25 @@ class GoodreadsTest {
         assertEquals(1, refresher.calls.size)
         assertTrue(session.renewedAt()!! > 1)
         assertTrue(store.events().any { it.optString("kind") == "run" && it.optString("source") == "renewal" && it.optString("reason") == "signed_in" && !it.optBoolean("issue") })
-        assertEquals(GOODREADS_RENEWAL_MS, goodreadsRenewalRequest().workSpec.intervalDuration)
+        assertEquals(GOODREADS_RENEWAL_MS, goodreadsRenewalRequest(null).workSpec.intervalDuration)
+        // The first run comes one interval after the last renewal: at once for a stale session, not right after a sign-in.
+        assertEquals(0, goodreadsRenewalRequest(1).workSpec.initialDelay)
+        assertTrue(goodreadsRenewalRequest(session.renewedAt()).workSpec.initialDelay > GOODREADS_RENEWAL_MS - 60_000)
+        // A timeout keeps the session and records where the hidden browser stopped.
+        refresher.outcome = RefreshOutcome.TIMEOUT
+        refresher.pageState = "checking"
+        worker.doWork()
+        assertTrue(session.connected())
+        assertTrue(store.events().any { it.optString("kind") == "goodreads_renewal" && it.optString("outcome") == "timeout" && it.optString("pageState") == "checking" && it.optBoolean("issue") })
+        refresher.outcome = RefreshOutcome.SIGNED_IN
         session.mark("goodreads_session_expired")
         worker.doWork()
-        assertEquals(1, refresher.calls.size)
+        assertEquals(2, refresher.calls.size)
         // Off pauses all Goodreads traffic, renewals included.
         session.capture("test-agent")
         store.put("goodreads.enabled", "false")
         worker.doWork()
-        assertEquals(1, refresher.calls.size)
+        assertEquals(2, refresher.calls.size)
     }
 
     @Test fun interruptedGoodreadsSendIsReportedOnRecovery() {

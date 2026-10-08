@@ -141,7 +141,7 @@ class GoodreadsHttp(val session: GoodreadsSession, private val refresher: Sessio
             return block()
         } catch (_: Challenged) {
         }
-        when (refresher.refresh("$origin/")) {
+        when (refresher.refresh("$origin/").outcome) {
             RefreshOutcome.SIGNED_OUT -> throw problem("goodreads_session_expired", mark)
 
             // A capture check stores nothing until the page shows the signed-in header.

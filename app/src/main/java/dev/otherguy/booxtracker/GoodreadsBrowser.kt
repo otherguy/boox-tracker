@@ -79,9 +79,15 @@ class NamedWebProfile(private val name: String) : WebProfile {
 /** What loading the website in a hidden browser found. */
 enum class RefreshOutcome { SIGNED_IN, SIGNED_OUT, TIMEOUT }
 
+/**
+ * The hidden browser's result. After a timeout, [pageState] is the last answer from [PAGE_STATE], `page_finished` when a
+ * page finished loading without an answer, or `no_page` when no page finished loading.
+ */
+data class Refresh(val outcome: RefreshOutcome, val pageState: String? = null)
+
 /** Loads a page in a browser that runs the website's own scripts, so a bot check can pass and session cookies renew. */
 fun interface SessionRefresher {
-    suspend fun refresh(url: String): RefreshOutcome
+    suspend fun refresh(url: String): Refresh
 }
 
 /** Asks the loaded page whether it is signed in, still running a bot check, or signed out. */
@@ -99,8 +105,9 @@ private const val PAGE_STATE = """(function() {
  */
 class HiddenWebViewRefresher(private val context: Context, private val profile: WebProfile, private val timeoutMs: Long = 30_000) : SessionRefresher {
     @SuppressLint("SetJavaScriptEnabled")
-    override suspend fun refresh(url: String): RefreshOutcome = withContext(Dispatchers.Main) {
+    override suspend fun refresh(url: String): Refresh = withContext(Dispatchers.Main) {
         val web = WebView(context.applicationContext)
+        var pageState = "no_page"
         try {
             profile.attach(web)
             web.settings.javaScriptEnabled = true
@@ -109,19 +116,23 @@ class HiddenWebViewRefresher(private val context: Context, private val profile: 
                 suspendCancellableCoroutine { done ->
                     web.webViewClient = object : WebViewClient() {
                         override fun onPageFinished(view: WebView, url: String?) {
+                            // Kept when the page check gives no answer before the timeout or fails.
+                            pageState = "page_finished"
                             view.evaluateJavascript(PAGE_STATE) { state ->
-                                val outcome = when (state.trim('"')) {
+                                val answer = state.trim('"')
+                                if (answer == "checking" || answer == "loading") pageState = answer
+                                val outcome = when (answer) {
                                     "signed_in" -> RefreshOutcome.SIGNED_IN
                                     "signed_out" -> RefreshOutcome.SIGNED_OUT
                                     else -> null
                                 }
-                                if (outcome != null && done.isActive) done.resume(outcome)
+                                if (outcome != null && done.isActive) done.resume(Refresh(outcome))
                             }
                         }
                     }
                     web.loadUrl(url)
                 }
-            } ?: RefreshOutcome.TIMEOUT
+            } ?: Refresh(RefreshOutcome.TIMEOUT, pageState)
         } finally {
             web.stopLoading()
             web.destroy()

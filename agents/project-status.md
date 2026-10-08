@@ -13,6 +13,7 @@ State on 2026-10-07:
 - **StoryGraph account:** In the Blood is currently reading at 52% on StoryGraph on the Kindle edition (ISBN 9781982181680, the ebook's own ISBN) since 18:19 on 2026-10-08, when the user had the edition switched from the hardcover that the 2026-10-07 write test had shelved. The 18:25 delivery after the next page turn reported "same edition" at 52.93%. Cloudflare accepted the app's `HttpURLConnection` requests with the WebView's cookies minutes after sign-in; the spike's later intervals are open. See [StoryGraph device checks](device-testing.md#storygraph-sync).
 - **CI and hooks:** two CI races exposed by 0.6.0 are fixed at `e85e8c5`, whose [Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37794372757). CI is now split into a Lint workflow and a path-filtered Android checks workflow, both cancelling superseded runs, and `lefthook.yml` mirrors them; see [build and release](build-and-release.md#github-delivery).
 - **Clear activity:** an outlined Clear button beside Export deletes every Activity event after one confirmation and leaves one "Activity cleared" event ([plan](plan-20261008-clear-activity.md)). Built, automatically tested, and installed on the GoColor7 as 0.6.2/code 27; pushed on `main` at `439d898`, where [Android checks](https://github.com/otherguy/boox-tracker/actions/runs/37817672555) and [Lint](https://github.com/otherguy/boox-tracker/actions/runs/37817672458) passed (see [verification](verification.md#clear-activity-062)).
+- **Renewal fixes:** 0.6.3/code 28 starts the Goodreads renewal job one interval after the last renewal instead of at sign-in, and a renewal timeout records where the hidden browser stopped. The 23:20 timeout on 2026-10-08 was that job's first run, right after sign-in; its cause is unknown (see [verification](verification.md#renewal-start-delay-and-timeout-state-063)).
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
 
 Next physical checks, in order:
@@ -26,7 +27,7 @@ Next physical checks, in order:
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.6.2 / code 27
+## Built: 0.6.3 / code 28
 
 | Item | Current value |
 | --- | --- |
@@ -36,8 +37,8 @@ Opening the app collects and sends in the foreground; inspect earlier scheduled 
 | SDK | Minimum 26; compile/target 36; tested physical device is API 32 |
 | Data / export schemas | Both version 1; not the application versionCode |
 | Ebook identity cache | Namespace version 2; older parsed metadata is read again |
-| Diagnostic APK | `dist/boox-tracker-0.6.2-diagnostic.apk`, 3,717,055 bytes |
-| Diagnostic APK SHA-256 | `e48e38d29d3a7942a404c89c1ebb96bc97fbae14bd4a1215a3838c699c90960b` |
+| Diagnostic APK | `dist/boox-tracker-0.6.3-diagnostic.apk`, 3,717,667 bytes |
+| Diagnostic APK SHA-256 | `09da9c771d5e8caa52961030a65cdaeb454736a92b07369ab369e12547d4d135` |
 | Diagnostic certificate SHA-256 | `678df89d1df3f2ba3d45c6e19bb016550fd837681ac82f8044e83f6ebf4b420d` |
 | Signing configuration | External `~/.config/reading-sync/signing.properties`; reuse it |
 

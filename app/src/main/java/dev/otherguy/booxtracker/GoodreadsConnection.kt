@@ -52,13 +52,13 @@ class GoodreadsConnection(
      * the session. Returns the outcome; the caller records it.
      */
     suspend fun renew(source: String): RefreshOutcome {
-        val outcome = refresher.refresh("${http.origin}/")
+        val (outcome, pageState) = refresher.refresh("${http.origin}/")
         when (outcome) {
             RefreshOutcome.SIGNED_IN -> session.renewed()
             RefreshOutcome.SIGNED_OUT -> session.mark("goodreads_session_expired")
             RefreshOutcome.TIMEOUT -> {}
         }
-        if (outcome != RefreshOutcome.SIGNED_IN) diagnostics.event(source, "goodreads_renewal", detail = JSONObject().put("outcome", outcome.name.lowercase()), issue = true)
+        if (outcome != RefreshOutcome.SIGNED_IN) diagnostics.event(source, "goodreads_renewal", detail = JSONObject().put("outcome", outcome.name.lowercase()).putOpt("pageState", pageState), issue = true)
         return outcome
     }
 

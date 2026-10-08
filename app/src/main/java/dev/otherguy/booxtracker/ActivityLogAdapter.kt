@@ -31,6 +31,14 @@ fun sourceText(event: JSONObject): String = sources[event.optString("source")] ?
 
 fun words(value: String) = value.replace('_', ' ')
 
+/** Where the hidden browser stopped when a renewal timed out. */
+private val pageStates = mapOf(
+    "no_page" to "no page finished loading",
+    "page_finished" to "page loaded, no answer from the page check",
+    "loading" to "page loaded without the account header",
+    "checking" to "bot check still running"
+)
+
 private val triggers = mapOf(
     "periodic" to "Scheduled check",
     "app_open" to "App opened",
@@ -198,7 +206,7 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
 
         kind.endsWith("_operation") -> "$service action failed".also { parts += listOfNotNull(reason) }
 
-        kind.endsWith("_renewal") -> "$service session not renewed".also { parts += listOfNotNull(words(outcome).ifEmpty { null }) }
+        kind.endsWith("_renewal") -> "$service session not renewed".also { parts += listOfNotNull(words(outcome).ifEmpty { null }, pageStates[event.text("pageState")]) }
 
         kind.endsWith("_interruption_detected") -> "$service send interrupted".also { parts += "the app stopped during a send" }
 

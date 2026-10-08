@@ -76,13 +76,13 @@ class FakeWebProfile : WebProfile {
 }
 
 /** The hidden browser: [pass] runs the page's own scripts, here by changing the fake site, and reports the outcome. */
-class FakeRefresher(var outcome: RefreshOutcome = RefreshOutcome.SIGNED_IN, var pass: () -> Unit = {}) : SessionRefresher {
+class FakeRefresher(var outcome: RefreshOutcome = RefreshOutcome.SIGNED_IN, var pageState: String? = null, var pass: () -> Unit = {}) : SessionRefresher {
     val calls = CopyOnWriteArrayList<String>()
 
-    override suspend fun refresh(url: String): RefreshOutcome {
+    override suspend fun refresh(url: String): Refresh {
         calls.add(url)
         pass()
-        return outcome
+        return Refresh(outcome, pageState)
     }
 }
 
