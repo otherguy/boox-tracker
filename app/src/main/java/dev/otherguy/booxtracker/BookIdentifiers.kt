@@ -66,6 +66,9 @@ private fun mergeTags(a: Map<String, Set<String>>, b: Map<String, Set<String>>) 
 
 class SyncProblem(val code: String) : Exception(code)
 
+/** A UUID in its canonical 8-4-4-4-12 hex form, the identifier shape of Fable and StoryGraph book records. */
+internal val uuidPattern = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
+
 fun isbn13(value: String): String? {
     val compact = value.trim().replace(Regex("(?i)^(?:urn:)?isbn[: ]*"), "").replace(Regex("[ -]"), "").uppercase()
     if (compact.matches(Regex("[0-9]{13}")) && (compact.startsWith("978") || compact.startsWith("979"))) {

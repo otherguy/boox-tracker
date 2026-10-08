@@ -2,7 +2,7 @@
 
 The service icons identify third-party services. They were downloaded on 2026-10-06 from the artwork in each service's Apple App Store listing. The bundled 512 × 512 JPEG files are unchanged downloads, not generated or recoloured icons. Android scales them to fit the interface; there is no runtime download.
 
-These brand marks belong to their respective owners. The project's MIT licence does not grant rights to third-party artwork or trademarks. Their presence does not imply endorsement or an implemented connection. Goodreads, StoryGraph, and Margins display **Coming soon** and cannot be enabled.
+These brand marks belong to their respective owners. The project's MIT licence does not grant rights to third-party artwork or trademarks. Their presence does not imply endorsement or an implemented connection. Goodreads and Margins display **Coming soon** and cannot be enabled.
 
 ## Sources
 

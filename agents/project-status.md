@@ -1,27 +1,29 @@
 # Project status and handoff
 
-Updated 2026-10-07 after 0.4.8, which redesigns the Activity tab and bounds the event log, and its USB install over 0.4.7. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
+Updated 2026-10-08 after 0.5.2, which adds StoryGraph through its website session, and its first confirmed StoryGraph sync on the GoColor7. App name: **Boox Tracker**. Reading Sync is the historical name. This file holds the current state and next steps; [AGENTS.md](../AGENTS.md) holds only durable rules. Read [product decisions](product.md), the [Fable plan](plan-20261006-fable-sync.md), the [StoryGraph plan](plan-20261007-storygraph-sync.md), and [verification](verification.md) before changing behavior. Public product copy is in [README](../README.md).
 
 ## Resume here
 
 State on 2026-10-07:
 
-- **Source:** Hardcover (automatic matching, offline queue, completion sync) and Fable are built on `main`. 0.4.8 is committed and pushed on `main`; its CI result is not yet recorded. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
-- **Device:** signed 0.4.8/code 20 is installed over 0.4.7 on the GoColor7 by USB at 18:15 on 2026-10-07 and was started by ADB; its process ran with no crash logged. The user then checked the new Activity tab and popup on the device and reported that it looks right. Before that, 0.4.7/code 19 was installed at 17:37 and opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
+- **Source:** Hardcover (automatic matching, offline queue, completion sync), Fable, and StoryGraph are built. 0.5.2 (StoryGraph) is in the working tree on `main`, built and tested locally, not yet committed. 0.4.8 is committed and pushed on `main`; its CI result is not yet recorded. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
+- **Device:** signed 0.5.2/code 23 is installed over 0.5.1 on the GoColor7 by USB at 18:04 on 2026-10-08 (device time), after 0.5.0 at 17:25 and 0.5.1 at 17:37, each started by ADB with no crash logged. The user signed in to StoryGraph on 0.5.1; 0.5.2's app-open sync matched In the Blood by ISBN and wrote 52% to the shelved hardcover, confirmed on StoryGraph (see [verification](verification.md#storygraph-tracker-050-popup-keyboard-051-page-attributes-052)). In the Blood is at 52.23% in NeoReader. Before that, signed 0.4.8/code 20 was installed over 0.4.7 at 18:15 on 2026-10-07 and started by ADB with no crash logged. The user then checked the new Activity tab and popup on the device and reported that it looks right. Before that, 0.4.7/code 19 was installed at 17:37 and opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
 - **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
+- **StoryGraph account:** In the Blood is currently reading at 52% on StoryGraph on the Kindle edition (ISBN 9781982181680, the ebook's own ISBN) since 18:19 on 2026-10-08, when the user had the edition switched from the hardcover that the 2026-10-07 write test had shelved. The app's row still shows the 18:04 result ("different edition") because no new observation has been sent since; the next progress change should report "same edition". Cloudflare accepted the app's `HttpURLConnection` requests with the WebView's cookies minutes after sign-in; the spike's later intervals are open. See [StoryGraph device checks](device-testing.md#storygraph-sync).
 - **Publication:** GitHub releases and prereleases are on hold until the user explicitly asks. A successful sync does not lift the hold.
 
 Next physical checks, in order:
 
-1. [Fable sync](device-testing.md#fable-sync), including the first reading day that has no "I read today" tap: after the sync, the day must show as read on Fable's streak. The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
-2. [Completion sync](device-testing.md#completion-sync) on Hardcover.
-3. [Hidden-app offline collection and delivery](device-testing.md#offline-collection-and-hidden-app-delivery).
-4. [Book-only fallback](device-testing.md#book-only-fallback) and queue retention through restart and reboot.
+1. [StoryGraph transport spike](device-testing.md#storygraph-sync), continued: Sync Now after 35 minutes, two hours, a night, a reboot, and on another network. The sign-in and the first sync passed. A challenge later re-plans the StoryGraph transport before anything else is released.
+2. [Fable sync](device-testing.md#fable-sync), including the first reading day that has no "I read today" tap: after the sync, the day must show as read on Fable's streak. The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
+3. [Completion sync](device-testing.md#completion-sync) on Hardcover.
+4. [Hidden-app offline collection and delivery](device-testing.md#offline-collection-and-hidden-app-delivery).
+5. [Book-only fallback](device-testing.md#book-only-fallback) and queue retention through restart and reboot.
 
 Opening the app collects and sends in the foreground; inspect earlier scheduled and delivery entries separately. Do not rebuild the provider layer or repeat completed 0.1.x diagnostic sessions.
 
-## Built: 0.4.8 / code 20
+## Built: 0.5.2 / code 23
 
 | Item | Current value |
 | --- | --- |
@@ -44,7 +46,7 @@ Ordinary-UID `ContentResolver.query()` reads `content://com.onyx.content.databas
 
 The most recent unique usable `lastAccess` selects the saved book automatically. Missing/tied times stop detection. Stored activity can lag the book currently open. Database title/authors serve every ebook format exposed by the provider. Bounded read-only EPUB parsing supplies embedded identifiers; PDF/MOBI/other embedded metadata parsers are not implemented. Their database identifiers/title/author remain usable.
 
-`BookIdentifiers.kt` is the single identifier allowlist: ISBN, ASIN, Goodreads, distinct Hardcover edition/book/slug identities, and explicit StoryGraph/Fable/Margins tags. Fable matching uses `fable:` UUIDs; StoryGraph and Margins tags are display-only bounded opaque IDs, not validated API contracts. Unknown tags are ignored. The UI labels reader results without another allowlist. ASIN is used by the current Hardcover edition lookup.
+`BookIdentifiers.kt` is the single identifier allowlist: ISBN, ASIN, Goodreads, distinct Hardcover edition/book/slug identities, and explicit StoryGraph/Fable/Margins tags. Fable matching uses `fable:` UUIDs and StoryGraph matching uses `storygraph:` edition UUIDs; Margins tags are display-only bounded opaque IDs, not validated API contracts. Unknown tags are ignored. The UI labels reader results without another allowlist. ASIN is used by the current Hardcover edition lookup.
 
 ### Hardcover and delivery
 
@@ -62,9 +64,13 @@ An already-connected account can enable offline. First-time connection failure r
 
 Fable is built in 0.4.0 through its unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md) and [contract](integrations.md#fable). Email/password sign-in stores only Firebase tokens. Matching, shelving, floored percentage writes with read-back, and holds use the same queue as Hardcover through `TrackerConnection`. No physical evidence exists yet; see [Fable device checks](device-testing.md#fable-sync).
 
+### StoryGraph
+
+StoryGraph is built in 0.5.0 through its website session; see the [StoryGraph plan](plan-20261007-storygraph-sync.md) and [contract](integrations.md#storygraph). Sign-in is StoryGraph's own page in a WebView inside the popup; the cookies stay in the WebView cookie store, and `HttpURLConnection` requests carry them with the WebView's User-Agent. Matching confirms fuzzy search hits by the edition page's `ISBN/UID`; sync marks the book currently reading, writes the floored percentage, confirms by re-reading the page, or marks the book read. A Cloudflare challenge or a sign-in redirect ends the session and asks for a reconnect through the switch. No physical evidence exists yet; the transport spike comes first. See [StoryGraph device checks](device-testing.md#storygraph-sync).
+
 ### UI, folder access, and logs
 
-Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Goodreads, StoryGraph, and Margins show Coming Soon. When the header warns, the book popup lists every current issue in full first, and each provider popup starts with its own issues; every ⚠ is drawn as the amber triangle. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
+Sync/Activity, a book/progress/library-count/read-time header, a black Sync Now button, green check/amber warning, and bordered metadata/About popups are built. Goodreads and Margins show Coming Soon. When the header warns, the book popup lists every current issue in full first, and each provider popup starts with its own issues; every ⚠ is drawn as the amber triangle. Match and delivery states are separate and keyed to the current book; last success survives a later failed attempt. Disabled services do not cause warnings.
 
 Startup requires a persisted readable read-only SAF ebook-folder grant. It explains the purpose before Choose folder opens the picker. No grant produces Exit / Allow again after cancellation. Cancelling About's replacement preserves a readable old grant; missing/revoked grants still block access. Workers log missing access without opening UI or sending.
 
@@ -88,7 +94,7 @@ One device: ONYX GoColor7, Android 12/API 32, build `2026-05-19_23-44_4.2-rel_05
 | Independent local scheduling | Historical app-hidden reads, including cold boot and wake; no exact cadence or regular sleep guarantee |
 | Historical logs/Activity | Reboot/update/export retention and much faster scrolling reported on 0.1.2 |
 | Native sign-in and manual exact sync | User confirmed on 0.3.1: Exact edition matched, Synced at…, progress reached Hardcover; In the Blood screenshot shows 240/480 pages, 50% |
-| Current updates/UI | Signed 0.3.1–0.4.6 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked; 0.4.7 amber row triangle and the issue sections of the book, Hardcover, and Fable popups checked; 0.4.8 Activity tab and popup checked by the user |
+| Current updates/UI | Signed 0.3.1–0.5.0 USB updates; startup explanation, merged metadata, and readable-grant picker cancellation checked. 0.4.4 opened and synced Hardcover once; 0.4.5 three-line rows and the icon tap checked; 0.4.6 edition notes, ⚠ rows, and the Fable kept value checked; 0.4.7 amber row triangle and the issue sections of the book, Hardcover, and Fable popups checked; 0.4.8 Activity tab and popup checked by the user |
 
 The remote screenshots do not prove a selected edition ID, exact raw fraction, or mutation sequence. Those need an export. The 0.3.3 metadata screenshot is `dist/screenshots/boox-tracker-0.3.3-boox-metadata.png`. Future-service tags were absent from this book, so their rendering/rejection has automatic proof only. Data inode `129824` stayed unchanged across the new-package updates; this alone does not prove reboot queue retention.
 
@@ -98,6 +104,7 @@ Foreground checks around 22:03–22:04 and 22:31–22:32 local time on 2026-10-0
 
 ## Missing evidence and next work
 
+- Validate StoryGraph sign-in through the WebView popup and run the Cloudflare transport spike before any StoryGraph release; then an unshelved book, completion, and the reopen hold.
 - Validate Fable sign-in, sync, shelving, completion, and the first token refresh on the device.
 - Validate hidden-app offline collection and delivery after reconnection; inspect events before app-open sends.
 - Validate book-only fallback, using the supplied Savage Son case without catalogue edits.
@@ -105,7 +112,7 @@ Foreground checks around 22:03–22:04 and 22:31–22:32 local time on 2026-10-0
 - Inspect a current export for matching/page-basis/delivery evidence. Keep private exports and ebook files outside Git.
 - Continue ordinary use under recorded BOOX settings. Treat sleep/reboot gaps as evidence, without guessing their cause.
 
-Goodreads, StoryGraph, and Margins connectors, rereads, additional embedded-format parsers, statistics-provider access, website, and updater are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
+Goodreads and Margins connectors, rereads, additional embedded-format parsers, statistics-provider access, website, and updater are not implemented or decided. No ordered implementation plan exists for these beyond the current physical-validation checklist. Margins' inquiry was sent; no reply/access was reported as of 2026-10-05.
 
 ## Documentation map
 

@@ -43,7 +43,10 @@ private val triggers = mapOf(
 fun triggerText(trigger: String) = triggers[trigger] ?: words(trigger)
 
 /** The tracker an event belongs to, from its `service` field or its kind's prefix, such as "Hardcover". */
-fun serviceName(event: JSONObject) = (event.text("service") ?: event.optString("kind").substringBefore('_')).replaceFirstChar { it.uppercase() }
+fun serviceName(event: JSONObject) = when (val service = event.text("service") ?: event.optString("kind").substringBefore('_')) {
+    "storygraph" -> "StoryGraph"
+    else -> service.replaceFirstChar { it.uppercase() }
+}
 
 /** How many library changes a check found; older versions logged every change and no count. */
 fun changeCount(event: JSONObject): Int? = if (event.has("changeCount")) event.optInt("changeCount") else event.optJSONArray("changes")?.length()

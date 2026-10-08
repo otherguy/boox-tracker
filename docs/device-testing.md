@@ -22,6 +22,14 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 3. Finish the book in NeoReader. After a sync, Fable must show 100% and the book on Finished.
 4. Export and confirm that the export contains no password or token.
 
+## StoryGraph
+
+1. Turn **StoryGraph On**. The popup must show StoryGraph's own sign-in page; sign in there. The popup must close by itself, and the details popup must show your username. **Cancel** must turn StoryGraph Off.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On StoryGraph, the book must be currently reading with the percentage rounded down. Higher progress on StoryGraph must stay unchanged.
+3. Press **Sync Now** again after 35 minutes, after two hours, the next day, after a reboot, and on another Wi-Fi network. None of them may report a browser check.
+4. Finish the book in NeoReader. After a sync, StoryGraph must show the book as read with that day's date. Reopening it must hold the update.
+5. Export and confirm that the export contains no cookie or user ID.
+
 ## Offline collection and reconnect
 
 1. After one successful manual sync, keep Hardcover On and disconnect Wi-Fi. Read the first book, return to the NeoReader library, and press Sync Now. Confirm **Pending** without a request to enable Wi-Fi.

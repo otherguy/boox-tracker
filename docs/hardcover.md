@@ -21,7 +21,7 @@ Database metadata works for all formats that NeoReader exposes. For EPUBs, the a
 
 Supported tags include `isbn:`, `goodreads:`, `amazon:`, `hardcover-edition:` for edition IDs, `hardcover-id:` for book IDs, and `hardcover:` / `hardcover-slug:` for book slugs. Hardcover book and edition URLs are also accepted. A Goodreads mapping identifies a book, not an exact source edition. Match results are cached for up to one hour and invalidated when source metadata changes.
 
-Tap the book title to see available identifiers. `asin:` and `amazon:` values can identify Hardcover editions. The details can also display explicit `storygraph:`, `fable:`, and `margins:` identifier tags when present. Hardcover does not use them. Fable uses `fable:` tags that hold a Fable book ID; see the [Fable guide](fable.md). StoryGraph and Margins remain Coming Soon. Unrelated tags are ignored.
+Tap the book title to see available identifiers. `asin:` and `amazon:` values can identify Hardcover editions. The details can also display explicit `storygraph:`, `fable:`, and `margins:` identifier tags when present. Hardcover does not use them. Fable uses `fable:` tags that hold a Fable book ID; see the [Fable guide](fable.md). StoryGraph uses `storygraph:` tags that hold a StoryGraph book ID; see the [StoryGraph guide](storygraph.md). Margins remains Coming Soon. Unrelated tags are ignored.
 
 | Result | Meaning |
 | --- | --- |

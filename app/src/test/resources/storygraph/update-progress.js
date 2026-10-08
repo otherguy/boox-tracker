@@ -1,0 +1,1 @@
+$('.progress-tracker-pane[data-book-id={{BOOK_ID}}]').replaceWith("<div class=\"progress-tracker-pane w-full mt-3 mb-3 pl-0.5\" data-book-id={{BOOK_ID}}><div class=\"relative h-full bg-[#1FB784]\" style=\"width: {{PERCENT}}%\"></div></div>");

@@ -1,0 +1,6 @@
+<main><form class="new_user" id="new_user" action="/users/sign_in" accept-charset="UTF-8" method="post"><input type="hidden" name="authenticity_token" value="{{CSRF}}" autocomplete="off">
+<label for="user_email">Email address</label><input autofocus="autofocus" autocomplete="email" type="email" name="user[email]" id="user_email">
+<label for="user_password">Password</label><input autocomplete="current-password" type="password" name="user[password]" id="user_password">
+<input name="user[remember_me]" type="hidden" value="0" autocomplete="off"><input type="checkbox" value="1" name="user[remember_me]" id="user_remember_me">
+<input type="submit" name="commit" value="Sign in" data-disable-with="Sign in"></form></main>
+</body></html>

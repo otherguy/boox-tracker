@@ -17,6 +17,22 @@ fun flooredPercent(raw: String?): Int {
 
 private val shelves = listOf("current_reading", "want_to_read", "finished", "did_not_finish")
 
+/**
+ * Whether NeoReader reports the book finished, and its whole percent rounded down. Holds while NeoReader's status and
+ * progress disagree: a finished status needs a full fraction, and a full fraction needs the finished status.
+ */
+fun sourceStatus(book: JSONObject): Pair<Boolean, Int> {
+    val finished = when (book.raw("readingStatus")) {
+        "1" -> false
+        "2" -> true
+        else -> throw SyncProblem("source_status_unsupported")
+    }
+    val percent = flooredPercent(book.raw("progress"))
+    if (finished && percent != 100) throw SyncProblem("source_finish_progress_mismatch")
+    if (!finished && percent >= 100) throw SyncProblem("source_status_not_finished")
+    return finished to percent
+}
+
 class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
     suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: String? = null, readAt: String? = null): JSONObject = auth.authorized { token ->
         suspend fun get(path: String): JSONObject {
@@ -31,14 +47,7 @@ class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore
             auth.http.post(token, path, body)
             coroutineContext.ensureActive()
         }
-        val finished = when (book.raw("readingStatus")) {
-            "1" -> false
-            "2" -> true
-            else -> throw SyncProblem("source_status_unsupported")
-        }
-        val percent = flooredPercent(book.raw("progress"))
-        if (finished && percent != 100) throw SyncProblem("source_finish_progress_mismatch")
-        if (!finished && percent >= 100) throw SyncProblem("source_status_not_finished")
+        val (finished, percent) = sourceStatus(book)
         val account = fableAccountId(get("/api/settings/profile/"))
         if (expectedAccount != null && account != expectedAccount) throw SyncProblem("fable_account_changed")
         val match = FableMatcher({ get(it) }, store).match(book.optString("key").takeIf { it.isNotBlank() }, identifiers)

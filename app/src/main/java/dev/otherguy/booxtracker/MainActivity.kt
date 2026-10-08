@@ -1,5 +1,6 @@
 package dev.otherguy.booxtracker
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -12,7 +13,12 @@ import android.text.style.ImageSpan
 import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -76,8 +82,14 @@ class MainActivity : AppCompatActivity() {
      */
     private var hardcoverSignIn: AlertDialog? = null
     private var fableSignIn: FableSignInViews? = null
+    private var storyGraphSignIn: StoryGraphSignInViews? = null
+
+    /** The last main-frame load failure of the StoryGraph sign-in page, shown in its popup. */
+    private var storyGraphLoadError: String? = null
 
     private class FableSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView)
+
+    private class StoryGraphSignInViews(val dialog: AlertDialog, val status: TextView)
     private val ebookFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         model.pickerActive = false
         val uri = result.data?.data
@@ -252,10 +264,12 @@ class MainActivity : AppCompatActivity() {
                 val selected = mostRecentlyAccessedBook(snapshot)
                 val hardcover = withContext(Dispatchers.IO) { app.hardcover.state() }
                 val fable = withContext(Dispatchers.IO) { app.fable.state() }
+                val storygraph = withContext(Dispatchers.IO) { app.storygraph.state() }
                 content.removeAllViews()
-                showSync(snapshot, check, selected, hardcover, fable)
+                showSync(snapshot, check, selected, hardcover, fable, storygraph)
                 updateHardcoverSignIn()
                 updateFableSignIn(fable)
+                updateStoryGraphSignIn(storygraph)
             }
         }
     }
@@ -304,12 +318,21 @@ class MainActivity : AppCompatActivity() {
         if (!state.getBoolean("enabled")) return emptyList()
         val last = state.optJSONObject("last")
         return buildList {
+            val connectionError = state.optString("connectionError")
             when {
                 state.getBoolean("credentialProblem") -> add("$name sign-in can no longer be read. Log out and sign in again.")
-                !state.getBoolean("connected") -> add("$name is not signed in. Turn $name off and on again to sign in.")
+
+                !state.getBoolean("connected") -> add(
+                    when (connectionError) {
+                        "storygraph_browser_check_required" -> "StoryGraph asked for a browser check. Turn StoryGraph off and on to pass it in the sign-in popup."
+                        "storygraph_session_expired" -> "StoryGraph signed you out. Turn StoryGraph off and on to sign in again."
+                        else -> "$name is not signed in. Turn $name off and on again to sign in."
+                    }
+                )
             }
             if (last == null) return@buildList
-            if (last.optString("delivery") == "error") add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
+            // A held update whose reason is the session problem named above is the same issue, not a second one.
+            if (last.optString("delivery") == "error" && last.optString("reason") != connectionError) add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
             last.text("streakError")?.let { add("$name did not mark the streak day: ${it.replace('_', ' ')}.") }
             if (last.keptHigherProgress()) {
                 // Each tracker compares in its own unit: Hardcover in pages, Fable in whole percent rounded down.
@@ -368,9 +391,9 @@ class MainActivity : AppCompatActivity() {
     /** The latest update found the tracker ahead of NeoReader and left its progress unchanged. */
     private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
-    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject) {
+    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, fable: JSONObject, storygraph: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
-        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Fable", fable)
+        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("StoryGraph", storygraph) + serviceIssues("Fable", fable)
         val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -413,7 +436,7 @@ class MainActivity : AppCompatActivity() {
         separator(true)
         showHardcover(hardcover)
         serviceRow("Goodreads", R.drawable.service_goodreads, getString(R.string.coming_soon))
-        serviceRow("StoryGraph", R.drawable.service_storygraph, getString(R.string.coming_soon))
+        showStoryGraph(storygraph)
         showFable(fable)
         serviceRow("Margins", R.drawable.service_margins, getString(R.string.coming_soon))
     }
@@ -550,6 +573,9 @@ class MainActivity : AppCompatActivity() {
     private fun connectionText(error: String): String = when {
         listOf("_invalid_login_credentials", "_invalid_password", "_email_not_found").any(error::endsWith) -> "Email or password not accepted"
         error.endsWith("_too_many_attempts_try_later") -> "Too many attempts, try again later"
+        error == "storygraph_browser_check_required" -> "StoryGraph asked for a browser check; sign in again"
+        error == "storygraph_session_expired" -> "StoryGraph signed you out; sign in again"
+        error == "storygraph_session_cookie_missing" -> "No StoryGraph session was saved; sign in again"
         else -> error.replace('_', ' ')
     }
 
@@ -636,6 +662,29 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private fun showStoryGraph(state: JSONObject) {
+        val storygraph = app.storygraph
+        val signIn = when {
+            storygraph.signingIn -> "Signing in…\nReading your StoryGraph session"
+            storygraph.awaitingCredentials -> "Sign-in required\nSign in to StoryGraph in the popup"
+            else -> null
+        }
+        serviceRow(
+            "StoryGraph",
+            R.drawable.service_storygraph,
+            signIn ?: serviceSummary(state, "StoryGraph"),
+            state.getBoolean("enabled") || storygraph.signingIn || storygraph.awaitingCredentials,
+            !model.busy,
+            details = { showServiceDetails("StoryGraph", storygraph, storyGraphReport) },
+            changed = { checked ->
+                action(storyGraphReport) {
+                    storygraph.setEnabled(checked)
+                    if (checked && storygraph.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
+                }
+            }
+        )
+    }
+
     /** Runs a connection change from a popup in the app scope, so it completes even if the screen closes. */
     private fun runDetached(report: (Exception) -> Unit, block: suspend () -> Unit) {
         diagnostics.scope.launch {
@@ -697,6 +746,90 @@ class MainActivity : AppCompatActivity() {
         form.email.isEnabled = !fable.signingIn
         form.password.isEnabled = !fable.signingIn
         form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = fableReady()
+    }
+
+    private fun updateStoryGraphSignIn(state: JSONObject) {
+        val storygraph = app.storygraph
+        if (!storygraph.awaitingCredentials && !storygraph.signingIn) {
+            storyGraphSignIn?.dialog?.dismiss()
+            storyGraphSignIn = null
+            return
+        }
+        val form = storyGraphSignIn ?: storyGraphSignInDialog().also { storyGraphSignIn = it }
+        val error = state.optString("connectionError")
+        form.status.text = when {
+            storygraph.signingIn -> "Reading your StoryGraph session…"
+            error.isNotBlank() -> connectionText(error)
+            else -> storyGraphLoadError.orEmpty()
+        }
+        form.status.isGone = form.status.text.isEmpty()
+    }
+
+    /**
+     * StoryGraph's own sign-in page in a WebView, so the password never reaches the app and Cloudflare sees a browser.
+     * The page is loaded once; screen updates only change the status line. A live session redirects to the home page,
+     * which is captured like a fresh sign-in.
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun storyGraphSignInDialog(): StoryGraphSignInViews {
+        storyGraphLoadError = null
+        val storygraph = app.storygraph
+        val origin = storygraph.http.origin.toUri()
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        label("Sign in on StoryGraph's own website. Boox Tracker never sees or remembers your password; it keeps the browser session on this device.", parent = body, size = 17f).setTextIsSelectable(false)
+        val web = WebView(this).apply {
+            id = R.id.storygraph_sign_in_web
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            setBackgroundColor(Color.WHITE)
+        }
+        fixedPane(0.6f).apply {
+            addView(web, FrameLayout.LayoutParams(-1, -1))
+            body.addView(this, LinearLayout.LayoutParams(-1, -2).apply { setMargins(0, dp(8), 0, dp(8)) })
+        }
+        val status = label("", parent = body, size = 17f).apply {
+            id = R.id.storygraph_sign_in_status
+            setTextIsSelectable(false)
+        }
+
+        // WebView settings are read here on the main thread; the capture itself runs detached, because it is a page
+        // event rather than a tap and must not be dropped while another action keeps the screen busy.
+        fun captureIfHome(url: String?) {
+            val uri = url?.toUri() ?: return
+            if (uri.host != origin.host || uri.path.orEmpty().trimEnd('/').isNotEmpty()) return
+            if (!storygraph.awaitingCredentials || storygraph.signingIn) return
+            val userAgent = web.settings.userAgentString
+            runDetached(storyGraphReport) { storygraph.sessionCaptured(userAgent) }
+        }
+        web.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = request.isForMainFrame && request.url.host != origin.host
+
+            override fun onPageFinished(view: WebView, url: String?) = captureIfHome(url)
+
+            // Turbo can finish the visit after sign-in by replacing history instead of a full page load.
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) = captureIfHome(url)
+
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                if (!request.isForMainFrame) return
+                storyGraphLoadError = "StoryGraph could not be loaded: ${error.description}. Check the connection, then turn StoryGraph off and on."
+                refresh()
+            }
+        }
+        val dialog = bordered(
+            AlertDialog.Builder(this).setTitle("StoryGraph sign-in").setView(body)
+                .setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
+                .setOnCancelListener { runDetached(storyGraphReport) { storygraph.setEnabled(false) } }
+                .create().apply { setCanceledOnTouchOutside(false) }
+        ) { web.destroy() }
+        // The dialog marks itself as no input-method target when its view has no text editor at show time, and a
+        // WebView has none until its page focuses a field; the page's fields can raise the keyboard only without that mark.
+        dialog.window?.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        web.loadUrl("${storygraph.http.origin}/users/sign_in")
+        return StoryGraphSignInViews(dialog, status)
     }
 
     private fun fableReady() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !app.fable.signingIn
@@ -767,6 +900,7 @@ class MainActivity : AppCompatActivity() {
 
     private val hardcoverReport: (Exception) -> Unit = { app.hardcover.recordFailure("manual", "hardcover_operation", it) }
     private val fableReport: (Exception) -> Unit = { app.fable.recordFailure("manual", "fable_operation", it) }
+    private val storyGraphReport: (Exception) -> Unit = { app.storygraph.recordFailure("manual", "storygraph_operation", it) }
 
     private fun action(report: (Exception) -> Unit = hardcoverReport, block: suspend () -> Unit) {
         if (model.busy) return
@@ -907,7 +1041,7 @@ class MainActivity : AppCompatActivity() {
             field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
             field("Progress", if (result.optBoolean("finished")) "Finished" else "${result.optInt(if (kept) "remotePercent" else "percent")}%$keptNote")
             result.text("shelfAfter")?.let { shelf ->
-                field("Shelf", mapOf("current_reading" to "Currently Reading", "want_to_read" to "Want to Read", "finished" to "Finished", "did_not_finish" to "Did Not Finish")[shelf] ?: shelf)
+                field("Shelf", mapOf("current_reading" to "Currently Reading", "currently_reading" to "Currently Reading", "want_to_read" to "Want to Read", "to_read" to "To Read", "finished" to "Finished", "read" to "Read", "did_not_finish" to "Did Not Finish", "paused" to "Paused", "rereading" to "Rereading")[shelf] ?: shelf)
             }
             val streakError = result.text("streakError")
             val streakDate = result.text("streakDate")
@@ -957,13 +1091,7 @@ class MainActivity : AppCompatActivity() {
         body.addView(View(this).apply { setBackgroundColor(Color.BLACK) }, LinearLayout.LayoutParams(-1, dp(1)))
         // The panes take a fixed share of the screen, or less when the popup has less room, whatever each tab holds,
         // so switching tabs never resizes the popup and the Close button stays visible.
-        val panes = object : FrameLayout(this) {
-            override fun onMeasure(widthSpec: Int, heightSpec: Int) {
-                val target = (resources.displayMetrics.heightPixels * 0.55f).toInt()
-                val height = if (MeasureSpec.getMode(heightSpec) == MeasureSpec.UNSPECIFIED) target else minOf(target, MeasureSpec.getSize(heightSpec))
-                super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
-            }
-        }.apply {
+        val panes = fixedPane(0.55f).apply {
             id = R.id.event_panes
             body.addView(this, LinearLayout.LayoutParams(-1, -2))
         }
@@ -1087,6 +1215,15 @@ class MainActivity : AppCompatActivity() {
             field("Error", listOfNotNull(error.text("class")?.substringAfterLast('.'), error.text("phase")).joinToString(" · "))
         } ?: event.text("errorClass")?.let { field("Error", it.substringAfterLast('.')) }
         event.text("runId")?.let { field("Run", it) }
+    }
+
+    /** A pane that takes [fraction] of the screen height, or less when the popup has less room, whatever it holds. */
+    private fun fixedPane(fraction: Float): FrameLayout = object : FrameLayout(this) {
+        override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+            val target = (resources.displayMetrics.heightPixels * fraction).toInt()
+            val height = if (MeasureSpec.getMode(heightSpec) == MeasureSpec.UNSPECIFIED) target else minOf(target, MeasureSpec.getSize(heightSpec))
+            super.onMeasure(widthSpec, MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY))
+        }
     }
 
     override fun onDestroy() {

@@ -1,0 +1,12 @@
+<main>
+<div class="book-title-author-and-series"><h3 class="font-semibold text-2xl md:w-11/12 inline items-center"> {{TITLE}} </h3> <p class="font-semibold text-sm"><a href="/authors/{{BOOK_ID}}">{{AUTHOR}}</a></p></div>
+<p class="text-sm font-light text-darkestGrey dark:text-grey mt-1">{{PAGES}} pages • hardcover • first pub 2022 • 15 editions</p>
+<div class="hidden edition-info mt-3" data-book-id={{BOOK_ID}}> <p class="text-sm"><span class="font-semibold">ISBN/UID:</span> {{ISBN}}</p> <p class="text-sm"><span class="font-semibold">Format:</span> Hardcover</p> <p class="text-sm"><span class="font-semibold">Language:</span> English</p> <p class="text-sm"><span class="font-semibold">Publisher:</span> Example Books</p> <p class="text-sm"><span class="font-semibold">Edition Pub Date:</span> 12 Apr 2022</p> </div>
+{{OTHER_EDITION}}
+<div class="on-book-page action-menu action-menu-{{BOOK_ID}}" data-book-id={{BOOK_ID}}> <div class="w-full"> <div class="inline margin-auto">
+{{STATUS_LABEL}}
+{{PROGRESS_PANE}}
+{{STATUS_FORMS}}
+</div> </div> </div>
+</main>
+</body></html>

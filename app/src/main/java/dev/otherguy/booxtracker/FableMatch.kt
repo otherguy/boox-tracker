@@ -3,15 +3,13 @@ package dev.otherguy.booxtracker
 import java.net.URLEncoder
 import org.json.JSONObject
 
-private val fableUuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-
 internal fun JSONObject.items(name: String): List<JSONObject> {
     val array = optJSONArray(name) ?: throw SyncProblem("fable_response_missing_$name")
     return (0 until array.length()).mapNotNull { array.optJSONObject(it) }
 }
 
 /** Word-order-independent author key, so "Carr, Jack" and "Jack Carr" compare equal. */
-private fun authorKey(name: String) = normalized(name).split(' ').filter { it.isNotEmpty() }.sorted().joinToString(" ")
+internal fun authorKey(name: String) = normalized(name).split(' ').filter { it.isNotEmpty() }.sorted().joinToString(" ")
 
 /** Matches a source book to one Fable book record. Each Fable book record is one edition. */
 class FableMatcher(private val get: suspend (String) -> JSONObject, private val store: DiagnosticsStore? = null, private val now: () -> Long = { System.currentTimeMillis() }) {
@@ -22,7 +20,7 @@ class FableMatcher(private val get: suspend (String) -> JSONObject, private val 
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
         // Evidence is (book id, priority); a lower priority is the stronger identifier.
         val evidence = mutableListOf<Pair<String, Int>>()
-        metadata.tags["fable"].orEmpty().filter { it.matches(fableUuid) }.sorted().forEach { id ->
+        metadata.tags["fable"].orEmpty().filter { it.matches(uuidPattern) }.sorted().forEach { id ->
             val book = try {
                 get("/api/books/$id").optJSONObject("response")
             } catch (error: HttpProblem) {

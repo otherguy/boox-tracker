@@ -10,7 +10,7 @@ The user confirmed native approval, Exact edition matched, Synced at…, and pro
 
 The open checks and their order are in [project status](project-status.md#resume-here).
 
-Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0, 0.4.1, and 0.4.3 installs at 11:01, 11:22, 11:37, and 12:36 on 2026-10-07 did not open the app. 0.4.4 was opened by ADB at 12:56 to test the duplicate-read fix and at 14:43 to read the Hardcover popup; 0.4.5 was opened by ADB at 15:42 and 0.4.6 at 16:12 after their installs. These are foreground evidence only. No offline/reconnect export from the current package has been inspected yet.
+Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local time on 2026-10-06. Exclude these foreground intervals from hidden-app proof. The 0.4.0, 0.4.1, and 0.4.3 installs at 11:01, 11:22, 11:37, and 12:36 on 2026-10-07 did not open the app. 0.4.4 was opened by ADB at 12:56 to test the duplicate-read fix and at 14:43 to read the Hardcover popup; 0.4.5 was opened by ADB at 15:42 and 0.4.6 at 16:12 after their installs; 0.5.0 was installed and opened by ADB at 17:25 on 2026-10-08, and 0.5.1 at 17:37 after the keyboard fix. These are foreground evidence only. No offline/reconnect export from the current package has been inspected yet.
 
 ## Completion sync
 
@@ -30,6 +30,19 @@ Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan]
 5. Repeat the offline hidden-app test below with Fable and Hardcover both On. Each service must deliver its own queue.
 6. More than one hour after sign-in, sync again. The ID token must refresh without a new sign-in. This is the first live check of the refresh call.
 7. Tap the Fable and Hardcover rows. Check the account details (Hardcover's first delivery after updating fills them for the existing sign-in), the current book's match and edition, and Log out's confirmation text. Do not confirm Log out unless you plan to sign in again: it deletes that provider's queued updates.
+
+## StoryGraph sync
+
+StoryGraph is built in 0.5.0 through its website session; see the [StoryGraph plan](plan-20261007-storygraph-sync.md). In the Blood is currently reading at 51% on StoryGraph (written through the user's browser session on 2026-10-07, matching the BOOX). The device sign-in on 0.5.1 captured the session, and the first sync passed Cloudflare with the plain client; it then held with `storygraph_book_not_found` because the parser rejected the page's bare `data-book-id` attributes (fixed in 0.5.2, with sibling editions of one work now accepted). On 0.5.0 the popup opened StoryGraph's page but its fields could not raise the keyboard: the dialog window carried `FLAG_ALT_FOCUSABLE_IM`, which AppCompat sets when the custom view has no text editor at show time, so the input method targeted the activity window behind the popup. 0.5.1 clears the flag after showing the dialog.
+
+1. Done on 2026-10-08 (0.5.1): StoryGraph On, sign-in on StoryGraph's page in the popup, popup closed by itself, `@otherguy` in the details popup. The page shows no Remember me control; how long the session lasts is part of the spike. The popup must close by itself; the details popup must show `@username`; Activity must show the connection event. Export and confirm the absence of any cookie value and the user id.
+2. Done on 2026-10-08 (0.5.2 app-open sync): In the Blood matched by ISBN, the shelved hardcover received 52% over StoryGraph's 51%, row "Book matched · different edition", StoryGraph page read back 52% / 239 pages. At 18:19 the read was switched to the Kindle edition on StoryGraph (its `/switch-editions` form, through the browser session); a Sync Now at 18:20 sent nothing because the source state had not changed, so the row kept the 18:04 result. Expect "same edition" after the next progress change.
+3. Transport spike: Sync Now after 35 minutes, two hours, the next morning, after a reboot, and on another Wi-Fi network. Each must record no `storygraph_browser_check_required`. Activity records status codes only. A challenge on any of them stops further StoryGraph work until the transport is re-planned.
+4. Read an unshelved book in NeoReader and sync. Expect currently reading plus the floored percentage, read back from the page.
+5. Finish a book in NeoReader. Expect the book marked read with that day's date. Reopen it; the next sync must hold with `storygraph_status_conflict`.
+6. With a live session, turn StoryGraph Off and On: no popup should stay open (the page redirects home and the popup closes). Cancel on a fresh popup must turn StoryGraph Off. Log out must show the sign-in form on the next On.
+7. Repeat the offline hidden-app test below with all three services On. Each service must deliver its own queue.
+8. Explicit `storygraph:` tag: add the shelved edition's UUID to the EPUB in calibre, send it to the device over the same path, open it in NeoReader, and sync. The book popup must show a StoryGraph row and the StoryGraph row must read "same edition". The user deferred this on 2026-10-08; the tag path has automatic coverage only. The device's EPUB is calibre's current export (title "Terminal List #05 – In the Blood", ISBN 9781982181680, ASIN B09841ZBHY), not the older export that was in the repository folder.
 
 ## Offline collection and hidden-app delivery
 

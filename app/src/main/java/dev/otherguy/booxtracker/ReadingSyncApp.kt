@@ -30,7 +30,8 @@ open class ReadingSyncApp :
     lateinit var diagnostics: Diagnostics
     lateinit var hardcover: HardcoverConnection
     lateinit var fable: FableConnection
-    val connections: List<TrackerConnection> get() = listOf(hardcover, fable)
+    lateinit var storygraph: StoryGraphConnection
+    val connections: List<TrackerConnection> get() = listOf(hardcover, fable, storygraph)
 
     @Volatile var visible = false
 
@@ -41,6 +42,7 @@ open class ReadingSyncApp :
         diagnostics = Diagnostics(this)
         hardcover = HardcoverConnection(this)
         fable = FableConnection(this)
+        storygraph = StoryGraphConnection(this)
         registerActivityLifecycleCallbacks(this)
         diagnostics.scope.launch {
             diagnostics.ensureRecovered()
@@ -247,7 +249,7 @@ class Diagnostics(
     }
 
     fun recover() {
-        listOf("hardcover", "fable").forEach { service ->
+        listOf("hardcover", "fable", "storygraph").forEach { service ->
             store.get("$service.active")?.takeIf { it.isNotEmpty() }?.let { value ->
                 val active = JSONObject(value)
                 val detail = JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry.")
