@@ -762,6 +762,11 @@ class HardcoverTest {
             val dialog = popup()!!
             assertTrue(dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).isEnabled)
             assertTrue(code()!!.isTextSelectable)
+            // The code is the one thing to copy or read out, so it is bold within the plain instructions.
+            val spanned = code()!!.text as android.text.Spanned
+            val codeStart = spanned.toString().indexOf("TEST-CODE")
+            assertTrue(spanned.getSpans(codeStart, codeStart + "TEST-CODE".length, android.text.style.StyleSpan::class.java).any { it.style == android.graphics.Typeface.BOLD })
+            assertTrue(spanned.getSpans(0, codeStart, android.text.style.StyleSpan::class.java).isEmpty())
             assertFalse(descendants(controller.get().findViewById(android.R.id.content)).filterIsInstance<android.widget.TextView>().any { it.text.contains("TEST-CODE") })
             assertTrue(toggle()!!.isChecked)
             // Leaving the app to approve in a browser keeps the same popup.

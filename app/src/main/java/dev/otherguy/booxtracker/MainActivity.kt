@@ -706,10 +706,16 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val device = hardcover.device
-        val message = if (device == null) {
+        val message: CharSequence = if (device == null) {
             "Requesting a sign-in code…"
         } else {
-            "Sign-in code: ${device.userCode}\n\nOpen hardcover.app/link on this device or another device. Sign in, enter the code, and approve the connection. The code expires automatically."
+            // The code is what the user copies or reads out, so it stands out from the instructions.
+            SpannableStringBuilder("Sign-in code: ").apply {
+                val start = length
+                append(device.userCode)
+                setSpan(StyleSpan(Typeface.BOLD), start, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                append("\n\nOpen hardcover.app/link on this device or another device. Sign in, enter the code, and approve the connection. The code expires automatically.")
+            }
         }
         val dialog = hardcoverSignIn ?: bordered(
             AlertDialog.Builder(this).setTitle("Hardcover sign-in").setMessage(message)
@@ -724,7 +730,7 @@ class MainActivity : AppCompatActivity() {
             hardcoverSignIn = dialog
         }
         // Rewriting unchanged text would clear a selection the user started.
-        if (dialog.findViewById<TextView>(android.R.id.message)?.text?.toString() != message) dialog.setMessage(message)
+        if (dialog.findViewById<TextView>(android.R.id.message)?.text?.toString() != message.toString()) dialog.setMessage(message)
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = device != null
     }
 
