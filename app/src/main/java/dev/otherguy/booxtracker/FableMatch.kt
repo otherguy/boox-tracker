@@ -12,11 +12,11 @@ internal fun JSONObject.items(name: String): List<JSONObject> {
 internal fun authorKey(name: String) = normalized(name).split(' ').filter { it.isNotEmpty() }.sorted().joinToString(" ")
 
 /** Matches a source book to one Fable book record. Each Fable book record is one edition. */
-class FableMatcher(private val get: suspend (String) -> JSONObject, private val store: DiagnosticsStore? = null, private val now: () -> Long = { System.currentTimeMillis() }) {
+class FableMatcher(private val get: suspend (String) -> JSONObject, private val store: DiagnosticsStore, private val now: () -> Long = { System.currentTimeMillis() }) {
     suspend fun match(sourceKey: String?, metadata: BookIdentifiers): JSONObject {
         val fingerprint = digest(metadata.json().toString())
         val cacheKey = sourceKey?.let { "fable.match.${digest(it)}" }
-        val cached = cacheKey?.let { store?.get(it) }?.let(::JSONObject)
+        val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
         // Evidence is (book id, priority); a lower priority is the stronger identifier.
         val evidence = mutableListOf<Pair<String, Int>>()
@@ -53,7 +53,7 @@ class FableMatcher(private val get: suspend (String) -> JSONObject, private val 
         }
         val result = JSONObject().put("bookId", bookId ?: titleMatch(metadata)).put("matchKind", if (bookId == null) "book" else "edition")
             .put("fingerprint", fingerprint).put("matchedAt", now())
-        if (cacheKey != null) store?.put(cacheKey, result.toString())
+        if (cacheKey != null) store.put(cacheKey, result.toString())
         return result
     }
 

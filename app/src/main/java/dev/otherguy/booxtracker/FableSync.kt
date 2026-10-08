@@ -33,7 +33,7 @@ fun sourceStatus(book: JSONObject): Pair<Boolean, Int> {
     return finished to percent
 }
 
-class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
+class FableSync(private val auth: FableAuth, private val store: DiagnosticsStore, private val maySend: () -> Boolean) {
     suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: String? = null, readAt: String? = null): JSONObject = auth.authorized { token ->
         suspend fun get(path: String): JSONObject {
             coroutineContext.ensureActive()

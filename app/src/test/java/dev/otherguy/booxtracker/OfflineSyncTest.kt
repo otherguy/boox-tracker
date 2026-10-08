@@ -142,7 +142,7 @@ class OfflineSyncTest {
         online = true
         server.failProfile = true
         assertFalse(connection.drain("delivery"))
-        assertTrue(store.pending("1").isEmpty())
+        assertTrue(store.pending("1", "hardcover").isEmpty())
         assertTrue(connection.state().isNull("profile"))
         server.failProfile = false
         connection.drain("delivery")
@@ -153,9 +153,9 @@ class OfflineSyncTest {
         connection.send("manual", check(book()))
         connection.send("scheduled", check(book("second")))
         connection.send("scheduled", check(book(progress = "45/100")))
-        assertEquals(2, store.pending("1").size)
-        assertEquals("45/100", store.pending("1").single { it.getJSONObject("book").getString("key") == "first" }.getJSONObject("book").raw("progress"))
-        DiagnosticsStore(app).use { reopened -> assertEquals(2, reopened.pending("1").size) }
+        assertEquals(2, store.pending("1", "hardcover").size)
+        assertEquals("45/100", store.pending("1", "hardcover").single { it.getJSONObject("book").getString("key") == "first" }.getJSONObject("book").raw("progress"))
+        DiagnosticsStore(app).use { reopened -> assertEquals(2, reopened.pending("1", "hardcover").size) }
         assertTrue(server.requests.isEmpty())
         assertTrue(connection.state().getBoolean("enabled"))
         assertEquals(3, store.events().count { it.optString("kind") == "queued" })
@@ -194,13 +194,13 @@ class OfflineSyncTest {
     }
 
     @Test fun acknowledgementCannotRemoveANewerRevisionOrAnotherAccount() {
-        val old = store.enqueue("1", book(), identifiers, "before")
-        val newer = store.enqueue("1", book(progress = "45/100"), identifiers, "after")
-        val other = store.enqueue("2", book(), identifiers, "other")
+        val old = store.enqueue("1", book(), identifiers, "before", "hardcover")
+        val newer = store.enqueue("1", book(progress = "45/100"), identifiers, "after", "hardcover")
+        val other = store.enqueue("2", book(), identifiers, "other", "hardcover")
         assertFalse(store.acknowledge(old))
-        assertEquals(newer.getString("revision"), store.pending("1").single().getString("revision"))
+        assertEquals(newer.getString("revision"), store.pending("1", "hardcover").single().getString("revision"))
         assertTrue(store.acknowledge(newer))
-        assertEquals(other.getString("revision"), store.pending("2").single().getString("revision"))
+        assertEquals(other.getString("revision"), store.pending("2", "hardcover").single().getString("revision"))
     }
 
     @Test fun reconnectReconcilesAnUncertainWriteWithoutDuplicateReads() = runBlocking {
@@ -208,10 +208,10 @@ class OfflineSyncTest {
         online = true
         server.failReadOnce = true
         assertTrue(connection.drain("delivery"))
-        assertEquals(1, store.pending("1").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
         assertEquals(1, server.library.getJSONObject(0).getJSONArray("user_book_reads").length())
         assertFalse(connection.drain("delivery"))
-        assertTrue(store.pending("1").isEmpty())
+        assertTrue(store.pending("1", "hardcover").isEmpty())
         assertEquals(2, server.mutations().size)
         assertEquals(1, server.library.getJSONObject(0).getJSONArray("user_book_reads").length())
     }
@@ -228,18 +228,18 @@ class OfflineSyncTest {
         val work = WorkManager.getInstance(app).getWorkInfosForUniqueWork(DELIVERY_WORK_NAME).get()
         assertTrue(work.any { it.state == WorkInfo.State.ENQUEUED })
         assertTrue(connection.state().getBoolean("enabled"))
-        assertEquals(1, store.pending("1").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
     }
 
     @Test fun accountMismatchNeverSendsAndAnotherAccountsQueueIsIsolated() = runBlocking {
         connection.send("manual", check(book()))
-        store.enqueue("2", book("second"), identifiers, "other")
+        store.enqueue("2", book("second"), identifiers, "other", "hardcover")
         online = true
         server.identity = 2
         connection.drain("delivery")
         assertTrue(server.mutations().isEmpty())
-        assertEquals(1, store.pending("1").size)
-        assertEquals(1, store.pending("2").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
+        assertEquals(1, store.pending("2", "hardcover").size)
         assertTrue(store.events().any { it.optString("reason") == "hardcover_account_changed" })
     }
 
@@ -251,12 +251,12 @@ class OfflineSyncTest {
         val delivery = async(Dispatchers.IO) { connection.drain("delivery") }
         try {
             assertTrue(server.libraryEntered!!.await(5, TimeUnit.SECONDS))
-            store.enqueue("1", book(progress = "45/100"), identifiers, "newer")
+            store.enqueue("1", book(progress = "45/100"), identifiers, "newer", "hardcover")
             server.libraryRelease!!.countDown()
             assertTrue(delivery.await())
-            assertEquals("45/100", store.pending("1").single().getJSONObject("book").raw("progress"))
+            assertEquals("45/100", store.pending("1", "hardcover").single().getJSONObject("book").raw("progress"))
             assertFalse(connection.drain("delivery"))
-            assertTrue(store.pending("1").isEmpty())
+            assertTrue(store.pending("1", "hardcover").isEmpty())
             assertEquals(226, server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).getInt("progress_pages"))
         } finally {
             server.libraryRelease!!.countDown()
@@ -276,7 +276,7 @@ class OfflineSyncTest {
             server.libraryRelease!!.countDown()
             delivery.await()
             assertTrue(server.mutations().isEmpty())
-            assertEquals(1, store.pending("1").size)
+            assertEquals(1, store.pending("1", "hardcover").size)
         } finally {
             server.libraryRelease!!.countDown()
             delivery.cancelAndJoin()
@@ -302,7 +302,7 @@ class OfflineSyncTest {
         TestListenableWorkerBuilder<DeliveryWorker>(app).build().doWork()
         assertEquals(0, provider.calls.get())
         assertTrue(server.requests.isEmpty())
-        assertEquals(1, store.pending("1").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
         assertTrue(store.events().any { it.optString("reason") == "ebook_permission_denied" })
         assertEquals(null, org.robolectric.Shadows.shadowOf(app).nextStartedActivity)
     }
@@ -318,8 +318,8 @@ class OfflineSyncTest {
             store.put("hardcover.account", "2")
             folder.release!!.countDown()
             send.await()
-            assertTrue(store.pending("1").isEmpty())
-            assertTrue(store.pending("2").isEmpty())
+            assertTrue(store.pending("1", "hardcover").isEmpty())
+            assertTrue(store.pending("2", "hardcover").isEmpty())
             assertNull(store.get("hardcover.book.2.${digest("first")}"))
         } finally {
             folder.release!!.countDown()

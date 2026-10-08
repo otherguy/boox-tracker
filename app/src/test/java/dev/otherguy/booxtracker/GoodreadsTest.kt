@@ -466,7 +466,7 @@ class GoodreadsTest {
             val dialog = popup()!!
             val web = dialog.findViewById<WebView>(R.id.goodreads_sign_in_web)!!
             assertEquals("${server.origin}/user/sign_in", shadowOf(web).lastLoadedUrl)
-            assertEquals(1, profile.attached)
+            assertEquals(1, profile.attached.size)
             assertTrue(web.settings.javaScriptEnabled)
             // Goodreads serves a tablet its desktop page without a viewport tag; it is zoomed out to the popup's width.
             assertTrue(web.settings.useWideViewPort)

@@ -50,7 +50,7 @@ class DiagnosticsStore(
         buildList { while (cursor.moveToNext()) add(JSONObject(cursor.getString(0))) }
     }
 
-    @Synchronized fun enqueue(account: String, book: JSONObject, identifiers: BookIdentifiers, readAt: String, service: String = "hardcover"): JSONObject {
+    @Synchronized fun enqueue(account: String, book: JSONObject, identifiers: BookIdentifiers, readAt: String, service: String): JSONObject {
         val key = "outbox.$service.$account.${digest(book.getString("key"))}"
         val state = sourceState(book, identifiers)
         val old = get(key)?.let(::JSONObject)
@@ -61,7 +61,7 @@ class DiagnosticsStore(
         return item
     }
 
-    @Synchronized fun pending(account: String, service: String = "hardcover"): List<JSONObject> = readableDatabase.query("state", arrayOf("payload"), "name LIKE ?", arrayOf("outbox.$service.$account.%"), null, null, "name").use { cursor ->
+    @Synchronized fun pending(account: String, service: String): List<JSONObject> = readableDatabase.query("state", arrayOf("payload"), "name LIKE ?", arrayOf("outbox.$service.$account.%"), null, null, "name").use { cursor ->
         buildList { while (cursor.moveToNext()) add(JSONObject(cursor.getString(0))) }
     }
 

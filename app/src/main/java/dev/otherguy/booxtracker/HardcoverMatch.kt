@@ -19,11 +19,11 @@ internal fun normalized(text: String) = Normalizer.normalize(text, Normalizer.Fo
 internal fun authorNames(author: String): Set<String> = runCatching { JSONArray(author).let { a -> (0 until a.length()).map { a.getString(it) } } }.getOrElse { author.split(Regex("[;|]")) }
     .map(::normalized).toSet()
 
-class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONObject, private val store: DiagnosticsStore? = null, private val now: () -> Long = { System.currentTimeMillis() }) {
+class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONObject, private val store: DiagnosticsStore, private val now: () -> Long = { System.currentTimeMillis() }) {
     suspend fun match(sourceKey: String?, metadata: BookIdentifiers): JSONObject {
         val fingerprint = digest(metadata.json().toString())
         val cacheKey = sourceKey?.let { "hardcover.match.${digest(it)}" }
-        val cached = cacheKey?.let { store?.get(it) }?.let(::JSONObject)
+        val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
         val evidence = mutableListOf<Pair<Int, Int?>>()
         suspend fun edition(id: Int) {
@@ -64,7 +64,7 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
         val exact = evidence.mapNotNull { it.second }.distinct().singleOrNull()
         val result = JSONObject().put("bookId", bookId).put("exactEditionId", exact ?: JSONObject.NULL)
             .put("matchKind", if (exact == null) "book" else "edition").put("fingerprint", fingerprint).put("matchedAt", now())
-        if (cacheKey != null) store?.put(cacheKey, result.toString())
+        if (cacheKey != null) store.put(cacheKey, result.toString())
         return result
     }
 

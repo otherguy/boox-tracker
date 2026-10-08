@@ -244,6 +244,7 @@ class HardcoverTest {
     private lateinit var server: HardcoverServer
     private lateinit var vault: TokenVault
     private lateinit var auth: HardcoverAuth
+    private val app get() = RuntimeEnvironment.getApplication() as ReadingSyncApp
     private val identifiers = BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author")
 
     private val defaultZone = java.util.TimeZone.getDefault()
@@ -251,8 +252,8 @@ class HardcoverTest {
     @Before fun setup() {
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("Asia/Bangkok"))
         server = HardcoverServer()
-        grantTestFolder(RuntimeEnvironment.getApplication() as ReadingSyncApp)
-        (RuntimeEnvironment.getApplication() as ReadingSyncApp).diagnostics.store.put("hardcover.account", "1")
+        grantTestFolder(app)
+        app.diagnostics.store.put("hardcover.account", "1")
         vault = TokenVault(RuntimeEnvironment.getApplication()) { SecretKeySpec(ByteArray(32) { 7 }, "AES") }
         vault.write(OAuthTokens("old-access", "old-refresh", System.currentTimeMillis() + 3_600_000))
         auth = HardcoverAuth(server.http, vault)
@@ -262,11 +263,12 @@ class HardcoverTest {
         java.util.TimeZone.setDefault(defaultZone)
         server.close()
         vault.clear()
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         app.diagnostics.scope.coroutineContext[kotlinx.coroutines.Job]!!.cancelAndJoin()
         app.diagnostics.store.close()
         closeWorkDatabase()
     }
+
+    private fun hardcoverSync() = HardcoverSync(auth, app.diagnostics.store) { true }
 
     private fun book(progress: String = "4723/10000", status: String = "1", lastAccess: String? = null) = JSONObject().put("progress", JSONObject().put("state", "value").put("raw", progress))
         .put("readingStatus", JSONObject().put("state", "value").put("raw", status))
@@ -276,7 +278,7 @@ class HardcoverTest {
     private fun finished(lastAccess: String? = "1791225000000") = book("10000/10000", "2", lastAccess)
 
     @Test fun finishedSourceCreatesReadBookWithFinishDateFromLastAccess() = runBlocking {
-        val result = HardcoverSync(auth).send(finished(), identifiers)
+        val result = hardcoverSync().send(finished(), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertTrue(result.getBoolean("finished"))
         assertEquals(502, result.getInt("progressPages"))
@@ -290,7 +292,7 @@ class HardcoverTest {
 
     @Test fun finishedSourceCompletesExistingReadAndMarksBookRead() = runBlocking {
         server.withRead(200)
-        assertTrue(HardcoverSync(auth).send(finished(), identifiers).getBoolean("finished"))
+        assertTrue(hardcoverSync().send(finished(), identifiers).getBoolean("finished"))
         assertEquals(2, server.mutations().size)
         val read = server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0)
         assertEquals(502, read.getInt("progress_pages"))
@@ -300,7 +302,7 @@ class HardcoverTest {
 
     @Test fun finishedSourceAgainstReadRemoteWritesNothing() = runBlocking {
         server.withRead(502, status = 3, finished = true)
-        val result = HardcoverSync(auth).send(finished(), identifiers)
+        val result = hardcoverSync().send(finished(), identifiers)
         assertEquals("already_current", result.getString("outcome"))
         assertTrue(result.getBoolean("finished"))
         // The row and popup still learn which edition matched and which edition holds the book.
@@ -310,19 +312,19 @@ class HardcoverTest {
     }
 
     @Test fun finishedStatusWithPartialProgressHolds() = runBlocking {
-        assertEquals("source_finish_progress_mismatch", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5000/10000", "2"), identifiers) } }.code)
+        assertEquals("source_finish_progress_mismatch", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book("5000/10000", "2"), identifiers) } }.code)
         assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun finishDateFallsBackToReadTimeWithoutLastAccess() = runBlocking {
-        HardcoverSync(auth).send(finished(lastAccess = null), identifiers, readAt = "2026-10-05T15:46:00Z")
+        hardcoverSync().send(finished(lastAccess = null), identifiers, readAt = "2026-10-05T15:46:00Z")
         val read = server.mutations().first { it.getString("query").contains("insert_user_book_read(") }.getJSONObject("variables").getJSONObject("read")
         assertEquals("2026-10-05", read.getString("finished_at"))
     }
 
     @Test fun interruptedCompletionRetryOnlyMarksTheBookRead() = runBlocking {
         server.withRead(502, status = 2, finished = true, finishedAt = "2026-01-01")
-        val result = HardcoverSync(auth).send(finished(), identifiers)
+        val result = hardcoverSync().send(finished(), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertTrue(server.mutations().single().getString("query").contains("FinishBook"))
         assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
@@ -330,7 +332,7 @@ class HardcoverTest {
 
     @Test fun finishedSourceCompletesRemoteReadAlreadyAtFullPages() = runBlocking {
         server.withRead(502)
-        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals("sent", hardcoverSync().send(finished(), identifiers).getString("outcome"))
         assertEquals(2, server.mutations().size)
         assertEquals("2026-10-06", server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).getString("finished_at"))
         assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
@@ -338,7 +340,7 @@ class HardcoverTest {
 
     @Test fun finishedSourceKeepsHigherRemotePagesWhileFinishing() = runBlocking {
         server.withRead(600)
-        val result = HardcoverSync(auth).send(finished(), identifiers)
+        val result = hardcoverSync().send(finished(), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertEquals(600, result.getInt("progressPages"))
         val read = server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0)
@@ -348,20 +350,20 @@ class HardcoverTest {
     }
 
     @Test fun missingIsbnAutomaticallyMatchesUniqueTitleAndAuthor() = runBlocking {
-        val value = HardcoverSync(auth).send(book(), BookIdentifiers(emptySet(), "Synthetic Book", "Test Author"))
+        val value = hardcoverSync().send(book(), BookIdentifiers(emptySet(), "Synthetic Book", "Test Author"))
         assertEquals("sent", value.getString("outcome"))
         assertEquals("book", value.getString("matchKind"))
     }
 
     @Test fun multipleEditionsForOneBookDoNotRequireSelection() = runBlocking {
         server.editionCount = 2
-        assertEquals("sent", HardcoverSync(auth).send(book(), identifiers).getString("outcome"))
+        assertEquals("sent", hardcoverSync().send(book(), identifiers).getString("outcome"))
     }
 
     @Test fun validDefaultEditionIsUsedWhenExactEditionHasNoPages() = runBlocking {
         server.editionPageCount = 0
         server.defaultPages = 500
-        val result = HardcoverSync(auth).send(book(), identifiers)
+        val result = hardcoverSync().send(book(), identifiers)
         assertEquals(21, result.getInt("editionId"))
         assertEquals("book", result.getString("matchKind"))
         assertEquals(236, result.getInt("progressPages"))
@@ -369,14 +371,14 @@ class HardcoverTest {
 
     @Test fun existingEditionForTheSameBookIsPreservedAsABookMatch() = runBlocking {
         server.withRead(200, edition = 21)
-        val result = HardcoverSync(auth).send(book(), identifiers)
+        val result = hardcoverSync().send(book(), identifiers)
         assertEquals(21, result.getInt("editionId"))
         assertEquals("book", result.getString("matchKind"))
         assertEquals(21, server.mutations().single().getJSONObject("variables").getJSONObject("read").getInt("edition_id"))
     }
 
     @Test fun firstSendCreatesOneReadingEntryAndRepeatDoesNotDuplicateIt() = runBlocking {
-        val sync = HardcoverSync(auth)
+        val sync = hardcoverSync()
         assertEquals("sent", sync.send(book(), identifiers).getString("outcome"))
         assertEquals(2, server.mutations().size)
         assertEquals(237, server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).getInt("progress_pages"))
@@ -395,7 +397,7 @@ class HardcoverTest {
 
     @Test fun aNewBookAdvancesTheReadHardcoverCreatedInsteadOfAddingOne() = runBlocking {
         server.readsCreatedWhenStarted = 1
-        val result = HardcoverSync(auth).send(book(), identifiers)
+        val result = hardcoverSync().send(book(), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertEquals(41, result.getInt("readId"))
         assertEquals(listOf("AddBook", "AdvanceRead"), mutationNames())
@@ -407,7 +409,7 @@ class HardcoverTest {
     @Test fun startingAWantToReadBookAdvancesTheReadHardcoverCreated() = runBlocking {
         server.library = JSONArray().put(JSONObject().put("id", 30).put("status_id", 1).put("edition_id", 20).put("user_book_reads", JSONArray()))
         server.readsCreatedWhenStarted = 1
-        assertEquals(41, HardcoverSync(auth).send(book(), identifiers).getInt("readId"))
+        assertEquals(41, hardcoverSync().send(book(), identifiers).getInt("readId"))
         assertEquals(1, reads().size)
         assertTrue(server.mutations().none { it.getString("query").contains("insert_user_book_read(") })
     }
@@ -415,7 +417,7 @@ class HardcoverTest {
     @Test fun anUndatedDuplicateReadIsLeftAloneWhileTheDatedReadAdvances() = runBlocking {
         // Hardcover's dated empty read plus an undated read with progress on the same edition.
         twoReads(userBookRead(40, 240, null), userBookRead(41, 0, "2026-10-06"))
-        val sync = HardcoverSync(auth)
+        val sync = hardcoverSync()
         val result = sync.send(book("5293/10000"), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertEquals(41, result.getInt("readId"))
@@ -432,7 +434,7 @@ class HardcoverTest {
 
     @Test fun finishingWithTheDuplicatePairCompletesTheDatedRead() = runBlocking {
         twoReads(userBookRead(40, 240, null), userBookRead(41, 0, "2026-10-06"))
-        val result = HardcoverSync(auth).send(finished(), identifiers)
+        val result = hardcoverSync().send(finished(), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertEquals(listOf("AdvanceRead", "FinishBook"), mutationNames())
         val dated = reads().single { it.getInt("id") == 41 }
@@ -445,14 +447,14 @@ class HardcoverTest {
 
     @Test fun aFailedFinishWithTheDuplicatePairOnlyMarksTheBookReadOnRetry() = runBlocking {
         twoReads(userBookRead(40, 240, null), userBookRead(41, 502, "2026-10-06", finished = "2026-10-06"))
-        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals("sent", hardcoverSync().send(finished(), identifiers).getString("outcome"))
         assertEquals(listOf("FinishBook"), mutationNames())
         assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
     }
 
     @Test fun aNewFinishedBookCompletesTheReadHardcoverCreated() = runBlocking {
         server.readsCreatedWhenStarted = 1
-        assertEquals("sent", HardcoverSync(auth).send(finished(), identifiers).getString("outcome"))
+        assertEquals("sent", hardcoverSync().send(finished(), identifiers).getString("outcome"))
         assertEquals(listOf("AddBook", "AdvanceRead", "FinishBook"), mutationNames())
         val read = reads().single()
         assertEquals("2026-10-06", read.getString("finished_at"))
@@ -461,14 +463,14 @@ class HardcoverTest {
 
     @Test fun twoReadsCreatedOnStartHoldWithoutAddingAThird() = runBlocking {
         server.readsCreatedWhenStarted = 2
-        assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }.code)
+        assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book(), identifiers) } }.code)
         assertEquals(listOf("AddBook"), mutationNames())
         assertEquals(2, reads().size)
     }
 
     @Test fun aPercentageOnlyReadInThePairHolds() = runBlocking {
         twoReads(userBookRead(40, 0, null).put("progress_pages", JSONObject.NULL).put("progress", 0.6), userBookRead(41, 0, "2026-10-06"))
-        assertEquals("hardcover_progress_format_unsupported", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5293/10000"), identifiers) } }.code)
+        assertEquals("hardcover_progress_format_unsupported", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book("5293/10000"), identifiers) } }.code)
         assertTrue(server.mutations().isEmpty())
     }
 
@@ -481,14 +483,14 @@ class HardcoverTest {
         )
         for ((first, second) in held) {
             twoReads(first, second)
-            assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book("5293/10000"), identifiers) } }.code)
+            assertEquals("hardcover_read_history_conflict", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book("5293/10000"), identifiers) } }.code)
         }
         assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun advancesExistingReadAndKeepsHigherRemoteProgress() = runBlocking {
         server.withRead(200)
-        val sync = HardcoverSync(auth)
+        val sync = hardcoverSync()
         assertEquals("sent", sync.send(book(), identifiers).getString("outcome"))
         assertTrue(server.mutations().single().getString("query").contains("update_user_book_read"))
         assertEquals("kept_higher_remote_progress", sync.send(book("4000/10000"), identifiers).getString("outcome"))
@@ -497,18 +499,18 @@ class HardcoverTest {
 
     @Test fun exactIsbnTenMatchesEquivalentThirteen() = runBlocking {
         server.tenOnly = true
-        assertEquals("sent", HardcoverSync(auth).send(book(), identifiers).getString("outcome"))
+        assertEquals("sent", hardcoverSync().send(book(), identifiers).getString("outcome"))
         assertTrue(server.requests.first { it.optString("query").startsWith("query Match") }.getJSONObject("variables").getJSONArray("tens").toString().contains("139850825X"))
     }
 
     @Test fun pagelessEditionHoldsWithoutWrites() = runBlocking {
         server.editionPageCount = 0
-        assertEquals("hardcover_page_count_missing", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }.code)
+        assertEquals("hardcover_page_count_missing", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book(), identifiers) } }.code)
         assertTrue(server.mutations().isEmpty())
     }
 
     @Test fun completedRereadEditionAndUnknownStatusConflictsNeverWrite() = runBlocking {
-        val sync = HardcoverSync(auth)
+        val sync = hardcoverSync()
         server.withRead(200, status = 3, finished = true)
         assertThrows(SyncProblem::class.java) { runBlocking { sync.send(book(), identifiers) } }
         server.withRead(200, finished = true)
@@ -524,10 +526,10 @@ class HardcoverTest {
     @Test fun mutationAndGraphqlErrorsCannotReportSuccess() = runBlocking {
         server.withRead(200)
         server.mutationRejected = true
-        assertEquals("hardcover_mutation_rejected", assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }.code)
+        assertEquals("hardcover_mutation_rejected", assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book(), identifiers) } }.code)
         assertEquals(200, server.library.getJSONObject(0).getJSONArray("user_book_reads").getJSONObject(0).getInt("progress_pages"))
         server.graphqlError = true
-        assertThrows(SyncProblem::class.java) { runBlocking { HardcoverSync(auth).send(book(), identifiers) } }
+        assertThrows(SyncProblem::class.java) { runBlocking { hardcoverSync().send(book(), identifiers) } }
         Unit
     }
 
@@ -576,7 +578,6 @@ class HardcoverTest {
     }
 
     @Test fun scheduledWorkerUsesFreshDetectedBookAndPreservesLocalChecksWhenSyncIsOff() = runBlocking {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         app.hardcover = HardcoverConnection(app, auth) { true }
         val provider = FixtureProvider().withSyncBook()
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, provider)
@@ -609,7 +610,7 @@ class HardcoverTest {
     @Test fun cancellationDuringLibraryReadPreventsSubsequentWrites() = runBlocking {
         server.libraryEntered = CountDownLatch(1)
         server.libraryRelease = CountDownLatch(1)
-        val sending = async(Dispatchers.IO) { HardcoverSync(auth).send(book(), identifiers) }
+        val sending = async(Dispatchers.IO) { hardcoverSync().send(book(), identifiers) }
         try {
             assertTrue(server.libraryEntered!!.await(5, TimeUnit.SECONDS))
             sending.cancel()
@@ -654,7 +655,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun hardcoverToggleEnablesSavedConnectionOrStartsSignIn() = runBlocking {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         app.hardcover = HardcoverConnection(app, auth) { true }
         val originalError = System.err
         val capturedError = java.io.ByteArrayOutputStream()
@@ -689,6 +689,8 @@ class HardcoverTest {
             awaitState { !app.hardcover.signingIn && app.hardcover.state().getBoolean("enabled") }
             assertTrue(auth.connected())
             assertTrue(server.requests.any { it.optString("grant_type").contains("device_code") })
+            val export = buildExport(app.diagnostics).toString()
+            listOf("synthetic-device-secret", "TEST-CODE", "old-access", "old-refresh").forEach { assertFalse(it, export.contains(it)) }
             awaitState { toggle()?.isChecked == true && toggle()?.isEnabled == true && !screen.busy }
             toggle()!!.performClick()
             awaitState { !app.hardcover.state().getBoolean("enabled") && toggle()?.isChecked == false && !screen.busy }
@@ -714,7 +716,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun signInCodeAppearsInAPopupAndCancelTurnsHardcoverOff() = capturingStderr {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         vault.clear()
         server.pendingResponses = 100
         app.hardcover = HardcoverConnection(app, auth) { true }
@@ -764,7 +765,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun recreatedScreenReopensThePopupAndBackTurnsHardcoverOff() = capturingStderr {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         vault.clear()
         server.pendingResponses = 100
         app.hardcover = HardcoverConnection(app, auth) { true }
@@ -802,7 +802,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun theDetailsPopupExplainsAKeptHardcoverEdition() = capturingStderr {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         // The user already reads edition 21 and is further ahead on it; the ebook's ISBN matches edition 20 exactly.
         server.withRead(300, edition = 21)
         ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
@@ -863,7 +862,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun theDetailsPopupNamesAnotherEditionWhenTheEbookEditionHasNoPages() = capturingStderr {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         // The ebook's ISBN matches edition 20, which has no page count, so the default edition 21 receives progress.
         server.editionPageCount = 0
         server.defaultPages = 500
@@ -900,7 +898,6 @@ class HardcoverTest {
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
     fun theRowOpensItsDetailsWhileTheAppOpenSyncRuns() = capturingStderr {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         // The account-details request is the last step of the sync; holding it keeps the screen busy.
         server.profileEntered = CountDownLatch(1)
         server.profileRelease = CountDownLatch(1)
@@ -939,7 +936,6 @@ class HardcoverTest {
     }
 
     @Test fun switchingOffFinishesCancellationBeforeASecondOnCanStart() = runBlocking {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         vault.clear()
         val connection = HardcoverConnection(app, auth) { true }
         server.tokenEntered = CountDownLatch(1)
@@ -965,7 +961,6 @@ class HardcoverTest {
     }
 
     @Test fun unreadableCredentialsExposeReconnectWithoutAddingEventsOnRefresh() = runBlocking {
-        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         val wrongKey = TokenVault(app) { SecretKeySpec(ByteArray(32) { 8 }, "AES") }
         val connection = HardcoverConnection(app, HardcoverAuth(server.http, wrongKey))
         val count = app.diagnostics.store.events().size

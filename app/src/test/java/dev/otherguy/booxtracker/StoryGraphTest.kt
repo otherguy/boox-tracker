@@ -269,7 +269,7 @@ class StoryGraphTest {
         connection.send("manual", check(book()))
         store.put("storygraph.profile", JSONObject().put("username", "reader").toString())
         store.put("storygraph.match.${digest("first")}", "{}")
-        store.enqueue("1", book(), identifiers, "earlier")
+        store.enqueue("1", book(), identifiers, "earlier", "hardcover")
         assertEquals(1, store.pending(STORYGRAPH_ACCOUNT, "storygraph").size)
         connection.logOut()
         val signOut = server.writes().single()
@@ -286,7 +286,7 @@ class StoryGraphTest {
         assertTrue(state.isNull("last"))
         assertEquals(0, state.getInt("pending"))
         assertNull(store.get("storygraph.match.${digest("first")}"))
-        assertEquals(1, store.pending("1").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
         assertTrue(store.events().any { it.optString("kind") == "storygraph_connection" && it.optString("outcome") == "logged_out" && it.optInt("deletedUpdates") == 1 })
     }
 

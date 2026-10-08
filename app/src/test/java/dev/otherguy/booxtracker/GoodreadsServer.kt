@@ -50,7 +50,9 @@ class GoodreadsEdition(
 /** A WebView profile with its own in-memory cookie jar, as a separate `androidx.webkit` profile keeps its own store. */
 class FakeWebProfile : WebProfile {
     var supported = true
-    var attached = 0
+    val attached = CopyOnWriteArrayList<WebView>()
+
+    @Volatile var flushes = 0
     private val cookies = linkedMapOf<String, String>()
 
     override fun supported() = supported
@@ -68,12 +70,14 @@ class FakeWebProfile : WebProfile {
 
     override suspend fun accept(url: String, setCookies: List<String>) = setCookies.forEach(::set)
 
-    override suspend fun flush() {}
+    override suspend fun flush() {
+        flushes++
+    }
 
     override suspend fun clear() = synchronized(this) { cookies.clear() }
 
     override fun attach(web: WebView) {
-        attached++
+        attached.add(web)
     }
 }
 

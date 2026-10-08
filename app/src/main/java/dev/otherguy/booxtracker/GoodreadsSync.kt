@@ -23,7 +23,7 @@ private fun JSONObject.day(name: String): LocalDate? = optJSONObject(name)?.let 
  * Sends one source book's progress to Goodreads: shelve, post the percentage when it moved far enough, confirm; or
  * shelve the book Read and set its finish date. The edition the user shelved keeps receiving the book's progress.
  */
-class GoodreadsSync(private val http: GoodreadsHttp, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
+class GoodreadsSync(private val http: GoodreadsHttp, private val store: DiagnosticsStore, private val maySend: () -> Boolean) {
     private suspend fun get(path: String): GoodreadsPage {
         coroutineContext.ensureActive()
         return http.get(path).also { coroutineContext.ensureActive() }
@@ -110,18 +110,18 @@ class GoodreadsSync(private val http: GoodreadsHttp, private val store: Diagnost
         }
         // Each post is public, so a value whose earlier post Goodreads did not show is held instead of posted again.
         val posted = "goodreads.book.posted.$target"
-        if (store?.get(posted) == percent.toString()) throw SyncProblem("goodreads_progress_not_applied")
-        store?.put(posted, percent.toString())
+        if (store.get(posted) == percent.toString()) throw SyncProblem("goodreads_progress_not_applied")
+        store.put(posted, percent.toString())
         try {
             post("/user_status.json", mapOf("user_status[book_id]" to target, "user_status[percent]" to percent.toString(), "user_status[body]" to ""), shelved.csrf, referer)
         } catch (error: HttpProblem) {
             // Goodreads answered and refused the post, so a retry posts nothing twice.
-            store?.delete(posted)
+            store.delete(posted)
             throw error
         }
         shelved = editions(workId)
         if (shelved.edition(target)?.percent != percent) throw SyncProblem("goodreads_progress_not_applied")
-        store?.delete(posted)
+        store.delete(posted)
         return detail.put("remotePercent", percent).put("outcome", "sent")
     }
 
@@ -167,11 +167,11 @@ class GoodreadsSync(private val http: GoodreadsHttp, private val store: Diagnost
     private suspend fun editorAction(html: String, referer: String): String {
         val paths = nextChunkPaths(html).ifEmpty { throw SyncProblem("goodreads_editor_unrecognized") }
         val chunks = digest(paths.joinToString("\n"))
-        store?.get("goodreads.editorAction")?.let(::JSONObject)?.takeIf { it.optString("chunks") == chunks }?.text("id")?.let { return it }
+        store.get("goodreads.editorAction")?.let(::JSONObject)?.takeIf { it.optString("chunks") == chunks }?.text("id")?.let { return it }
         for (path in paths.asReversed()) {
             coroutineContext.ensureActive()
             val id = serverActionId(http.script(path, referer), "submitReviewFormAction") ?: continue
-            store?.put("goodreads.editorAction", JSONObject().put("chunks", chunks).put("id", id).toString())
+            store.put("goodreads.editorAction", JSONObject().put("chunks", chunks).put("id", id).toString())
             return id
         }
         throw SyncProblem("goodreads_editor_action_missing")

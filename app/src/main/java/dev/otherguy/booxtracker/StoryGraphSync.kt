@@ -10,7 +10,7 @@ private val statuses = setOf("to_read", "currently_reading", "read", "paused", "
 internal fun statusKey(label: String?): String? = label?.trim()?.lowercase()?.replace(Regex("[\\s-]+"), "_")?.takeIf { it.isNotEmpty() }
 
 /** Sends one source book's progress to StoryGraph: shelve, write the percentage, confirm; or mark the book Read. */
-class StoryGraphSync(private val http: StoryGraphHttp, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
+class StoryGraphSync(private val http: StoryGraphHttp, private val store: DiagnosticsStore, private val maySend: () -> Boolean) {
     suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: String? = null): JSONObject {
         suspend fun get(path: String, frame: String? = null): String {
             coroutineContext.ensureActive()

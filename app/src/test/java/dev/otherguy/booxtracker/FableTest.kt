@@ -535,7 +535,7 @@ class FableTest {
         connection.setEnabled(true)
         connection.send("manual", check(book()))
         assertEquals(1, store.pending("account-1", "fable").size)
-        assertTrue(store.pending("account-1").isEmpty())
+        assertTrue(store.pending("account-1", "hardcover").isEmpty())
         assertTrue(server.requests.isEmpty())
         online = true
         assertFalse(connection.drain("delivery"))
@@ -547,7 +547,7 @@ class FableTest {
         app.hardcover = HardcoverConnection(app, HardcoverAuth(HardcoverHttp("http://127.0.0.1:9"), TokenVault(app) { SecretKeySpec(ByteArray(32) { 7 }, "AES") })) { error("network check failed") }
         store.put("hardcover.enabled", "true")
         store.put("hardcover.account", "1")
-        store.enqueue("1", book(), identifiers, "earlier")
+        store.enqueue("1", book(), identifiers, "earlier", "hardcover")
         app.fable = FableConnection(app, auth) { true }
         store.put("fable.account", "account-1")
         app.fable.setEnabled(true)
@@ -646,7 +646,7 @@ class FableTest {
         store.put("fable.profile", JSONObject().put("username", "reader").toString())
         store.put("fable.connectedAt", "1")
         store.put("fable.match.${digest("first")}", "{}")
-        store.enqueue("1", book(), identifiers, "earlier")
+        store.enqueue("1", book(), identifiers, "earlier", "hardcover")
         assertEquals(1, store.pending("account-1", "fable").size)
         connection.logOut()
         val state = connection.state()
@@ -657,7 +657,7 @@ class FableTest {
         assertTrue(state.isNull("last"))
         assertEquals(0, state.getInt("pending"))
         assertNull(store.get("fable.match.${digest("first")}"))
-        assertEquals(1, store.pending("1").size)
+        assertEquals(1, store.pending("1", "hardcover").size)
         assertTrue(store.events().any { it.optString("kind") == "fable_connection" && it.optString("outcome") == "logged_out" && it.optInt("deletedUpdates") == 1 })
     }
 

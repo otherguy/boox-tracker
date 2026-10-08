@@ -12,7 +12,7 @@ fun editionPages(raw: String?, pages: Int): Int {
     return fraction[0].multiply(pages.toBigDecimal()).divide(fraction[1], 0, RoundingMode.HALF_UP).intValueExact()
 }
 
-class HardcoverSync(private val auth: HardcoverAuth, private val store: DiagnosticsStore? = null, private val maySend: () -> Boolean = { true }) {
+class HardcoverSync(private val auth: HardcoverAuth, private val store: DiagnosticsStore, private val maySend: () -> Boolean) {
     suspend fun send(book: JSONObject, identifiers: BookIdentifiers, expectedAccount: Int? = null, readAt: String? = null): JSONObject = auth.authorized { token ->
         suspend fun query(query: String, variables: JSONObject = JSONObject()): JSONObject {
             coroutineContext.ensureActive()

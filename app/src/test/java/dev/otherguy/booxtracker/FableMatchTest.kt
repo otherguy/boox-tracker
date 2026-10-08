@@ -4,6 +4,7 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -31,8 +32,7 @@ class FableMatchTest {
         closeWorkDatabase()
     }
 
-    private fun matcher(store: DiagnosticsStore? = null) = FableMatcher({ server.http.get("old-id", it) }, store) { clock }
-    private fun match(identifiers: BookIdentifiers, key: String? = null, store: DiagnosticsStore? = null) = runBlocking { matcher(store).match(key, identifiers) }
+    private fun match(identifiers: BookIdentifiers, key: String? = null) = runBlocking { FableMatcher({ server.http.get("old-id", it) }, app.diagnostics.store) { clock }.match(key, identifiers) }
     private fun held(identifiers: BookIdentifiers) = assertThrows(SyncProblem::class.java) { match(identifiers) }.code
     private fun searches() = server.requests.count { it.getString("path") == "/api/books/search/" }
 
@@ -82,16 +82,15 @@ class FableMatchTest {
     }
 
     @Test fun cachedMatchIsReusedUntilMetadataChangesOrAnHourPasses() {
-        val store = app.diagnostics.store
         val identifiers = BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author")
-        match(identifiers, "book-key", store)
-        match(identifiers, "book-key", store)
+        match(identifiers, "book-key")
+        match(identifiers, "book-key")
         assertEquals(1, searches())
-        match(identifiers.copy(title = "Synthetic Book Revised"), "book-key", store)
+        match(identifiers.copy(title = "Synthetic Book Revised"), "book-key")
         assertEquals(2, searches())
         clock += 3_600_000
-        match(identifiers.copy(title = "Synthetic Book Revised"), "book-key", store)
+        match(identifiers.copy(title = "Synthetic Book Revised"), "book-key")
         assertEquals(3, searches())
-        assertTrue(store.get("fable.match.${digest("book-key")}") != null)
+        assertNotNull(app.diagnostics.store.get("fable.match.${digest("book-key")}"))
     }
 }

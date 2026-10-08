@@ -10,11 +10,11 @@ data class SearchHit(val id: String, val title: String, val authors: String)
  * Matches a source book to one StoryGraph edition. StoryGraph's search is fuzzy and answers an unknown ISBN with an
  * unrelated book, so an identifier hit counts only once the edition's own page shows the same `ISBN/UID`.
  */
-class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) -> String, private val store: DiagnosticsStore? = null, private val now: () -> Long = { System.currentTimeMillis() }) {
+class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) -> String, private val store: DiagnosticsStore, private val now: () -> Long = { System.currentTimeMillis() }) {
     suspend fun match(sourceKey: String?, metadata: BookIdentifiers): JSONObject {
         val fingerprint = digest(metadata.json().toString())
         val cacheKey = sourceKey?.let { "storygraph.match.${digest(it)}" }
-        val cached = cacheKey?.let { store?.get(it) }?.let(::JSONObject)
+        val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
         // Evidence is edition id to (normalized title, author key): editions that share both are one book.
         val evidence = linkedMapOf<String, Pair<String?, String?>>()
@@ -43,7 +43,7 @@ class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) 
         val bookId = evidence.keys.firstOrNull()
         val result = JSONObject().put("bookId", bookId ?: titleMatch(metadata)).put("matchKind", if (bookId == null) "book" else "edition")
             .put("fingerprint", fingerprint).put("matchedAt", now())
-        if (cacheKey != null) store?.put(cacheKey, result.toString())
+        if (cacheKey != null) store.put(cacheKey, result.toString())
         return result
     }
 
