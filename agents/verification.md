@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-08 for Boox Tracker 0.6.0/code 25 (Goodreads), built and automatically tested; 0.5.3/code 24 (StoryGraph, the Syncing spinner, the bold Hardcover code) is installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-08 for Boox Tracker 0.6.0/code 25 (Goodreads), pushed at `1b52866` and installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -47,7 +47,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 
 ## Goodreads tracker 0.6.0
 
-**Built:** debug and signed diagnostic APKs, version 0.6.0/code 25, not committed. New dependency `androidx.webkit:webkit:1.17.1` (published 2026-09-23) for the separate `goodreads` WebView profile. Package, certificate (`678df89d…4b420d`), schemas, ebook cache namespace, and Keystore alias are unchanged. Artifact `dist/boox-tracker-0.6.0-diagnostic.apk`, 3,714,983 bytes, SHA-256 `80775c6bef99b523603da0eb258b9aa9179844d58e6c0acf5e117eb003308b0e`. The merged manifest has the same permissions as before: INTERNET, ACCESS_NETWORK_STATE, and WorkManager's WAKE_LOCK, RECEIVE_BOOT_COMPLETED, and FOREGROUND_SERVICE.
+**Built:** debug and signed diagnostic APKs, version 0.6.0/code 25, committed and pushed on `main` at `1b52866`. New dependency `androidx.webkit:webkit:1.17.1` (published 2026-09-23) for the separate `goodreads` WebView profile. Package, certificate (`678df89d…4b420d`), schemas, ebook cache namespace, and Keystore alias are unchanged. Artifact `dist/boox-tracker-0.6.0-diagnostic.apk`, 3,714,983 bytes, SHA-256 `80775c6bef99b523603da0eb258b9aa9179844d58e6c0acf5e117eb003308b0e`. The merged manifest has the same permissions as before: INTERNET, ACCESS_NETWORK_STATE, and WorkManager's WAKE_LOCK, RECEIVE_BOOT_COMPLETED, and FOREGROUND_SERVICE.
 
 Goodreads is the fourth tracker, under the [Goodreads plan](plan-20261008-goodreads-sync.md) and the [contract](integrations.md#goodreads). Goodreads has no API for new apps; the user accepted driving its website through a browser session on 2026-10-08. Sign-in is Goodreads' own page in the bordered WebView popup, which StoryGraph now shares as `webSignInDialog`. Requests use `HttpURLConnection` with the Goodreads profile's cookies and the WebView's User-Agent. Deviations from the approved plan are in its Notes.
 
@@ -57,7 +57,7 @@ Goodreads is the fourth tracker, under the [Goodreads plan](plan-20261008-goodre
 
 The host JVM's `HttpURLConnection` drops `Sec-Fetch-*` and `Origin` request headers, so tests check only the headers it keeps; Android's client sends them. Robolectric's cookie shadow does not enforce WebView's rule that `removeAllCookies` with a callback runs on a Looper thread; Chromium's `AwCookieManager` throws otherwise, so the Goodreads profile clears on the main thread. StoryGraph's `StoryGraphSession.clear()` called it from the I/O thread that Log out and Cancel run on, so StoryGraph Log out would have thrown before deleting anything; it now runs the removal on the main thread too. `LooperCheckingCookieManager` is a test shadow that enforces the rule, and a StoryGraph test logs out from an I/O thread: it failed with the shipping code and passes with the fix.
 
-**Verified on physical BOOX:** nothing yet. The [Goodreads device checks](device-testing.md#goodreads-sync) are open; the hidden-WebView challenge path and the renewal job have no device evidence.
+**Verified on physical BOOX:** the signed 0.6.0/code 25 APK, committed and pushed on `main` at `1b52866`, was installed over 0.5.3/code 24 by USB at 21:25 device time on 2026-10-08 with the data inode `129824` unchanged, the package not disabled, and no uninstall or data clear. Started by ADB, MainActivity resumed with no crash logged. The screen showed the Goodreads row available (Off, Not connected), StoryGraph, Hardcover, and Fable still On with "same edition" at 53.35%, and Margins Coming soon; that app-open is foreground evidence only. The [Goodreads device checks](device-testing.md#goodreads-sync) are open; the hidden-WebView challenge path and the renewal job have no device evidence. [Android checks](https://github.com/otherguy/boox-tracker/actions/runs/37792333565) for `1b52866` were still running at install time.
 
 ## Syncing spinner and bold Hardcover code 0.5.3
 

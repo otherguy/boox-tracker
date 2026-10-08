@@ -140,7 +140,7 @@ Clone `storyGraphSignInDialog()`: profile attached before `loadUrl("https://www.
 
 ### Physical (GoColor7, WebView 151)
 
-- [ ] Install 0.6.0 over 0.5.3 without data loss; StoryGraph stays connected after the Goodreads profile is created.
+- [ ] Install 0.6.0 over 0.5.3 without data loss (done 2026-10-08 21:25, inode unchanged, StoryGraph still connected); StoryGraph stays connected after the Goodreads profile is created at sign-in.
 - [ ] Sign in through the popup with email; the popup closes; the details popup shows the account; a `goodreads_refresh` run event appears after the job's first slot.
 - [ ] First sync: In the Blood matched by ISBN-13, the shelved Kindle edition kept, progress written and read back from the widget; a second sync within 5 points is `already_current` with no new status update on the site.
 - [ ] Challenge: force one if possible (many requests in a short time or a new network); otherwise record that none occurred over the test window. Measure the `aws-waf-token` lifetime if one is set.
@@ -171,4 +171,4 @@ Gates in `AGENTS.md` (unit tests, lint, assemble, ktlint, ruff, markdownlint, ac
 - A shelved edition that an identifier confirmed counts as the same edition, so In the Blood's Kindle ISBN reports "same edition" even when a `goodreads:` tag names the hardcover.
 - WebView's `removeAllCookies` with a callback needs a Looper thread (Chromium `AwCookieManager`), so the Goodreads profile clears on the main thread. StoryGraph's `clear()` had the same pattern; at the user's request it was fixed in this change, with a Looper-enforcing cookie shadow and a failing-first test.
 - Review findings applied and kept are listed in [verification](verification.md#goodreads-tracker-060).
-- Not committed. Commit, push, and device install wait for the user.
+- Committed and pushed at `1b52866` and installed on the GoColor7 on 2026-10-08, at the user's request.
