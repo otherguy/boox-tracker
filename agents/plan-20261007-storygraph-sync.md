@@ -22,7 +22,8 @@ Approved 2026-10-07. StoryGraph becomes the third tracker through its website se
 - [x] `MainActivity.kt`: row, popup, `updateStoryGraphSignIn`, `fixedPane`, `connectionText`, `serviceIssues`, `storyGraphReport`; `ids.xml`.
 - [x] Tests for sign-in, cancel, expiry and challenge marking; debug build.
 - [x] Physical: sign in through the popup; the popup closes and `@username` shows in the details popup (0.5.1, 2026-10-08). The first sync passed Cloudflare (0.5.2).
-- [ ] Physical (transport spike, continued): Sync Now after 35 min, 2 h, the next morning, after a reboot, and from a different Wi-Fi network; none records `storygraph_browser_check_required`.
+- [x] Physical (transport spike): Sync Now 35 min and more after sign-in, a later manual sync, and a sync after a reboot passed (2026-10-08).
+- [ ] Physical (transport spike, continued): a sync a few hours on, one the next day, and one from another country; none records `storygraph_browser_check_required`.
 
 ## Match and parsing
 
@@ -54,7 +55,7 @@ Approved 2026-10-07. StoryGraph becomes the third tracker through its website se
 ## Notes
 
 - Fixtures are sanitised excerpts of the real pages with placeholders, assembled by the fake server, not whole saved pages: a 130 KB page per state would have put the user's library into the repository.
-- A paused edition is marked currently reading before its progress is compared, because the progress pane was only observed while currently reading and the paused page was not observed. The result reports `shelfBefore: paused`; the public guide says a paused book is resumed.
+- A paused edition is marked currently reading before its progress is compared; the user confirmed this on 2026-10-08. The result reports `shelfBefore: paused`; the public guide says a paused book is resumed.
 - Both reviews ran on 2026-10-08 and their findings were applied; see [verification](verification.md#storygraph-tracker-050). The reviews also suggested moving the sign-in job handling and the matcher preambles into code shared with Fable; left as is, because this change does not need that refactor.
 - The emulator shows the row only; the sign-in page and every write are device checks.
 - The first full gate run stopped at a then-failing screen test, so the assemble tasks only ran in the final run.

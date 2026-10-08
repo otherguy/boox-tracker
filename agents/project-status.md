@@ -15,7 +15,7 @@ State on 2026-10-07:
 
 Next physical checks, in order:
 
-1. [StoryGraph transport spike](device-testing.md#storygraph-sync), continued: Sync Now after 35 minutes, two hours, a night, a reboot, and on another network. The sign-in and the first sync passed. A challenge later re-plans the StoryGraph transport before anything else is released.
+1. [StoryGraph transport spike](device-testing.md#storygraph-sync), continued: a sync a few hours after sign-in, one the next day, and one from another country. The sign-in, the first syncs, a later manual sync, and a sync after a reboot passed on 2026-10-08. A challenge later re-plans the StoryGraph transport before anything else is released.
 2. [Fable sync](device-testing.md#fable-sync), including the first reading day that has no "I read today" tap: after the sync, the day must show as read on Fable's streak. The first device sign-in and the first sync more than one hour later are the first live checks of Firebase sign-in and refresh.
 3. [Completion sync](device-testing.md#completion-sync) on Hardcover.
 4. [Hidden-app offline collection and delivery](device-testing.md#offline-collection-and-hidden-app-delivery).
