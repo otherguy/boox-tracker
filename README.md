@@ -18,7 +18,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 | --- | --- | --- |
 | [Hardcover](https://hardcover.app) | Enabled | 0.2.0 |
 | [Goodreads](https://www.goodreads.com) | Coming Soon | — |
-| [StoryGraph](https://www.thestorygraph.com) | Enabled² | 0.5.0 |
+| [StoryGraph](https://www.thestorygraph.com) | Enabled² | 0.5.2 |
 | [Fable](https://fable.co) | Enabled¹ | 0.4.0 |
 | [Margins](https://margins.app) | Coming Soon | — |
 

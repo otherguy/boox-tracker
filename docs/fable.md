@@ -33,7 +33,7 @@ Fable stores whole percentages. Boox Tracker sends NeoReader's saved percentage 
 - A book on Finished or Did Not Finish on Fable is protected: reopening it in NeoReader holds the update instead of changing it.
 - Boox Tracker does not change ratings, reviews, or other lists.
 
-Offline updates wait in the same queue as other services. Turning Fable Off pauses its updates without affecting Hardcover.
+Offline updates wait in the same queue as other services. Turning Fable Off pauses its updates without affecting the other services.
 
 ## Account details and log out
 

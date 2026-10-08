@@ -6,7 +6,7 @@ Updated 2026-10-08 after 0.5.2, which adds StoryGraph through its website sessio
 
 State on 2026-10-07:
 
-- **Source:** Hardcover (automatic matching, offline queue, completion sync), Fable, and StoryGraph are built. 0.5.2 (StoryGraph) is in the working tree on `main`, built and tested locally, not yet committed. 0.4.8 is committed and pushed on `main`; its CI result is not yet recorded. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
+- **Source:** Hardcover (automatic matching, offline queue, completion sync), Fable, and StoryGraph are built. 0.5.2 (StoryGraph) is committed on `main` at `5088fca`, not yet pushed. 0.4.8 is pushed at `92089e5`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37650190310) for it. 0.4.7 is pushed at `bb73e8e`, and [GitHub Android checks passed](https://github.com/otherguy/boox-tracker/actions/runs/37609064626) for that commit. Checks [failed](https://github.com/otherguy/boox-tracker/actions/runs/37583646420) for `a72c541` on a test race fixed in 0.4.5 (see [verification](verification.md#provider-rows-and-ci-diagnostics-045)).
 - **Device:** signed 0.5.2/code 23 is installed over 0.5.1 on the GoColor7 by USB at 18:04 on 2026-10-08 (device time), after 0.5.0 at 17:25 and 0.5.1 at 17:37, each started by ADB with no crash logged. The user signed in to StoryGraph on 0.5.1; 0.5.2's app-open sync matched In the Blood by ISBN and wrote 52% to the shelved hardcover, confirmed on StoryGraph (see [verification](verification.md#storygraph-tracker-050-popup-keyboard-051-page-attributes-052)). In the Blood is at 52.23% in NeoReader. Before that, signed 0.4.8/code 20 was installed over 0.4.7 at 18:15 on 2026-10-07 and started by ADB with no crash logged. The user then checked the new Activity tab and popup on the device and reported that it looks right. Before that, 0.4.7/code 19 was installed at 17:37 and opened by ADB. In the Blood is at 52.23%. Hardcover keeps 254 of 480 pages and warns with the amber triangle; Fable is level at 52% with no warning. The ebook file was replaced at 13:56 that day, and NeoReader keeps a second record for it (see [verification](verification.md#source-identifiers-and-display)).
 - **Hardcover account:** In the Blood has one read, 7080312 (start date 2026-09-14 as edited by the user, 254 pages, Currently Reading). The user deleted the undated duplicate 7080314 after the 0.4.4 test and switched their edition to Kindle edition 30462394 (ISBN 9781982181680), which now matches the ebook's ISBN; the read uses the same edition. Data directory inode `129824` is unchanged; no uninstall or data clear was issued.
 - **Fable account:** on 2026-10-07 the user removed the US ebook of In the Blood from their Fable shelves and changed the book's ISBN on the BOOX to get a different Fable edition. The Fable row then showed a pending match; no Fable result for the new ISBN has been inspected. The UK paperback sibling had a stray 0% record on no list.
@@ -104,7 +104,7 @@ Foreground checks around 22:03–22:04 and 22:31–22:32 local time on 2026-10-0
 
 ## Missing evidence and next work
 
-- Validate StoryGraph sign-in through the WebView popup and run the Cloudflare transport spike before any StoryGraph release; then an unshelved book, completion, and the reopen hold.
+- Finish the StoryGraph transport spike (Sync Now after 35 minutes, two hours, a night, a reboot, and on another network) before any StoryGraph release; then an unshelved book, completion, the reopen hold, Log out, and the explicit tag.
 - Validate Fable sign-in, sync, shelving, completion, and the first token refresh on the device.
 - Validate hidden-app offline collection and delivery after reconnection; inspect events before app-open sends.
 - Validate book-only fallback, using the supplied Savage Son case without catalogue edits.
@@ -124,6 +124,7 @@ Goodreads and Margins connectors, rereads, additional embedded-format parsers, s
 | [Integrations](integrations.md) / [provider research](research.md) | Dated findings, samples, licences, unknown contracts |
 | [Verification](verification.md) / [device testing](device-testing.md) | Separate automatic/device proof and next protocol |
 | [Build and release](build-and-release.md) | Tools, signing, packaging, CI, publication rules |
-| [Fable plan](plan-20261006-fable-sync.md) | Latest approved scope and its pending physical checks |
+| [StoryGraph plan](plan-20261007-storygraph-sync.md) | Latest approved scope, its notes, and its pending physical checks |
+| [Fable plan](plan-20261006-fable-sync.md) | Completed scope with pending physical checks |
 | [Automatic/offline plan](plan-20261006-automatic-offline-sync.md) / [completion plan](plan-20261006-completion-sync.md) | Completed scopes with pending physical checks |
 | [Diagnostic plan](plan-20261004-reading-sync-poc.md) / [first connector plan](plan-20261006-hardcover-first.md) | Historical approved scopes, superseded requirements |

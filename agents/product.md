@@ -71,8 +71,8 @@ The order of open physical checks is in [project status](project-status.md#resum
 
 | Area | Missing implementation or decision |
 | --- | --- |
-| Other services | Fable built on an unofficial API; StoryGraph on its website session, with the Cloudflare transport check pending on the device. Goodreads/Margins: supported APIs/authentication undecided. Margins inquiry sent, no reply/access reported as of 2026-10-05 |
-| Reading lifecycle | Rereads and any wider conflict policy. A Sync All backfill button was considered and rejected on 2026-10-06 in favour of completion sync for the detected book, which is now built |
+| Other services | Fable built on an unofficial API; StoryGraph on its website session, whose first sync passed Cloudflare on the device while the spike's later intervals stay open. Goodreads/Margins: supported APIs/authentication undecided. Margins inquiry sent, no reply/access reported as of 2026-10-05 |
+| Reading lifecycle | Rereads and any wider conflict policy. StoryGraph marks a paused edition currently reading before comparing progress, so a paused edition with more progress gets a status write under a kept result; whether to hold paused editions instead is undecided (raised 2026-10-08). A Sync All backfill button was considered and rejected on 2026-10-06 in favour of completion sync for the detected book, which is now built |
 | Sources | Embedded non-EPUB metadata parsers and separately scoped statistics-provider access, if needed |
 | Website | Proposed project/download site under an unspecified otherguy.dev subdomain; hosting not selected |
 | Distribution | Updater, optional Obtainium/store channels |

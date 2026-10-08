@@ -8,7 +8,7 @@ The [automatic matching/offline plan](plan-20261006-automatic-offline-sync.md) s
 | --- | --- |
 | Hardcover | Native device OAuth, automatic matching, conservative progress, durable queue; user confirmed manual exact matching and delivery on 0.3.1 |
 | Goodreads | IDs extracted and used through Hardcover mappings; no Goodreads connector/authentication/sends |
-| StoryGraph | 0.5.0 website session: sign-in in an in-app WebView, `HttpURLConnection` with the session cookies, automatic matching confirmed by edition pages, currently-reading and read writes, durable queue; no API; Cloudflare transport spike pending on the device |
+| StoryGraph | 0.5.2 website session: sign-in in an in-app WebView, `HttpURLConnection` with the session cookies, automatic matching confirmed by edition pages, currently-reading and read writes, durable queue; no API; sign-in, the first sync past Cloudflare, the ISBN match and a progress write verified on the GoColor7; the spike's later intervals, completion and Log out pending |
 | Fable | 0.4.0 email/password sign-in, automatic matching, shelving, percentage progress, durable queue; unofficial app API; physical checks pending |
 | Margins | Explicit identifier display only; Coming Soon. Inquiry sent; no reply/access reported as of 2026-10-05 |
 
