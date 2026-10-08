@@ -56,7 +56,7 @@ On 0.6.1 the Activity log showed "Goodreads session not renewed · timeout" at 2
 
 **Automatically tested:** 258 tests, zero failures/errors. The renewal worker test checks the initial delay for a stale and a just-renewed session, and that a timeout keeps the session and records `pageState`. Both lint variants, both assemblies, and ktlint passed. The hidden WebView's page state has no automatic test, because Robolectric runs no page JavaScript.
 
-**Verified on physical BOOX:** not yet.
+**Verified on physical BOOX:** installed over 0.6.2 by USB at 00:44 device time on 2026-10-09, versionCode 27 → 28, data inode `129824` unchanged, no uninstall or data clear. Started by ADB with no crash logged. The renewal work enqueued at sign-in kept its schedule under `KEEP`; its next run was due at about 05:20 device time. The new start delay applies only to work enqueued after this install; no renewal timeout on 0.6.3 has been seen yet.
 
 ## Clear activity 0.6.2
 
