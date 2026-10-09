@@ -3,8 +3,11 @@ package dev.otherguy.booxtracker
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.provider.DocumentsContract
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.IOException
 import java.time.Instant
 import org.json.JSONObject
 
@@ -20,10 +23,11 @@ fun buildExport(diagnostics: Diagnostics): JSONObject = JSONObject()
         "Local reads and optional Hardcover, Goodreads, Fable, StoryGraph, Pagebound, and Margins sends are separate events. Provider percentages may differ from NeoReader's in-book percentage. Fractions are not physical pages. Automatic detection uses saved lastAccess and may not identify the open book. Hardcover progress_pages is an approximate equivalent for the chosen positive-page-count edition. Fable receives the whole percentage rounded down through its unofficial app API; Fable passwords are never stored. StoryGraph receives the whole percentage rounded down through its website session; its cookies are never exported. Goodreads receives the percentage rounded down to a multiple of 5 through its website session, and the finish date through its review editor; its cookies are never exported. Pagebound receives the percentage rounded down to a multiple of 5 through its unofficial app API; Pagebound passwords are never stored and its tokens are never exported. Margins receives the percentage rounded down to a multiple of 5 as reading sessions through its unofficial sync protocol; its sign-in codes are never stored and its tokens are never exported. Matching and pending delivery are separate. Collection and delivery events with appVisibleAtStart or appVisible true do not prove independent background execution. Queues retain the latest observation for each account and source book. Observations are the retained events: at most 1,000 and none older than 30 days; routine events from before the last successful sync are removed once they are 48 hours old. Check events summarize the selected book unless the check reports an issue; latestSnapshot has the full records and columns. Credentials, sign-in codes, folder URIs, and full paths are omitted."
     )
 
-fun exportIntent(
+/** Writes the export as a summary text file and a JSON file, in that order, replacing the previous export. */
+fun writeExport(
     context: Context,
     data: JSONObject
-): Intent {
+): List<File> {
     val directory = File(context.cacheDir, "exports").apply { mkdirs() }
     // Only the newest export is kept; earlier files were already shared or abandoned.
     directory.listFiles()?.forEach { it.delete() }
@@ -57,7 +61,14 @@ fun exportIntent(
                 }
             )
         }
-    val uris = arrayListOf(summary, json).map { FileProvider.getUriForFile(context, "${context.packageName}.exports", it) }
+    return listOf(summary, json)
+}
+
+fun exportIntent(
+    context: Context,
+    files: List<File>
+): Intent {
+    val uris = files.map { FileProvider.getUriForFile(context, "${context.packageName}.exports", it) }
     return Intent(Intent.ACTION_SEND_MULTIPLE)
         .setType("*/*")
         .putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
@@ -66,6 +77,28 @@ fun exportIntent(
             clipData =
                 ClipData.newUri(context.contentResolver, "Boox Tracker diagnostics", uris[0]).apply { addItem(ClipData.Item(uris[1])) }
         }
+}
+
+/** Copies the export [files] into the folder [tree] that the user picked. */
+fun saveExport(
+    context: Context,
+    tree: Uri,
+    files: List<File>
+) {
+    val folder = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
+    val created = mutableListOf<Uri>()
+    try {
+        files.forEach { file ->
+            val type = if (file.extension == "json") "application/json" else "text/plain"
+            val document = DocumentsContract.createDocument(context.contentResolver, folder, type, file.name) ?: throw IOException("export_not_created")
+            created += document
+            (context.contentResolver.openOutputStream(document) ?: throw IOException("export_not_writable")).use { it.write(file.readBytes()) }
+        }
+    } catch (error: Exception) {
+        // A partial export is removed, so the folder holds both files or neither.
+        created.forEach { runCatching { DocumentsContract.deleteDocument(context.contentResolver, it) } }
+        throw error
+    }
 }
 
 fun safeExport(value: Any): Any = when (value) {

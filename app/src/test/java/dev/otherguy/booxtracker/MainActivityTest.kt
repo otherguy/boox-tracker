@@ -418,6 +418,56 @@ class MainActivityTest {
         }
     }
 
+    @Test fun exportSavesTheSummaryAndTheJsonToThePickedFolder() = runBlocking {
+        repeat(3) { app.diagnostics.store.append(event(it)) }
+        val folder = WritableFolderProvider().apply {
+            attachInfo(
+                app,
+                android.content.pm.ProviderInfo().apply {
+                    authority = "test.export"
+                    applicationInfo = app.applicationInfo
+                }
+            )
+            ShadowContentResolver.registerProviderInternal("test.export", this)
+        }
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            activity.findViewById<Button>(R.id.activity).performClick()
+            activity.findViewById<Button>(R.id.export).performClick()
+            awaitUi { shownDialog()?.getButton(android.content.DialogInterface.BUTTON_NEUTRAL)?.text == "Share" }
+            shownDialog()!!.getButton(android.content.DialogInterface.BUTTON_POSITIVE).performClick()
+            awaitUi { shadowOf(activity).peekNextStartedActivityForResult()?.intent?.action == android.content.Intent.ACTION_OPEN_DOCUMENT_TREE }
+            val picker = shadowOf(activity).nextStartedActivityForResult.intent
+            shadowOf(activity).receiveResult(picker, android.app.Activity.RESULT_OK, android.content.Intent().setData(android.net.Uri.parse("content://test.export/tree/downloads")))
+            awaitUi { folder.files.size == 2 && popupMessage() != null }
+            assertEquals(listOf("text/plain", "application/json"), folder.files.map { it.type })
+            assertTrue(folder.files[0].name.matches(Regex("summary-\\d+\\.txt")))
+            assertEquals(3, JSONObject(folder.files[1].file.readText()).getJSONArray("observations").length())
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    /** A picked folder that answers the document-create call and keeps what is written to each new document. */
+    private class WritableFolderProvider : android.content.ContentProvider() {
+        class Saved(val name: String, val type: String, val file: java.io.File)
+        val files = mutableListOf<Saved>()
+        override fun onCreate() = true
+        override fun call(method: String, arg: String?, extras: android.os.Bundle?): android.os.Bundle {
+            assertEquals("android:createDocument", method)
+            val name = extras!!.getString(android.provider.DocumentsContract.Document.COLUMN_DISPLAY_NAME)!!
+            files += Saved(name, extras.getString(android.provider.DocumentsContract.Document.COLUMN_MIME_TYPE)!!, java.io.File.createTempFile("export", null))
+            return android.os.Bundle().apply { putParcelable("uri", android.provider.DocumentsContract.buildDocumentUriUsingTree(android.net.Uri.parse("content://test.export/tree/downloads"), "${files.size - 1}")) }
+        }
+        override fun openFile(uri: android.net.Uri, mode: String): android.os.ParcelFileDescriptor = android.os.ParcelFileDescriptor.open(files[android.provider.DocumentsContract.getDocumentId(uri).toInt()].file, android.os.ParcelFileDescriptor.parseMode(mode))
+        override fun query(uri: android.net.Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?) = null
+        override fun getType(uri: android.net.Uri) = null
+        override fun insert(uri: android.net.Uri, values: android.content.ContentValues?) = null
+        override fun update(uri: android.net.Uri, values: android.content.ContentValues?, selection: String?, selectionArgs: Array<out String>?) = 0
+        override fun delete(uri: android.net.Uri, selection: String?, selectionArgs: Array<out String>?) = 0
+    }
+
     @Test fun tappingARowOpensASummaryTabAndAMonospaceJsonTab() = runBlocking {
         repeat(3) { app.diagnostics.store.append(event(it, unchanged = true)) }
         app.diagnostics.store.append(event(3, issue = true))

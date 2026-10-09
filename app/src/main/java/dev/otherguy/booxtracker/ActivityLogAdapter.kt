@@ -214,6 +214,8 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
 
         kind == "interruption_detected" -> "$background interrupted"
 
+        kind == "run_stopped_by_restart" -> "$background stopped by shutdown".also { parts += "the device shut down or restarted during the run" }
+
         kind == "worker_failed" -> "$background failed".also { parts += listOfNotNull(reason) }
 
         kind == "prune_failed" -> "Log cleanup failed".also { parts += listOfNotNull(event.text("class")?.substringAfterLast('.')) }

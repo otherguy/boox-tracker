@@ -46,6 +46,15 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Interrupted background runs and export to a folder 0.8.1
+
+The Activity log on the GoColor7 showed six "Background run interrupted" issues from 23:08 on 2026-10-07 to 10:28 on 2026-10-09 (device time, UTC+07:00). All six were `scheduled` runs, every one was detected 22–35 s after a boot, and each was followed by a retried run that completed, so no progress was lost.
+
+**Diagnosis, 2026-10-09, from the 315-event export, `persist.sys.boot.reason.history`, the dropbox `SYSTEM_BOOT` entries, and `dumpsys batterystats --history`:**
+
+- Three runs (started 00:21 and 20:27 on 2026-10-08, 01:58 on 2026-10-09) were stopped by a device shutdown. Each started about 5 s after an `app_open` check, while the app was already hidden, and logged its check; the next event is the detection after the next boot. The battery history shows Onyx's `*walarm*:onyx_auto_shutdown` alarm (or the `OnyxPowerManager:standbyAlarm` screen wake), then `ShutdownThread`, and the computed shutdown times match the run starts to about a second. The shutdown wakes the screen, so Boox Tracker, left on top, resumes and checks; the shutdown screen then hides it, the overdue periodic work starts, and the shutdown ends the process. All three boot reasons are `shutdown`, and dropbox holds no crash or ANR for the package.
+- Three runs (23:08 on 2026-10-07, 17:24 on 2026-10-08, 10:28 on 2026-10-09) died in the same boot: the first job after a boot started 10–13 s after boot and its process ended 0.1–2.4 s later, and a new process ran the retry. On the 21:22 boot of 2026-10-08 the same early death happened before the run marker was written, so it was not recorded. The killer is not established. Lead: in the 14:30 boot log of 2026-10-09, ActivityManager killed NeoBrowser 11 s after boot with the reason `eac_enable_status_changed`, and the launcher updated Boox Tracker's EAC data 14–19 s after boot; Boox Tracker was not running then. Confirming it needs a boot-time logcat of a boot where the overdue job runs at once.
+
 ## Margins tracker 0.8.0
 
 Margins is the sixth tracker, under the [Margins plan](plan-20261009-margins-sync.md) and the [contract](integrations.md#margins). Margins has no public API; the user accepted using its website's Supabase sign-in and Zero sync server on 2026-10-09. Deviations from the approved plan are in its Notes.

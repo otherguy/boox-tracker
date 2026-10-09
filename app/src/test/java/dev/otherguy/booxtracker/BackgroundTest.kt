@@ -61,6 +61,28 @@ class BackgroundTest {
         assertTrue(d.store.events().any { it.optString("kind") == "interruption_detected" && it.optString("runId") == "interrupted" })
     }
 
+    @Test fun aRunFromAnEarlierBootIsARoutineShutdownStopNotAnIssue() = runBlocking {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        val d = app.diagnostics
+        d.ensureRecovered()
+        android.provider.Settings.Global.putInt(app.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 7)
+        d.startRun("scheduled", "before-shutdown")
+        android.provider.Settings.Global.putInt(app.contentResolver, android.provider.Settings.Global.BOOT_COUNT, 8)
+        d.recover()
+        val stop = d.store.events().single { it.optString("runId") == "before-shutdown" }
+        assertEquals("run_stopped_by_restart", stop.getString("kind"))
+        assertFalse(stop.getBoolean("issue"))
+        d.startRun("scheduled", "same-boot")
+        d.recover()
+        val interruption = d.store.events().single { it.optString("runId") == "same-boot" }
+        assertEquals("interruption_detected", interruption.getString("kind"))
+        assertTrue(interruption.getBoolean("issue"))
+        // A marker without a boot count, from a version before the count was stored, stays an issue.
+        d.store.put("active.scheduled", JSONObject().put("id", "no-count").toString())
+        d.recover()
+        assertTrue(d.store.events().single { it.optString("runId") == "no-count" }.getBoolean("issue"))
+    }
+
     @Test fun collectionIsOneUniqueFifteenMinuteWork() = runBlocking {
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         scheduleCollection(app)

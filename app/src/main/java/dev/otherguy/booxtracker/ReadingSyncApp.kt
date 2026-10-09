@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.SystemClock
+import android.provider.Settings
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -269,9 +270,17 @@ class Diagnostics(
             store.get("active.$source")?.takeIf { it.isNotEmpty() }?.let { value ->
                 // Older versions stored only the run id.
                 val active = if (value.startsWith("{")) JSONObject(value) else JSONObject().put("id", value)
-                val detail = JSONObject().put("reason", "Previous run has no recorded stop; termination time and cause are unknown")
-                detail.putOpt("startedAt", active.text("startedAt"))
-                event(source, "interruption_detected", active.getString("id"), detail, true)
+                // Android stops every process when the device shuts down, so a run from an earlier boot is not an app failure.
+                val started = active.optInt("bootCount", -1)
+                val restarted = started >= 0 && bootCount().let { it >= 0 && it != started }
+                val (kind, reason) =
+                    if (restarted) {
+                        "run_stopped_by_restart" to "The device shut down or restarted during the run"
+                    } else {
+                        "interruption_detected" to "Previous run has no recorded stop; termination time and cause are unknown"
+                    }
+                val detail = JSONObject().put("reason", reason).putOpt("startedAt", active.text("startedAt"))
+                event(source, kind, active.getString("id"), detail, !restarted)
                 store.put("active.$source", "")
             }
         }
@@ -308,9 +317,12 @@ class Diagnostics(
         store.put(
             "active.$source",
             JSONObject().put("id", id).put("startedAt", Instant.now().toString()).put("startedElapsedMs", SystemClock.elapsedRealtime())
-                .put("appVisible", app.visible).toString()
+                .put("appVisible", app.visible).put("bootCount", bootCount()).toString()
         )
     }
+
+    /** How many times the device has booted, or -1 when Android does not report it. */
+    private fun bootCount() = Settings.Global.getInt(app.contentResolver, Settings.Global.BOOT_COUNT, -1)
 
     /** Records one `run` event for the worker run that [startRun] began, then applies the retention limits. */
     fun stopRun(

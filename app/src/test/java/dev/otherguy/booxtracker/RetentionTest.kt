@@ -201,8 +201,8 @@ class RetentionTest {
     }
 
     @Test fun aNewExportReplacesThePreviousExportFiles() {
-        exportIntent(app, buildExport(app.diagnostics))
-        exportIntent(app, buildExport(app.diagnostics))
+        writeExport(app, buildExport(app.diagnostics))
+        writeExport(app, buildExport(app.diagnostics))
         assertEquals(2, File(app.cacheDir, "exports").listFiles()!!.size)
     }
 }

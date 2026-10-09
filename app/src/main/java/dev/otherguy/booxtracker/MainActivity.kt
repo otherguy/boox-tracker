@@ -122,6 +122,22 @@ class MainActivity : AppCompatActivity() {
     private class WebSignInViews(val dialog: AlertDialog, val status: TextView) {
         var loadError: String? = null
     }
+    private val exportFolder = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { tree ->
+        model.pickerActive = false
+        refresh()
+        tree ?: return@registerForActivityResult
+        lifecycleScope.launch {
+            val message = try {
+                val files = withContext(Dispatchers.IO) { writeExport(this@MainActivity, buildExport(diagnostics)).also { saveExport(this@MainActivity, tree, it) } }
+                "Saved ${files.joinToString(" and ") { it.name }}."
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                "The export could not be saved to that folder. Pick another folder, or use Share."
+            }
+            notice(message)
+        }
+    }
     private val ebookFolder = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         model.pickerActive = false
         val uri = result.data?.data
@@ -230,10 +246,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         findViewById<Button>(R.id.export).setOnClickListener {
-            lifecycleScope.launch {
-                val intent = withContext(Dispatchers.IO) { exportIntent(this@MainActivity, buildExport(diagnostics)) }
-                startActivity(Intent.createChooser(intent, "Export diagnostics"))
-            }
+            chooseExport()
         }
         findViewById<Button>(R.id.clear_activity).setOnClickListener {
             confirmClearActivity()
@@ -1284,6 +1297,32 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("Log out") { _, _ -> runDetached(report) { connection.logOut() } }
                 .setNegativeButton("Cancel", null).create()
         )
+    }
+
+    private fun chooseExport() {
+        bordered(
+            AlertDialog.Builder(this).setTitle("Export diagnostics")
+                .setMessage("Save a summary and a JSON file to a folder on this device, or share them with another app.")
+                .setPositiveButton("Save to folder") { _, _ -> chooseExportFolder() }
+                .setNeutralButton("Share") { _, _ ->
+                    lifecycleScope.launch {
+                        val intent = withContext(Dispatchers.IO) { exportIntent(this@MainActivity, writeExport(this@MainActivity, buildExport(diagnostics))) }
+                        startActivity(Intent.createChooser(intent, "Export diagnostics"))
+                    }
+                }
+                .setNegativeButton("Cancel", null).create()
+        )
+    }
+
+    /** Opens the folder picker for an export; the return from it is not an app open, so it starts no sync. */
+    private fun chooseExportFolder() {
+        model.pickerActive = true
+        try {
+            exportFolder.launch(null)
+        } catch (_: android.content.ActivityNotFoundException) {
+            model.pickerActive = false
+            notice("No folder picker is available on this device. Use Share instead.")
+        }
     }
 
     private fun confirmClearActivity() {
