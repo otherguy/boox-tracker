@@ -54,8 +54,8 @@ fun identifierTags(raw: String, scheme: String? = null): Map<String, Set<String>
             "asin" -> value.uppercase().takeIf { it.matches(Regex("[A-Z0-9]{10}")) } ?: return@forEach
             "goodreads", "hardcover-id", "hardcover-edition" -> value.takeIf { it.toIntOrNull()?.let { n -> n > 0 } == true } ?: return@forEach
             "hardcover-slug" -> value.takeIf { it.matches(Regex("[A-Za-z0-9][A-Za-z0-9-]{0,299}")) } ?: return@forEach
-            "pagebound" -> value.takeIf { it.matches(uuidPattern) }?.lowercase() ?: return@forEach
-            "storygraph", "fable", "margins" -> value.takeIf { it.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,299}")) } ?: return@forEach
+            "pagebound", "margins" -> value.takeIf { it.matches(uuidPattern) }?.lowercase() ?: return@forEach
+            "storygraph", "fable" -> value.takeIf { it.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,299}")) } ?: return@forEach
             else -> return@forEach
         }
         result.getOrPut(key) { mutableSetOf() }.add(value)
@@ -67,7 +67,7 @@ private fun mergeTags(a: Map<String, Set<String>>, b: Map<String, Set<String>>) 
 
 class SyncProblem(val code: String) : Exception(code)
 
-/** A UUID in its canonical 8-4-4-4-12 hex form, the identifier shape of Fable and StoryGraph book records. */
+/** A UUID in its canonical 8-4-4-4-12 hex form, the identifier shape of Fable, StoryGraph, Pagebound, and Margins records. */
 internal val uuidPattern = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 
 fun isbn13(value: String): String? {

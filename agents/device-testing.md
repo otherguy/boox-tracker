@@ -64,6 +64,16 @@ Pagebound is built in 0.7.0 through its website's unofficial API; see the [Pageb
 4. Finish a test book in NeoReader on one day and sync on a later day. Pagebound must show it Finished with the reading day. Reopen it; the next sync must hold with `pagebound_status_conflict`.
 5. Log out must clear the session (the next On shows the popup) and keep the other services connected. Export and confirm the absence of any token, the email, and the account UUID.
 
+## Margins sync
+
+Margins is built in 0.8.0 through its website's Supabase sign-in and Zero sync server; see the [Margins plan](plan-20261009-margins-sync.md). On 2026-10-09 In the Blood (work `6c4f76ff-8b23-4b27-aa56-a128f600768f`; both ISBNs 9781398508255 and 9781982181680 name it) was not in the user's Margins library, which held 41 reads (one in progress, The Terminal List, with no sessions). Sign-in, every push, and the closing session are unexercised against Margins; record each response in [integrations](integrations.md#margins).
+
+1. Margins On: the code popup must open on the email step. Enter the account email and Send code; the code step must name the address. A wrong code must keep the code step with "Code expired or not accepted"; the right code must close the popup, and the details popup must show the email. Cancel on a fresh popup must turn Margins Off. Record the error text for an email without an account.
+2. Sync Now with In the Blood open. Expect "Book matched", a new read in progress on Margins starting on the reading day, and one session from 0% to the step below NeoReader's percentage; the read must be an ebook. A second sync below the next step must add nothing.
+3. Read past the next multiple of 5 and sync: exactly one new session from the previous step. Margins' reading days must show the day.
+4. Finish a test book in NeoReader and sync: the read must be finished on the reading day, with Margins' own closing session. Reopen it; the next sync must hold with `margins_reread_held`.
+5. Log out must end the session (the next On shows the email step) and keep the other services connected. Export and confirm the absence of any token, the code, the email, and the account UUID.
+
 ## Offline collection and hidden-app delivery
 
 Start with the existing BOOX settings and an awake test. There is no background toggle or observation session in 0.3.x. Keep Hardcover On; do not force-stop Boox Tracker. Record Wi-Fi, app-open, book exit, sleep/wake, and boot times. All times in previous records are local UTC+07:00.

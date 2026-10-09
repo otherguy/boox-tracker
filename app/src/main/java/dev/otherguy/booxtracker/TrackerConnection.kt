@@ -5,6 +5,7 @@ import android.net.NetworkCapabilities
 import android.os.SystemClock
 import java.time.Instant
 import java.util.UUID
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -269,30 +270,20 @@ abstract class PasswordConnection(app: ReadingSyncApp, service: String, online: 
         clearSession()
     }
 
-    /** Signs in with the typed credentials. The password is passed to the service's sign-in request and is not stored. */
-    suspend fun signIn(email: String, password: String) = settingsMutex.withLock {
+    /**
+     * Runs one sign-in request in its own job, so Off or Cancel stops it. A failure keeps the popup open with the reason,
+     * so the user can correct the email, password, or code and retry.
+     */
+    protected suspend fun signInStep(block: suspend () -> Unit) = settingsMutex.withLock {
         if (signingIn || !awaitingCredentials) return@withLock
         signingIn = true
         diagnostics.updates.value++
         signIn = diagnostics.scope.launch {
             try {
-                store.put("$service.enabled", "false")
-                store.put("$service.connectionError", "")
-                store.put("$service.account", "")
-                authenticate(email, password)
-                val accountId = account()
-                coroutineContext.ensureActive()
-                store.put("$service.account", accountId)
-                store.put("$service.enabled", "true")
-                recordSignIn()
-                awaitingCredentials = false
-                diagnostics.event("manual", "${service}_connection", detail = JSONObject().put("outcome", "connected"))
-                scheduleDelivery(app)
-                syncAfterSignIn()
+                block()
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
-                // awaitingCredentials stays true so the user can correct the email or password and retry.
                 store.put("$service.enabled", "false")
                 store.put("$service.connectionError", failureReason(error))
                 recordFailure("manual", "${service}_connection", error)
@@ -303,6 +294,23 @@ abstract class PasswordConnection(app: ReadingSyncApp, service: String, online: 
         }
     }
 
+    /** Signs in with the typed credentials. The password is passed to the service's sign-in request and is not stored. */
+    suspend fun signIn(email: String, password: String) = signInStep {
+        store.put("$service.enabled", "false")
+        store.put("$service.connectionError", "")
+        store.put("$service.account", "")
+        authenticate(email, password)
+        val accountId = account()
+        coroutineContext.ensureActive()
+        store.put("$service.account", accountId)
+        store.put("$service.enabled", "true")
+        recordSignIn()
+        awaitingCredentials = false
+        diagnostics.event("manual", "${service}_connection", detail = JSONObject().put("outcome", "connected"))
+        scheduleDelivery(app)
+        syncAfterSignIn()
+    }
+
     private suspend fun cancelSignIn() {
         val job = signIn
         signingIn = false
@@ -311,7 +319,7 @@ abstract class PasswordConnection(app: ReadingSyncApp, service: String, online: 
         signIn = null
     }
 
-    suspend fun setEnabled(value: Boolean) {
+    open suspend fun setEnabled(value: Boolean) {
         if (!value) store.put("$service.enabled", "false")
         settingsMutex.withLock {
             if (!value) {
@@ -326,5 +334,52 @@ abstract class PasswordConnection(app: ReadingSyncApp, service: String, online: 
             }
             storeEnabled(value)
         }
+    }
+}
+
+/**
+ * A tracker without passwords: the popup asks for the email, the service emails a one-time code, and the popup asks for
+ * that code. [signIn] receives the email and the code. Neither the code nor the email is stored by the connection.
+ */
+abstract class CodeConnection(app: ReadingSyncApp, service: String, online: () -> Boolean) : PasswordConnection(app, service, online) {
+    /** The email the service sent a code to; the popup shows the code step while it is set. */
+    @Volatile var codeSentTo: String? = null
+        private set
+
+    /** Asks the service to email a sign-in code. */
+    protected abstract suspend fun sendCode(email: String)
+
+    /** Exchanges the emailed code for the service's session. */
+    protected abstract suspend fun verifyCode(email: String, code: String)
+
+    /** The sign-in step's credentials are the email and the code; the email is forgotten once the code is accepted. */
+    final override suspend fun authenticate(email: String, password: String) {
+        verifyCode(email, password)
+        codeSentTo = null
+    }
+
+    suspend fun requestCode(email: String) = signInStep {
+        store.put("$service.connectionError", "")
+        sendCode(email)
+        coroutineContext.ensureActive()
+        codeSentTo = email
+    }
+
+    /** Returns the popup to the email step. */
+    fun changeEmail() {
+        if (signingIn) return
+        codeSentTo = null
+        store.put("$service.connectionError", "")
+        diagnostics.updates.value++
+    }
+
+    override suspend fun signOut() {
+        codeSentTo = null
+        super.signOut()
+    }
+
+    override suspend fun setEnabled(value: Boolean) {
+        codeSentTo = null
+        super.setEnabled(value)
     }
 }

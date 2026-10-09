@@ -21,7 +21,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 | [StoryGraph](https://www.thestorygraph.com) | Enabled² | 0.5.2 |
 | [Fable](https://fable.co) | Enabled¹ | 0.4.0 |
 | [Pagebound](https://pagebound.co) | Enabled⁴ | 0.7.0 |
-| [Margins](https://margins.app) | Coming Soon | — |
+| [Margins](https://margins.app) | Enabled⁵ | 0.8.0 |
 
 ¹ Fable has no public developer API. Boox Tracker uses the same endpoints as Fable's apps, so the connection can stop working if Fable changes them.
 
@@ -31,7 +31,9 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 
 ⁴ Pagebound has no public API. Boox Tracker uses the same endpoints as Pagebound's website, so the connection can stop working if Pagebound changes them.
 
-Each provider has its own switch. Coming Soon providers cannot be enabled. Reading information remains available without a tracker account.
+⁵ Margins has no public API. Boox Tracker uses the same sign-in and sync service as Margins' website, so the connection can stop working if Margins changes it.
+
+Each provider has its own switch. Reading information remains available without a tracker account.
 
 Hardcover matches automatically using identifiers or title and author. It converts saved progress to approximate edition pages, marks the book Read when NeoReader marks it finished, keeps higher remote progress, and protects earlier completed reads and reading history. Offline updates stay queued across book changes and restarts. See the [Hardcover guide](docs/hardcover.md).
 
@@ -43,13 +45,15 @@ Goodreads matches by identifiers or title and author, sends the percentage in wh
 
 Pagebound matches by identifiers or title and author, sends the percentage in whole steps of 5, because each update appears in your feed, and keeps the book on Reading or Finished. Books it adds are digital reads. Sign in with your Pagebound email and password; only Pagebound's sign-in tokens are stored. See the [Pagebound guide](docs/pagebound.md).
 
+Margins matches by ISBN, Goodreads ID, or ASIN, adds a reading session for each whole step of 5, because each session appears on your profile, and keeps the book's read in progress or finished. Margins has no passwords: sign in with the code Margins emails you; only Margins' sign-in tokens are stored. See the [Margins guide](docs/margins.md).
+
 ## Download and get started
 
 [APK downloads and updates → GitHub Releases](https://github.com/otherguy/boox-tracker/releases)
 
 1. Open the APK on your BOOX. Allow installation from that source if Android asks.
 2. Allow read-only access to your ebook folder at startup.
-3. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, StoryGraph, Fable, or Pagebound **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable or Pagebound email and password, or sign in on Goodreads' or StoryGraph's page.
+3. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, StoryGraph, Fable, Pagebound, or Margins **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable or Pagebound email and password, enter the code Margins emails you, or sign in on Goodreads' or StoryGraph's page.
 4. Press **Sync Now** and check your tracker. Background collection is automatic; offline updates wait until delivery is possible.
 
 Install updates over the existing app to keep settings and Activity history. Development builds install separately as **Boox Tracker (dev)**.
@@ -68,7 +72,7 @@ Requires Android 8.0 or later on a BOOX device with NeoReader. Access to saved r
 
 Your ebooks stay on your device. Connected, enabled providers receive the information needed to match and update the detected book; Boox Tracker does not upload your EPUBs or backfill your whole library.
 
-Hardcover, Fable, and Pagebound credentials use Android Keystore encryption. Your Fable and Pagebound passwords are never stored. StoryGraph's and Goodreads' sign-ins are browser sessions kept in the app's private WebView cookie stores; Boox Tracker never sees those passwords. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them, and Clear in Activity deletes them. The log is bounded for months of offline use: it keeps at most 1,000 events and nothing older than 30 days, and routine checks from before the last successful sync are removed once they are two days old. Sync state and queued updates are never removed this way. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
+Hardcover, Fable, Pagebound, and Margins credentials use Android Keystore encryption. Your Fable and Pagebound passwords and Margins sign-in codes are never stored. StoryGraph's and Goodreads' sign-ins are browser sessions kept in the app's private WebView cookie stores; Boox Tracker never sees those passwords. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them, and Clear in Activity deletes them. The log is bounded for months of offline use: it keeps at most 1,000 events and nothing older than 30 days, and routine checks from before the last successful sync are removed once they are two days old. Sync state and queued updates are never removed this way. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
 
 ## Build from source
 

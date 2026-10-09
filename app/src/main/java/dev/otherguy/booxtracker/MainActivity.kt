@@ -59,6 +59,7 @@ class ScreenModel : ViewModel() {
     /** Email sign-in drafts by service survive activity recreation; they are memory-only and never stored or logged. */
     val emails = mutableMapOf<String, String>()
     val passwords = mutableMapOf<String, String>()
+    val codes = mutableMapOf<String, String>()
     var activityKeys: Map<String, String> = emptyMap()
 }
 
@@ -85,8 +86,15 @@ class MainActivity : AppCompatActivity() {
     private val passwordSignIns = mutableMapOf<String, PasswordSignInViews>()
     private var storyGraphSignIn: WebSignInViews? = null
     private var goodreadsSignIn: WebSignInViews? = null
+    private var marginsSignIn: CodeSignInViews? = null
 
     private class PasswordSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView, val overlay: View)
+
+    /** The one-time-code popup: the email step, then the code step, with a panel that covers both while a request runs. */
+    private class CodeSignInViews(val dialog: AlertDialog, val intro: TextView, val email: EditText, val code: EditText, val status: TextView, val overlay: SignInOverlay)
+
+    /** The panel that covers a sign-in form while a request runs, with its title and message. */
+    private class SignInOverlay(val panel: View, val title: TextView, val message: TextView)
 
     /** A service that signs in with an email and password typed into its popup, and the views of that popup. */
     private class PasswordService(val name: String, val icon: Int, val intro: String, val emailId: Int, val passwordId: Int, val statusId: Int, val wait: String? = null, val connection: () -> PasswordConnection)
@@ -294,11 +302,13 @@ class MainActivity : AppCompatActivity() {
                 val fable = withContext(Dispatchers.IO) { app.fable.state() }
                 val storygraph = withContext(Dispatchers.IO) { app.storygraph.state() }
                 val pagebound = withContext(Dispatchers.IO) { app.pagebound.state() }
+                val margins = withContext(Dispatchers.IO) { app.margins.state() }
                 content.removeAllViews()
-                showSync(snapshot, check, selected, hardcover, goodreads, fable, storygraph, pagebound)
+                showSync(snapshot, check, selected, hardcover, goodreads, fable, storygraph, pagebound, margins)
                 updateHardcoverSignIn()
                 updatePasswordSignIn(fableService, fable)
                 updatePasswordSignIn(pageboundService, pagebound)
+                updateMarginsSignIn(margins)
                 updateStoryGraphSignIn(storygraph)
                 updateGoodreadsSignIn(goodreads)
             }
@@ -375,6 +385,7 @@ class MainActivity : AppCompatActivity() {
                         "goodreads_browser_check_required" -> "Goodreads asked for a browser check that Boox Tracker could not pass. Turn Goodreads off and on to sign in again."
                         "goodreads_session_expired" -> "Goodreads signed you out. Turn Goodreads off and on to sign in again."
                         "pagebound_session_expired" -> "Pagebound ended the session. Turn Pagebound off and on to sign in again."
+                        "margins_session_expired" -> "Margins ended the session. Turn Margins off and on to sign in again."
                         else -> "$name is not signed in. Turn $name off and on again to sign in."
                     }
                 )
@@ -441,10 +452,10 @@ class MainActivity : AppCompatActivity() {
     /** The latest update found the tracker ahead of NeoReader and left its progress unchanged. */
     private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
-    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject, pagebound: JSONObject) {
+    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject, pagebound: JSONObject, margins: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
         val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Goodreads", goodreads) + serviceIssues("StoryGraph", storygraph) +
-            serviceIssues("Fable", fable) + serviceIssues("Pagebound", pagebound)
+            serviceIssues("Fable", fable) + serviceIssues("Pagebound", pagebound) + serviceIssues("Margins", margins)
         val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -502,7 +513,7 @@ class MainActivity : AppCompatActivity() {
         showStoryGraph(storygraph)
         showPasswordService(fableService, fable)
         showPasswordService(pageboundService, pagebound)
-        serviceRow("Margins", R.drawable.service_margins, getString(R.string.coming_soon))
+        showMargins(margins)
     }
 
     private fun readableDate(millis: Long?): String {
@@ -645,6 +656,11 @@ class MainActivity : AppCompatActivity() {
         error == "goodreads_session_expired" -> "Goodreads signed you out; sign in again"
         error == "goodreads_webview_profiles_unsupported" -> "Goodreads needs a newer Android System WebView"
         error == "pagebound_session_expired" -> "Pagebound ended the session; sign in again"
+        error.endsWith("_otp_expired") -> "Code expired or not accepted; check it or send a new one"
+        listOf("_otp_disabled", "_signup_disabled", "_user_not_found").any(error::endsWith) -> "No Margins account uses this email"
+        listOf("_email_address_invalid", "_email_address_not_authorized", "_validation_failed").any(error::endsWith) -> "Email not accepted"
+        error.endsWith("_rate_limit") -> "Too many attempts, try again later"
+        error == "margins_session_expired" -> "Margins ended the session; sign in again"
         else -> error.replace('_', ' ')
     }
 
@@ -716,16 +732,31 @@ class MainActivity : AppCompatActivity() {
             connection.awaitingCredentials -> "Sign-in required\nEnter your email and password in the popup"
             else -> null
         }
+        signInServiceRow(service.name, service.icon, connection, state, signIn, model.passwords)
+    }
+
+    private fun showMargins(state: JSONObject) {
+        val margins = app.margins
+        val signIn = when {
+            margins.signingIn -> if (margins.codeSentTo == null) "Signing in…\nSending a sign-in code" else "Signing in…\nChecking the code"
+            margins.awaitingCredentials -> if (margins.codeSentTo == null) "Sign-in required\nEnter your email in the popup" else "Sign-in required\nEnter the emailed code in the popup"
+            else -> null
+        }
+        signInServiceRow("Margins", R.drawable.service_margins, margins, state, signIn, model.codes)
+    }
+
+    /** The row of a service that signs in through a popup. [signIn] replaces the summary while the popup is open; Off drops the popup's secret draft. */
+    private fun signInServiceRow(name: String, icon: Int, connection: PasswordConnection, state: JSONObject, signIn: String?, secretDrafts: MutableMap<String, String>) {
         val report = report(connection)
         serviceRow(
-            service.name,
-            service.icon,
-            signIn ?: serviceSummary(state, service.name),
+            name,
+            icon,
+            signIn ?: serviceSummary(state, name),
             state.getBoolean("enabled") || connection.signingIn || connection.awaitingCredentials,
             !model.busy,
-            details = { showServiceDetails(service.name, connection, report) },
+            details = { showServiceDetails(name, connection, report) },
             changed = { checked ->
-                if (!checked) model.passwords.remove(connection.service)
+                if (!checked) secretDrafts.remove(connection.service)
                 action(report) {
                     connection.setEnabled(checked)
                     if (checked && connection.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
@@ -845,6 +876,107 @@ class MainActivity : AppCompatActivity() {
         form.email.isEnabled = !connection.signingIn
         form.password.isEnabled = !connection.signingIn
         form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = passwordReady(connection)
+    }
+
+    private fun updateMarginsSignIn(state: JSONObject) {
+        val margins = app.margins
+        if (!margins.awaitingCredentials && !margins.signingIn) {
+            model.codes.remove(margins.service)
+            marginsSignIn?.dialog?.dismiss()
+            marginsSignIn = null
+            return
+        }
+        val form = marginsSignIn ?: codeSignInDialog().also { marginsSignIn = it }
+        val sentTo = margins.codeSentTo
+        form.intro.text = if (sentTo == null) {
+            "Enter the email of your Margins account. Margins emails you a sign-in code; Margins has no passwords. Boox Tracker keeps only Margins' sign-in tokens on this device."
+        } else {
+            "Enter the code Margins emailed to $sentTo. It can take a minute to arrive."
+        }
+        val error = state.optString("connectionError").takeUnless { margins.signingIn }
+        form.status.text = error?.takeIf { it.isNotBlank() }?.let(::connectionText).orEmpty()
+        form.status.isGone = form.status.text.isEmpty()
+        form.overlay.panel.isGone = !margins.signingIn
+        form.overlay.title.text = if (sentTo == null) "Sending a code…" else "Signing in to Margins…"
+        form.overlay.message.text = if (sentTo == null) "Margins is emailing you a sign-in code." else "Checking the code."
+        form.email.isEnabled = !margins.signingIn && sentTo == null
+        form.code.isGone = sentTo == null
+        form.code.isEnabled = !margins.signingIn
+        form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).apply {
+            text = if (sentTo == null) "Send code" else "Sign in"
+            isEnabled = codeReady(margins)
+        }
+        form.dialog.getButton(AlertDialog.BUTTON_NEUTRAL).apply {
+            isGone = sentTo == null
+            isEnabled = !margins.signingIn
+        }
+    }
+
+    /** Whether the popup's main button can act: an email on the email step, a code of at least six digits on the code step. */
+    private fun codeReady(connection: CodeConnection): Boolean {
+        if (model.busy || connection.signingIn) return false
+        return if (connection.codeSentTo == null) !model.emails[connection.service].isNullOrBlank() else model.codes[connection.service].orEmpty().length >= 6
+    }
+
+    private fun codeSignInDialog(): CodeSignInViews {
+        val margins = app.margins
+        val key = margins.service
+        val report = report(margins)
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), 0)
+        }
+        val intro = label("", parent = body, size = 17f).apply { setTextIsSelectable(false) }
+        lateinit var dialog: AlertDialog
+        fun ready() {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = codeReady(margins)
+        }
+        val email = textField(body, R.id.margins_email, "Email", model.emails[key].orEmpty(), InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_DONE) {
+            model.emails[key] = it
+            ready()
+        }
+        val code = textField(body, R.id.margins_code, "Code", model.codes[key].orEmpty(), InputType.TYPE_CLASS_NUMBER, "smsOTPCode", EditorInfo.IME_ACTION_DONE) {
+            model.codes[key] = it.filter(Char::isDigit)
+            ready()
+        }.apply { isSaveEnabled = false }
+        val status = label("", parent = body, size = 17f).apply {
+            id = R.id.margins_sign_in_status
+            setTextIsSelectable(false)
+        }
+        val form = FrameLayout(this).apply { addView(body) }
+        val overlay = signInOverlay(form)
+        fun submit() {
+            if (!codeReady(margins)) return
+            val sentTo = margins.codeSentTo
+            getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(body.windowToken, 0)
+            if (sentTo == null) {
+                val typedEmail = model.emails[key].orEmpty().trim()
+                action(report) { margins.requestCode(typedEmail) }
+            } else {
+                val typedCode = model.codes.remove(key).orEmpty()
+                code.setText("")
+                action(report) { margins.signIn(sentTo, typedCode) }
+            }
+        }
+        listOf(email, code).forEach { field ->
+            field.setOnEditorActionListener { _, actionId, _ -> (actionId == EditorInfo.IME_ACTION_DONE).also { if (it) submit() } }
+        }
+        dialog = bordered(
+            AlertDialog.Builder(this).setTitle("Margins sign-in").setView(form)
+                .setPositiveButton("Send code", null).setNeutralButton("Change email", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
+                .setOnCancelListener {
+                    model.codes.remove(key)
+                    runDetached(report) { margins.setEnabled(false) }
+                }.create().apply { setCanceledOnTouchOutside(false) }
+        )
+        // Both buttons keep the popup open; it closes when sign-in succeeds or is cancelled.
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { submit() }
+        dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            model.codes.remove(key)
+            code.setText("")
+            action(report) { margins.changeEmail() }
+        }
+        return CodeSignInViews(dialog, intro, email, code, status, overlay)
     }
 
     private fun updateStoryGraphSignIn(state: JSONObject) {
@@ -1017,28 +1149,10 @@ class MainActivity : AppCompatActivity() {
             setTextIsSelectable(false)
         }
         val form = FrameLayout(this).apply { addView(body) }
-        val overlay = LinearLayout(this).apply {
-            id = R.id.sign_in_overlay
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(24), dp(16), dp(24), dp(16))
-            background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(Color.WHITE)
-                setStroke(dp(2), Color.BLACK)
-            }
-            // The covered fields take no touches while the panel shows.
-            isClickable = true
-            isGone = true
+        val overlay = signInOverlay(form).apply {
+            title.text = "Signing in to ${service.name}…"
+            message.text = listOfNotNull("Checking your email and password.", service.wait).joinToString(" ")
         }
-        label("Signing in to ${service.name}…", true, overlay).apply {
-            gravity = Gravity.CENTER
-            setTextIsSelectable(false)
-        }
-        label(listOfNotNull("Checking your email and password.", service.wait).joinToString(" "), parent = overlay, size = 17f).apply {
-            gravity = Gravity.CENTER
-            setTextIsSelectable(false)
-        }
-        form.addView(overlay, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(16), dp(8), dp(16), 0) })
         fun submit() {
             if (!passwordReady(connection)) return
             val typedEmail = model.emails[key].orEmpty().trim()
@@ -1059,7 +1173,34 @@ class MainActivity : AppCompatActivity() {
         )
         // Sign in keeps the popup open; it closes when sign-in succeeds or is cancelled.
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { submit() }
-        return PasswordSignInViews(dialog, email, password, status, overlay)
+        return PasswordSignInViews(dialog, email, password, status, overlay.panel)
+    }
+
+    /** Adds a hidden [SignInOverlay] over [form]. */
+    private fun signInOverlay(form: FrameLayout): SignInOverlay {
+        val panel = LinearLayout(this).apply {
+            id = R.id.sign_in_overlay
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(16), dp(24), dp(16))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.WHITE)
+                setStroke(dp(2), Color.BLACK)
+            }
+            // The covered fields take no touches while the panel shows.
+            isClickable = true
+            isGone = true
+        }
+        val title = label("", true, panel).apply {
+            gravity = Gravity.CENTER
+            setTextIsSelectable(false)
+        }
+        val message = label("", parent = panel, size = 17f).apply {
+            gravity = Gravity.CENTER
+            setTextIsSelectable(false)
+        }
+        form.addView(panel, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(16), dp(8), dp(16), 0) })
+        return SignInOverlay(panel, title, message)
     }
 
     private fun textField(parent: LinearLayout, fieldId: Int, hint: String, value: String, type: Int, autofill: String, ime: Int, changed: (String) -> Unit): EditText = EditText(this).apply {
@@ -1235,15 +1376,21 @@ class MainActivity : AppCompatActivity() {
                 pages?.let { field("Progress", "${result.optInt(if (kept) "remoteProgressPages" else "progressPages")} of $it pages$keptNote") }
             }
         } else {
-            field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
-            field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
+            if (name == "Margins") {
+                // Margins tracks books, not editions, and has no title search, so every match is by an identifier.
+                val by = mapOf("tag" to "Margins tag", "isbn" to "ISBN", "goodreads" to "Goodreads ID", "asin" to "ASIN")[result.optString("matchedBy")] ?: "identifier"
+                field("Match", "Book, by its $by")
+            } else {
+                field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
+                field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
+            }
             val waiting = result.optInt("nextUpdateAt").takeIf { it > 0 }
             field(
                 "Progress",
                 when {
                     result.optBoolean("finished") -> "Finished" + (result.text("finishDate")?.let { " on ${readableDay(it)}" } ?: "")
 
-                    // Goodreads and Pagebound post every update to a feed, so progress waits for the next whole step.
+                    // Goodreads, Pagebound, and Margins post every update to a feed, so progress waits for the next whole step.
                     waiting != null -> "${result.optInt("remotePercent")}% · the next update is sent at $waiting%"
 
                     result.has("posted") -> "${result.optInt("posted")}%"

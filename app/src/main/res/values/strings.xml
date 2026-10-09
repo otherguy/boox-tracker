@@ -1,6 +1,5 @@
 <resources>
     <string name="about">About</string>
-    <string name="coming_soon">Coming soon</string>
     <string name="switch_state">"  %1$s"</string>
     <string name="service_switch">%1$s: %2$s</string>
     <string name="title">Boox Tracker</string>

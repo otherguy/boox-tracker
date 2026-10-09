@@ -45,6 +45,13 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 3. Finish the book in NeoReader. After a sync, Pagebound must show the book as Finished with the day you last read it. Reopening it must hold the update.
 4. Log out of Pagebound in its details popup. Export and confirm that the export contains no token or email.
 
+## Margins
+
+1. Turn **Margins On**. In the popup, enter your Margins email and press **Send code**, then enter the emailed code. The popup must close by itself, and the details popup must show your display name or email. **Cancel** must turn Margins Off.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Margins, the book must have a read in progress and one reading session up to the percentage rounded down to a multiple of 5. Read past the next multiple of 5 and sync again: the book must show exactly one new session.
+3. Finish the book in NeoReader. After a sync, Margins must show the read as finished on the day you last read it. Reopening it must hold the update.
+4. Log out of Margins in its details popup. Export and confirm that the export contains no token, code, or email.
+
 ## Offline collection and reconnect
 
 1. After one successful manual sync, keep Hardcover On and disconnect Wi-Fi. Read the first book, return to the NeoReader library, and press Sync Now. Confirm **Pending** without a request to enable Wi-Fi.

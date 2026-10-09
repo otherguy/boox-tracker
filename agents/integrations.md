@@ -11,7 +11,7 @@ The [automatic matching/offline plan](plan-20261006-automatic-offline-sync.md) s
 | StoryGraph | 0.5.2 website session: sign-in in an in-app WebView, `HttpURLConnection` with the session cookies, automatic matching confirmed by edition pages, currently-reading and read writes, durable queue; no API; sign-in, the first sync past Cloudflare, the ISBN match and a progress write verified on the GoColor7; the spike's later intervals, completion and Log out pending |
 | Fable | 0.4.0 email/password sign-in, automatic matching, shelving, percentage progress, durable queue; unofficial app API; physical checks pending |
 | Pagebound | 0.7.0 email/password sign-in through Firebase and Pagebound's token exchange, ISBN matching through the website's lookup, Typesense title search, status and digital-read writes, percentage updates in whole steps of 5 with read-back, finish; unofficial website API; built and automatically tested, no device evidence |
-| Margins | Explicit identifier display only; Coming Soon. Inquiry sent; no reply/access reported as of 2026-10-05 |
+| Margins | 0.8.0 one-time-code email sign-in through Supabase, a minimal Zero sync client over OkHttp, matching by ISBN, Goodreads edition, and ASIN, reads started or adopted, percentage reading sessions in whole steps of 5 with read-back, finish; unofficial; queries verified in the browser, code sign-in, a status push, and a session push verified on the GoColor7 on 2026-10-09 |
 
 Book-only fallback and hidden-app offline/reconnect delivery are built and automatically tested but lack current physical evidence. A read-only Personal Access Token lookup, local HTTP test, emulator screenshot, and real OAuth write are different kinds of evidence. Do not merge them.
 
@@ -49,7 +49,7 @@ Verified on the user's account on 2026-10-07: setting a book to Currently Readin
 
 Tag/URL types follow the inspected [Calibre conventions](https://github.com/RobBrazier/calibre-plugins/blob/main/plugins/hardcover/README.md): `hardcover-edition` is an edition ID, `hardcover-id` a numeric book ID, `hardcover-slug` a book slug. `hardcover` is normalized to a book ID for numeric values or a slug otherwise. Accept supported book/edition URLs. Never treat a Goodreads number as a Hardcover ID.
 
-`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Explicit StoryGraph/Fable/Margins values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}`. Fable matching uses only values that are Fable book UUIDs; StoryGraph and Margins values are display-only. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for StoryGraph or Margins. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
+`BookIdentifiers.kt` is the single reader allowlist. The popup labels its output without a second allowlist. `amazon`/`mobi-asin` normalize to ASIN. Explicit StoryGraph and Fable values accept `[A-Za-z0-9][A-Za-z0-9._-]{0,299}`; Pagebound and Margins values must be UUIDs. Fable matching uses only values that are Fable book UUIDs. URLs, paths, whitespace and unrelated tags are rejected; no remote mapping contract is claimed for StoryGraph. Ebook cache keys use `ebook.identity.2.<digest>` so older extraction results are bypassed without deleting history.
 
 ### Local matching samples: 2026-10-06
 
@@ -237,14 +237,87 @@ Match an explicit `fable:` UUID, then exact ISBN-13, ISBN-10 (only if its ISBN-1
 
 Read shelves from system-list membership, because book detail status can lag. A family edition on Currently Reading, then Want to Read, receives progress (`existingEditionPreserved`). A Finished or Did Not Finish edition holds a reading source. Higher remote progress is kept. Page-mode progress holds. Writes shelve to Currently Reading first, post the floored percentage, and confirm it by reading it back. Completion posts 100% and confirms or sets the Finished shelf.
 
-## Margins.app
+## Margins
 
-The inquiry **was sent** to `help@margins.app`; **no reply/access** was reported as of 2026-10-05. No credentials or approval are available. Do not resend/follow up without user instruction.
+Implemented in 0.8.0 under the [Margins plan](plan-20261009-margins-sync.md). Margins has no public API, and the `help@margins.app` inquiry of 2026-10-05 got no reply. Its website (Next.js on Vercel, behind a Vercel bot checkpoint for non-browser page loads) signs in through Supabase Auth with one-time codes only and reads and writes all library data through a Rocicorp Zero sync server at `zero.margins.app`. Supabase PostgREST and GraphQL answer 503 `PGRST002`; the site has no API routes beyond `/api/health`. Zero is the only data path. Margins' [terms](https://margins.app/terms) (2026-07-11) forbid access by bots or automated means (§5) and use of its book metadata outside Margins (§4). The user accepted this risk on 2026-10-09. Public docs state that the connection is unofficial and can break. The phone app `app.margins.margins` was not inspected; the XAPK the user supplied was an unrelated app (`com.margins.app`, a real-estate developer).
 
-It asked about public/private/beta access, progress/status/time history, Goodreads-ID matching, authentication, documentation, and limits. No confirmed public API or suitable client was established; earlier terms research raised automated-access restrictions. Recheck current terms and supported access before implementation. `margins:` display support is not an integration. Leads: [Margins](https://margins.app/) and [terms](https://margins.app/terms).
+### Verified in the user's Margins session on 2026-10-09
+
+The user signed in on margins.app in the built-in browser. Read-only probes used that session from the page, with self-made Zero client groups; no push was sent, because the session's permission classifier refused even an empty-payload push. No token, email, or account value is recorded here.
+
+#### Stack and auth (verified)
+
+| Item | Verified behaviour |
+| --- | --- |
+| Supabase project | `https://dhepqjxbathvkcxyuorm.supabase.co`, publishable key `sb_publishable_f9S7rFZNdryEgO9lUr2O6g_ZwrRSas_` (shipped in the bundle; identifies the project, not a credential). Every auth call sends it as `apikey`. |
+| `GET /auth/v1/settings` | `external.email` and `external.phone` true, `disable_signup` false, SMS via Twilio, no passkeys. No captcha library in the login chunks, and the OTP call sends `captcha_token: undefined`. |
+| `POST /auth/v1/otp` `{email, create_user, data: {}, gotrue_meta_security: {}}` | What the site's `signInWithOtp` sends (`create_user` true on the site; the app sends false). Not exercised; the first device sign-in verifies it, including the error for an unknown email. |
+| `POST /auth/v1/verify` `{type: "email", email, token}` | Returns `{access_token, token_type, expires_in, expires_at, refresh_token, user}`; `user.id` is the account id. Not exercised. |
+| `POST /auth/v1/token?grant_type=refresh_token` `{refresh_token}` | Standard GoTrue refresh; refresh tokens rotate, so the vault stores the new pair every time. |
+| `GET /auth/v1/user` (Bearer) | `{id, email, created_at, last_sign_in_at, app_metadata.providers, ...}`. Verified. |
+| `POST /auth/v1/logout?scope=global` (Bearer) | Site's sign-out; best effort on Log out. Not exercised. |
+| Access token | ES256 JWT with `kid`, lifetime **604800 s (7 days)**, claims `sub` (user id), `email`, `role: authenticated`, `amr: [{method: otp}]`. |
+| `https://zero.margins.app/` and `/keepalive` | 200 `OK` from curl (no bot challenge; a `_4e9a0` cookie is set and can be ignored). `GET /sync/v51/connect` without upgrade is a JSON 404. |
+
+#### Zero sync protocol (verified from the browser with a self-made client group)
+
+Protocol source: `packages/zero-protocol/src/*.ts` in `rocicorp/mono` (client protocol version 51; zero-cache 1.9 accepts up to 51; protocol 52 switches to binary poke chunks, so the app must send `v51` and never the `f` flags parameter).
+
+1. Connect `wss://zero.margins.app/sync/v51/connect?clientID=<c>&clientGroupID=<g>&userID=<sub>&baseCookie=&ts=<ms>&lmid=<n>&wsid=<r>&profileID=<r>` with header `Sec-WebSocket-Protocol: encodeURIComponent(base64(utf8(JSON {"authToken": "<access token>"})))`. The server echoes the protocol.
+2. Receive `["connected", {wsid}]`. Send `["initConnection", {desiredQueriesPatch: [{op: "put", hash, name, args, ttl: 60000}, ...], clientSchema: {tables: {...}}, activeClients: [clientID]}]` as the first text frame (the site sends it in the header when it fits in 8 KB; the message form works and keeps headers small).
+3. `clientSchema.tables` is keyed by **server table name** (`catalog.works`, `userspace.readthroughs`, ...) with `{columns: {name: {type}}, primaryKey: [...]}`; types `string | number | boolean | json`. Every table must be replicated or the server answers `["error", {kind: "SchemaVersionNotSupported", message}]` naming the replicated tables and closes (`public.languages`, `public.notification_*` are not replicated). A subset is fine. Hold on this error, never retry.
+4. The `hash` is an opaque client-chosen id (the server echoed `probe-isbn-uk`). Custom query `args` is an array: `[arg]` or `[]`.
+5. Answers arrive as `pokeStart` / `pokePart` / `pokeEnd` (JSON): `pokePart.gotQueriesPatch` lists `{op: "put", hash}` for answered queries and `{op: "del", hash}` for failed ones; `rowsPatch` rows are `{op: "put", tableName: "<server name>", value: {...}}`; `desiredQueriesPatches`, `lastMutationIDChanges`, `mutationsPatch` also appear. Validation failures arrive as `["transformError", [{error: "app", id: <hash>, name, message, details}]]`. A connection is complete when every requested hash is in a got patch or an error. The server sends `["pong", {}]` and expects `["ping", {}]` on long connections; the app's connections are short.
+6. Push: `["push", {clientGroupID, mutations: [{type: "custom", id: <n>, clientID, name, args: [payload], timestamp}], pushVersion: 1, requestID, timestamp}]`; expect `["pushResponse", {mutations: [{id: {clientID, id}, result: {} | {error: "app", message, details} | {error: "alreadyProcessed"}}]}]` or `["error", {kind: "PushFailed" | "InvalidPush" | "MutationRateLimited", ...}]`. Mutation ids are per `clientID`, monotonic from 1; `lmid` in the URL is the last confirmed id for that client. **Not exercised: the browser probe of a push with an empty payload was blocked by the session's permission classifier.** The first implementation step is a spike (below).
+7. Custom mutators run server-side with `ctx.subject.authenticatedUserId` from the token; input is validated (Effect Schema, strict structs) before anything runs, so a bad payload is a `transformError`-style app error and no write.
+
+#### Catalogue and library model (verified rows)
+
+Server tables and columns the app needs (from the bundle's `createSchema`; keep this map in `MarginsZero.kt`):
+
+- `catalog.works` (`work_id`, `original_title`, `original_language`, `original_publication_date`, `num_pages`, `num_seconds`, `num_locations`, goodreads rating counts), `catalog.work_titles` (`title_id`, `work_id`, `title`, `subtitle`, `language`, `is_primary`), `catalog.work_contributors` (`work_contributor_id`, `work_id`, `contributor_id`, `position`), `catalog.contributor_names` (`name_id`, `contributor_id`, `name`, `language`, `is_primary`), `catalog.contributors` (`contributor_id`, `num_works`), `catalog.work_covers` (`cover_id`, `work_id`, `url`, `is_primary`, `width_px`, `height_px`, `background_color_hex`).
+- `catalog.work_isbn13s` (`isbn13` hyphenated, `work_id`, `cover_id`), `catalog.work_asins` (`asin`, `work_id`), `catalog.goodreads_edition_ids` (`goodreads_edition_id` number, `goodreads_work_id`, `work_id`), `catalog.goodreads_work_ids` (`goodreads_work_id`, `work_id`).
+- `userspace.works` (client name `user_works`: `user_id`, `work_id`, `position`, `is_owned`, `is_private`, `preferred_cover_id`, `created_at`), `userspace.readthroughs` (`readthrough_id`, `user_id`, `work_id`, `status`, `is_audio`, `is_ebook`, `is_print`, `touched_at` ms, `num_pages`, `num_locations`, `num_seconds`, `rating`, `preferred_cover_id`, `start_date`, `end_date` (`YYYY-MM-DD`, `Unknown`, or null), `review`, `notes`, `is_private`, `created_at`, languages), `userspace.reading_sessions_v2` (client name `reading_sessions`: `reading_session_id`, `user_id`, `readthrough_id`, `session_date` ms at UTC midnight, `session_utc_offset_in_seconds`, `start_time`, `created_at`, `seconds_read`, `start_position`, `end_position`, `progress`, `unit`, `is_audio`, `is_ebook`, `is_print`, `is_private`, `pages_equivalent`, `time_equivalent_in_seconds`), `userspace.reading_day_activity`, `userspace.library_summary`, `userspace.profiles` (`user_id`, `display_name`, `joined_at`, `created_at`, `pfp_url`, counts), `userspace.want_to_read`, `userspace.social_connections`.
+
+Readthrough `status`: `unread`, `want_to_read`, `in_progress`, `finished`, `stopped`. Session `unit`: `pages`, `kindle_locations`, `percentages`, `audiobook_seconds_remaining`, `audiobook_seconds_listened`. Margins' own arithmetic (`readingSessionEquivalents`): pages for a `percentages` session = `pageCount × progress/100` rounded half-even to hundredths; time = `pages × 60` seconds.
+
+Queries (custom, by name; validators from the bundle):
+
+| Query | Args | Verified result |
+| --- | --- | --- |
+| `workByISBN13` | `[string]`; ISBN-10 (`139850825X`), plain and hyphenated ISBN-13 all accepted (server normalizes) | One `catalog.work_isbn13s` row plus its cover. Both ISBNs of In the Blood (UK 9781398508255, US 9781982181680) → work `6c4f76ff-8b23-4b27-aa56-a128f600768f`. The placeholder `9780000000002` also returned a row (some record carries it), so ISBN evidence is not infallible. |
+| `workByASIN` | `[string]` | `B07THCSQ27` → work `f8d67efb-8c95-4fd2-9366-7b67d7181a78` (Savage Son). |
+| `workByGoodreadsEditionID` / `workByGoodreadsWorkID` | `[number]` | 58438630 → In the Blood's work; its `goodreads_work_id` 91709220 likewise. |
+| `workById` | `[string work id]` (or `{id, locales}` structs) | `catalog.works` with titles, descriptions, covers, contributors and names, series, tags. |
+| `libraryReadthroughs` | `[userId]` (a UUID; `[]` fails validation) | All the user's readthroughs ordered by `touched_at`, each with its work (covers, primary titles, contributors) and up to 50 newest `reading_sessions`. 41 rows for the user. |
+| `libraryBooks` / `libraryWorks` | `[userId]` | `userspace.works` rows with readthroughs. |
+| `librarySummary`, `profile`, `homeSignedInUser` | `[userId]` | `library_summary` and `profiles` rows. |
+| `libraryMembershipReadthroughs` | `[{userId, workIds: [...]}]` | The readthroughs of the listed works only, each with its reading sessions (verified on a finished read with one session). The per-work read the sync uses. |
+| Client group reuse | same `clientGroupID`, new `clientID`, with or without `clientSchema` | Verified: a second and third connection to one group answered; the group's earlier desired queries stay registered and are answered again, so the app uses fixed hashes per query kind (replaced on each sync) and `del` ops for hashes it no longer wants. |
+| 18-table `clientSchema` subset | the tables listed above | Verified with `workById`, `profile`, `libraryMembershipReadthroughs`, `workByISBN13`: the server still streams rows of tables outside the subset (descriptions, series, tags); the client ignores tables it does not know. |
+
+No title or author search query exists in the Zero query list (catalogue text search is a native feature of the phone app), so there is no title/author fallback.
+
+Mutators (custom, by flat name; payload is `args[0]`; `touchedAt`/`createdAt` are ISO instants, `todayDate`/`sessionDate` are `YYYY-MM-DD`, ids are client-generated UUIDs):
+
+| Mutator | Payload (strict) | Server behaviour (from the bundle) |
+| --- | --- | --- |
+| `librarySetReadthroughStatus` | `{workId, readthroughId, newReadthroughId, status: unread\|want_to_read\|in_progress\|finished\|stopped, startsNewReadthrough, isInLibrary, touchedAt, todayDate, readDateMode?: today\|unknown}` | With `startsNewReadthrough` it adopts an existing `unread`/`want_to_read` row or inserts `newReadthroughId` (adding `userspace.works` when `isInLibrary` is false); `in_progress` sets `start_date` to `todayDate`; `finished` on an `in_progress` read sets `end_date`, and when the latest session has an `end_position` it inserts a closing session to the end of the book itself; it throws when another in-progress read of the work began earlier or when the start date is after today. |
+| `libraryAddReadingProgress` | `{id, sessionDate, sessionUtcOffsetInSeconds, startTime: null, secondsRead: null, readthroughId, startPosition, endPosition, progress, unit?: percentages\|pages\|…, isAudio, isEbook, isPrint, pagesEquivalent, timeEquivalentInSeconds, createdAt, readthroughUpdate?: {isAudio, isEbook, isPrint, pageCount, locationCount, audiobookDuration}, sessionToTrim?}` | Inserts the `reading_sessions` row as given, updates the readthrough's format flags and counts from `readthroughUpdate`, touches it, and updates `reading_day_activity`. Throws when the readthrough is missing. |
+| `markReadthroughStatus`, `addReadthroughs`, `updateReadthroughs`, `updateReadthroughDates` | Batch forms | Not used. |
+
+Not observed: any push response, rate limits (`MutationRateLimited` exists), the OTP error for an unknown email, token lifetime on refresh.
+
+### Implemented Margins matching and progress policy
+
+Sign-in posts the email to `/auth/v1/otp` with `create_user: false`, then the emailed code to `/auth/v1/verify`; the vault keeps the access and refresh tokens and the account is the JWT `sub`. Tokens are renewed a minute before expiry and once when Zero answers `Unauthorized` or `AuthInvalidated` (or the upgrade answers 401/403); a dead refresh token or a second refusal clears the vault (`margins_session_expired`). Log out posts `/auth/v1/logout?scope=local` best effort.
+
+`MarginsZero.kt` opens one short OkHttp WebSocket per call: protocol 51, the token in `Sec-WebSocket-Protocol`, `initConnection` as the first message with the 18-table client schema, query hashes derived from name and arguments, rows applied per completed poke. The client group persists per account and schema digest under `margins.clientGroup`; every connection is a new client with mutation id 1. `ClientNotFound` and the `InvalidConnectionRequest*` kinds start a new group and retry once. A push succeeds on a `pushResponse` without an error or on a poke whose `lastMutationIDChanges` reaches the mutation; an app error is `margins_push_rejected`; `PushFailed`, overload, and rate limits are temporary.
+
+Match a `margins:` work UUID whose `workById` returns it, then every ISBN-13 through `workByISBN13`, then `goodreads:` edition ids, all in one connection; evidence for more than one work is `margins_identifier_conflict`. An ASIN counts only without other evidence. No title fallback exists. The sync reads `libraryMembershipReadthroughs` and `workById` together. One in-progress read receives progress; two hold. Without one, a finished source on a finished read is current, any finished or stopped read holds as a reread, and otherwise `librarySetReadthroughStatus` starts or adopts a read (`isInLibrary: false`). Remote progress is the newest session with an end position: percentages directly, pages and Kindle locations as a share of the read's or the work's count, audiobook units hold. The step rule and posted guard follow Pagebound; the session is confirmed by its id on re-read. Completion is `librarySetReadthroughStatus` with `finished` on the in-progress read; Margins adds its own closing session.
 
 ## Matching and update policy
 
 The current product requires no questions, book chooser, or match confirmation. Missing exact editions can use a safe book match/page basis; conflicts and ambiguity remain errors. Title/author fallback is already built, not future-only work. Completion of the detected book is built; rereads remain held. Stored provider lastAccess can lag; matching a destination does not improve source detection.
 
-The order of open physical checks is in [project status](project-status.md#resume-here). Margins API/authentication, rereads, and wider lifecycle policy remain separate work. Credentials, private exports, full paths, and unrelated provider blobs stay out of source/logs/exports. See [product](product.md) and [device checklist](device-testing.md).
+The order of open physical checks is in [project status](project-status.md#resume-here). Rereads and wider lifecycle policy remain separate work. Credentials, private exports, full paths, and unrelated provider blobs stay out of source/logs/exports. See [product](product.md) and [device checklist](device-testing.md).

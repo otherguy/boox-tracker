@@ -242,7 +242,7 @@ class MainActivityTest {
             assertTrue(text.toString().contains("B07THCSQ27"))
             assertTrue(text.toString().contains("story-123"))
             assertTrue(text.toString().contains("fable-456"))
-            assertTrue(text.toString().contains("margins-789"))
+            assertTrue(text.toString().contains("00000000-0000-4000-8000-000000000789"))
             assertFalse(text.toString().contains("private-fixture-secret"))
             assertEquals(1, folder.opens)
             assertFalse(folder.openedOnMainThread)

@@ -33,7 +33,8 @@ open class ReadingSyncApp :
     lateinit var fable: FableConnection
     lateinit var storygraph: StoryGraphConnection
     lateinit var pagebound: PageboundConnection
-    val connections: List<TrackerConnection> get() = listOf(hardcover, goodreads, storygraph, fable, pagebound)
+    lateinit var margins: MarginsConnection
+    val connections: List<TrackerConnection> get() = listOf(hardcover, goodreads, storygraph, fable, pagebound, margins)
 
     @Volatile var visible = false
 
@@ -47,6 +48,7 @@ open class ReadingSyncApp :
         fable = FableConnection(this)
         storygraph = StoryGraphConnection(this)
         pagebound = PageboundConnection(this)
+        margins = MarginsConnection(this)
         registerActivityLifecycleCallbacks(this)
         diagnostics.scope.launch {
             diagnostics.ensureRecovered()
@@ -254,7 +256,7 @@ class Diagnostics(
     }
 
     fun recover() {
-        listOf("hardcover", "goodreads", "fable", "storygraph", "pagebound").forEach { service ->
+        listOf("hardcover", "goodreads", "fable", "storygraph", "pagebound", "margins").forEach { service ->
             store.get("$service.active")?.takeIf { it.isNotEmpty() }?.let { value ->
                 val active = JSONObject(value)
                 val detail = JSONObject().put("reason", "Previous send has no recorded finish; queued updates will reconcile remote state before retry.")

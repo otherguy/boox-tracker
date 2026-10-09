@@ -44,7 +44,7 @@ class BookIdentifiersTest {
     }
 
     @Test fun serviceTagsAndHardcoverUrlsRemainDistinctAndSafe() {
-        val tags = identifierTags("isbn:139850825X, goodreads:58438630, amazon:B07THCSQ27, hardcover-id:510350, hardcover-edition:33373487, hardcover:in-the-blood-2022, storygraph:book-123, fable:synthetic-book, margins:book_456, password:secret")
+        val tags = identifierTags("isbn:139850825X, goodreads:58438630, amazon:B07THCSQ27, hardcover-id:510350, hardcover-edition:33373487, hardcover:in-the-blood-2022, storygraph:book-123, fable:synthetic-book, margins:6C4F76FF-8B23-4B27-AA56-A128F600768F, password:secret")
         assertEquals(setOf("9781398508255"), tags["isbn"])
         assertEquals(setOf("58438630"), tags["goodreads"])
         assertEquals(setOf("B07THCSQ27"), tags["asin"])
@@ -53,12 +53,12 @@ class BookIdentifiersTest {
         assertEquals(setOf("in-the-blood-2022"), tags["hardcover-slug"])
         assertEquals(setOf("book-123"), tags["storygraph"])
         assertEquals(setOf("synthetic-book"), tags["fable"])
-        assertEquals(setOf("book_456"), tags["margins"])
+        assertEquals(setOf("6c4f76ff-8b23-4b27-aa56-a128f600768f"), tags["margins"])
         assertEquals(null, tags["password"])
         assertEquals(setOf("33373487"), identifierTags("https://hardcover.app/books/in-the-blood-2022/editions/33373487")["hardcover-edition"])
         assertEquals(setOf("in-the-blood-2022"), identifierTags("https://hardcover.app/books/in-the-blood-2022/")["hardcover-slug"])
         assertEquals(emptyMap<String, Set<String>>(), identifierTags("amazon:bf8f17c2-8914-426c-b981-93b0a7c81b15"))
-        assertEquals(emptyMap<String, Set<String>>(), identifierTags("storygraph:https://example.com/private, fable:../private, margins:secret value"))
+        assertEquals(emptyMap<String, Set<String>>(), identifierTags("storygraph:https://example.com/private, fable:../private, margins:book_456"))
     }
 
     @Test fun validChecksumsAndEquivalentIsbnTen() {

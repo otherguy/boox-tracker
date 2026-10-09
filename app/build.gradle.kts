@@ -17,10 +17,10 @@ android {
         versionCode =
             providers
                 .gradleProperty("versionCode")
-                .orElse("29")
+                .orElse("30")
                 .get()
                 .toInt()
-        versionName = "0.7.0"
+        versionName = "0.8.0"
     }
     signingConfigs {
         create("diagnostic") {
@@ -68,6 +68,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
     implementation("androidx.webkit:webkit:1.17.1")
     implementation("androidx.work:work-runtime-ktx:2.11.2")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")

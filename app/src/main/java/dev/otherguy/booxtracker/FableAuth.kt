@@ -57,7 +57,7 @@ class FableHttp(
 internal class HttpResponse(val status: Int, val text: String)
 
 /** One request without redirects, reading at most 2 MiB of the response. */
-internal fun httpRequest(method: String, url: String, type: String?, body: String?, authorization: String?, connectTimeout: Int = 15_000, readTimeout: Int = 15_000): HttpResponse {
+internal fun httpRequest(method: String, url: String, type: String?, body: String?, authorization: String?, connectTimeout: Int = 15_000, readTimeout: Int = 15_000, headers: Map<String, String> = emptyMap()): HttpResponse {
     val connection = URL(url).openConnection() as HttpURLConnection
     try {
         connection.requestMethod = method
@@ -66,6 +66,7 @@ internal fun httpRequest(method: String, url: String, type: String?, body: Strin
         connection.readTimeout = readTimeout
         connection.setRequestProperty("Accept", "application/json")
         authorization?.let { connection.setRequestProperty("Authorization", it) }
+        headers.forEach(connection::setRequestProperty)
         if (body != null) {
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", type)

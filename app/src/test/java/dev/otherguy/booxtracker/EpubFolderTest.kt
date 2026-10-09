@@ -61,7 +61,7 @@ internal fun grantEpubFolder(app: ReadingSyncApp): FolderProvider {
     ZipOutputStream(file.outputStream()).use { zip ->
         listOf(
             "META-INF/container.xml" to """<container><rootfile media-type="application/oebps-package+xml" full-path="book.opf"/></container>""",
-            "book.opf" to """<package xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:identifier>isbn:9781398508255, goodreads:58438630, hardcover:in-the-blood-2022, amazon:B07THCSQ27, storygraph:story-123, fable:fable-456, margins:margins-789, unrelated:private-fixture-secret</dc:identifier></metadata></package>"""
+            "book.opf" to """<package xmlns:dc="http://purl.org/dc/elements/1.1/"><metadata><dc:identifier>isbn:9781398508255, goodreads:58438630, hardcover:in-the-blood-2022, amazon:B07THCSQ27, storygraph:story-123, fable:fable-456, margins:00000000-0000-4000-8000-000000000789, unrelated:private-fixture-secret</dc:identifier></metadata></package>"""
         ).forEach { (path, text) ->
             zip.putNextEntry(ZipEntry(path))
             zip.write(text.toByteArray())
