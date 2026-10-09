@@ -26,7 +26,7 @@ If you already shelved another edition of the book on Goodreads, Boox Tracker up
 
 ## Progress and shelves
 
-Goodreads posts each progress update to your friends' update feeds. Boox Tracker therefore sends NeoReader's saved percentage, rounded down, only when it is at least **5 points** ahead of the progress Goodreads shows. Smaller steps wait; the details popup shows the percentage at which the next update is sent.
+Goodreads posts each progress update to your friends' update feeds. Boox Tracker therefore sends NeoReader's saved percentage in whole steps of **5**, counted from 0: at 14% it sends 10%, and at 23% it sends 20%. Steps in between are not sent separately. The details popup shows the percentage at which the next update is sent.
 
 - An unshelved or Want to Read book moves to **Currently Reading** with its current progress.
 - Higher progress on Goodreads is kept. The Goodreads row then shows ⚠ before **Synced at**; tap the row to see the progress Goodreads kept.

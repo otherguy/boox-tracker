@@ -54,6 +54,7 @@ fun identifierTags(raw: String, scheme: String? = null): Map<String, Set<String>
             "asin" -> value.uppercase().takeIf { it.matches(Regex("[A-Z0-9]{10}")) } ?: return@forEach
             "goodreads", "hardcover-id", "hardcover-edition" -> value.takeIf { it.toIntOrNull()?.let { n -> n > 0 } == true } ?: return@forEach
             "hardcover-slug" -> value.takeIf { it.matches(Regex("[A-Za-z0-9][A-Za-z0-9-]{0,299}")) } ?: return@forEach
+            "pagebound" -> value.takeIf { it.matches(uuidPattern) }?.lowercase() ?: return@forEach
             "storygraph", "fable", "margins" -> value.takeIf { it.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,299}")) } ?: return@forEach
             else -> return@forEach
         }

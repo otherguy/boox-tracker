@@ -21,7 +21,7 @@ Startup shows a bordered Ebook folder access explanation before opening the pick
 Sign-in happens in a bordered popup, not below the service row (user decision, 2026-10-07). Turning a service On without a session opens it. Outside taps do nothing; Cancel or Back cancels sign-in and turns the switch Off. Leaving the app, for example to approve Hardcover in a browser, keeps the popup. The popup is built once and updated in place, so typed text and focus survive screen updates. It closes when sign-in succeeds.
 
 - **Hardcover:** "Requesting a sign-in code…", then the code in bold with the instructions in plain text, with Open Hardcover sign-in and Cancel buttons. A failed connection closes the popup and returns Off with a message on the row.
-- **Fable:** a plain explanation, bordered Email and Password fields (56 dp, black on white), a status line, and Sign in / Cancel. Sign in is enabled only when both fields are filled. While signing in, the fields are disabled and the status reads "Signing in…". No spinner. A rejected email or password keeps the popup open with the reason and the email; the password field clears on every submit. Drafts are memory-only.
+- **Fable and Pagebound:** a plain explanation, bordered Email and Password fields (56 dp, black on white), a status line for errors, and Sign in / Cancel. Sign in is enabled only when both fields are filled. While signing in, the keyboard closes, both fields and Sign in are disabled, and a bordered white panel covers the form with "Signing in to Pagebound…" (or Fable) in bold and a short line below (Pagebound adds that it can take up to a minute); Cancel stays available. No spinner. The typed password stays in its field: a rejected email or password keeps the popup open with the reason and both values (user decision, 2026-10-09). Drafts are memory-only and cleared when the popup closes.
 
 The StoryGraph popup holds StoryGraph's own sign-in page in a WebView that takes 60% of the screen height, below a two-sentence explanation ("Sign in on StoryGraph's own website. Boox Tracker never sees or remembers your password; it keeps the browser session on this device.") and above a status line; its only button is Cancel, because the page has its own Sign in. The page is loaded once and never reloaded by screen updates. StoryGraph's page and Cloudflare's check animate on their own; the app adds no animation of its own. A live session redirects to the home page, which closes the popup like a fresh sign-in; a session that cannot be captured keeps the popup open with the reason on the status line.
 
@@ -44,6 +44,7 @@ The approved mockup's service states are illustrative. Never add fabricated read
 | Goodreads | Dark brown lowercase g |
 | StoryGraph | Deep indigo/purple books or bars |
 | Fable | Dark green leaf |
+| Pagebound | App Store artwork, a pastel P |
 | Margins | Dark slate-blue document |
 
 These are concept treatments, not a verified official brand-asset collection or complete design-token specification. Essential text and switches stay black/white. Labels, icon shapes, and switch position must communicate meaning without colour.

@@ -17,6 +17,7 @@ The [verification record](verification.md#verified-on-physical-boox) contains th
 - [sleepdebt/boox-hardcover](https://github.com/sleepdebt/boox-hardcover/tree/f1ae43468d80d55aaaa7b06268d297be7ca6c6ca): `pyproject.toml` declares MIT; no standalone license text was present in the inspected tree. It queries through ADB and documents normalized fractions and lifecycle persistence. Those observations cannot prove application-UID access or persistence timing on another firmware.
 
 - [Lyfts/ShelfSync](https://github.com/Lyfts/ShelfSync) `shelfsync/lib/goodreads/api.lua` and `provider.lua` (MIT, read on 2026-10-08): Goodreads through a replayed desktop-browser cookie header, without progress read-back. [Lyfts/goodreads-cookie-refresher](https://github.com/Lyfts/goodreads-cookie-refresher) `refresher/app.py` keeps a Selenium Chrome session signed in to pass the AWS WAF challenge. Their findings are in [integrations](integrations.md#goodreads).
+- [Lyfts/ShelfSync](https://github.com/Lyfts/ShelfSync) `shelfsync/lib/pagebound/` (MIT, read at `b6042f5` on 2026-10-08): Pagebound through Firebase email sign-in and the website's API, storing the password, matching by title only. Its findings and the endpoints verified in the user's browser session are in [integrations](integrations.md#pagebound).
 
 Boox Tracker uses an independent minimal implementation. No tracker code or source snippets were copied from these projects. AndroidX dependencies retain their own Apache licenses.
 

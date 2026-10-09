@@ -18,7 +18,7 @@ private val firebaseErrors = setOf(
 )
 
 /** Refresh failures after which the stored session can never recover without a new sign-in. */
-private val deadSession = setOf("token_expired", "user_disabled", "user_not_found", "invalid_refresh_token")
+internal val deadSession = setOf("token_expired", "user_disabled", "user_not_found", "invalid_refresh_token")
 
 class FableHttp(
     private val api: String = "https://api.fable.co",
@@ -47,34 +47,41 @@ class FableHttp(
     fun post(token: String, path: String, body: JSONObject): JSONObject = request("POST", api + path, "application/json", body.toString(), token)
 
     private fun request(method: String, url: String, type: String?, body: String?, token: String?): JSONObject {
-        val connection = URL(url).openConnection() as HttpURLConnection
-        try {
-            connection.requestMethod = method
-            connection.instanceFollowRedirects = false
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 15_000
-            connection.setRequestProperty("Accept", "application/json")
-            token?.let { connection.setRequestProperty("Authorization", "JWT $it") }
-            if (body != null) {
-                connection.doOutput = true
-                connection.setRequestProperty("Content-Type", type)
-                connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            }
-            val status = connection.responseCode
-            val text = (if (status in 200..299) connection.inputStream else connection.errorStream)?.use { readLimited(it, 2 * 1024 * 1024).toString(Charsets.UTF_8) }.orEmpty()
-            if (status !in 200..299) {
-                // Firebase messages look like "TOO_MANY_ATTEMPTS_TRY_LATER : detail"; only the allowlisted code is kept.
-                val code = runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrNull()
-                    ?.substringBefore(' ')?.substringBefore(':')?.lowercase()?.takeIf { it in firebaseErrors }
-                throw HttpProblem(status, code, "fable")
-            }
-            if (text.isBlank()) return JSONObject()
-            return runCatching { JSONObject(text) }.getOrNull() ?: throw SyncProblem("fable_invalid_json")
-        } finally {
-            connection.disconnect()
-        }
+        val response = httpRequest(method, url, type, body, token?.let { "JWT $it" })
+        if (response.status !in 200..299) throw HttpProblem(response.status, firebaseError(response.text), "fable")
+        if (response.text.isBlank()) return JSONObject()
+        return runCatching { JSONObject(response.text) }.getOrNull() ?: throw SyncProblem("fable_invalid_json")
     }
 }
+
+internal class HttpResponse(val status: Int, val text: String)
+
+/** One request without redirects, reading at most 2 MiB of the response. */
+internal fun httpRequest(method: String, url: String, type: String?, body: String?, authorization: String?, connectTimeout: Int = 15_000, readTimeout: Int = 15_000): HttpResponse {
+    val connection = URL(url).openConnection() as HttpURLConnection
+    try {
+        connection.requestMethod = method
+        connection.instanceFollowRedirects = false
+        connection.connectTimeout = connectTimeout
+        connection.readTimeout = readTimeout
+        connection.setRequestProperty("Accept", "application/json")
+        authorization?.let { connection.setRequestProperty("Authorization", it) }
+        if (body != null) {
+            connection.doOutput = true
+            connection.setRequestProperty("Content-Type", type)
+            connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+        }
+        val status = connection.responseCode
+        val text = (if (status in 200..299) connection.inputStream else connection.errorStream)?.use { readLimited(it, 2 * 1024 * 1024).toString(Charsets.UTF_8) }.orEmpty()
+        return HttpResponse(status, text)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+/** Firebase messages look like "TOO_MANY_ATTEMPTS_TRY_LATER : detail"; only the allowlisted code is kept. */
+internal fun firebaseError(text: String): String? = runCatching { JSONObject(text).getJSONObject("error").getString("message") }.getOrNull()
+    ?.substringBefore(' ')?.substringBefore(':')?.lowercase()?.takeIf { it in firebaseErrors }
 
 internal fun fableAccountId(profile: JSONObject): String = profile.optString("id").takeIf { it.isNotBlank() } ?: throw SyncProblem("fable_identity_unavailable")
 

@@ -693,7 +693,9 @@ class FableTest {
             assertTrue(dialog.isShowing)
             assertTrue(toggle()!!.isChecked)
             assertEquals("reader@example.com", dialog.findViewById<EditText>(R.id.fable_email)!!.text.toString())
-            assertEquals("", dialog.findViewById<EditText>(R.id.fable_password)!!.text.toString())
+            // A rejected password stays in its field so the user can correct it.
+            assertEquals("wrong", dialog.findViewById<EditText>(R.id.fable_password)!!.text.toString())
+            assertTrue(dialog.findViewById<View>(R.id.sign_in_overlay)!!.visibility != View.VISIBLE)
             assertNull(activity.findViewById<View>(R.id.access_warning))
             dialog.getButton(android.app.AlertDialog.BUTTON_NEGATIVE).performClick()
             awaitUi { !dialog.isShowing && !app.fable.awaitingCredentials && toggle()?.isChecked == false && !screen.busy }
@@ -905,7 +907,7 @@ class FableTest {
             assertEquals("secret-password", dialog.findViewById<EditText>(R.id.fable_password)!!.text.toString())
             signIn.performClick()
             awaitUi { app.fable.state().getBoolean("enabled") && !app.fable.signingIn && !dialog.isShowing && toggle()?.isChecked == true && !screen.busy }
-            assertEquals("", screen.fablePassword)
+            assertEquals("", screen.passwords["fable"].orEmpty())
             assertTrue(server.requests.any { it.getString("path").endsWith("verifyPassword") })
             assertFalse(buildExport(app.diagnostics).toString().contains("secret-password"))
         } finally {

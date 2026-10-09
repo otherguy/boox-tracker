@@ -103,7 +103,7 @@ class GoodreadsTest {
         val result = sync().send(book(), identifiers, GOODREADS_ACCOUNT)
         assertEquals("sent", result.getString("outcome"))
         assertEquals(47, result.getInt("percent"))
-        assertEquals(47, result.getInt("remotePercent"))
+        assertEquals(45, result.getInt("remotePercent"))
         assertEquals("currently_reading", result.getString("shelfAfter"))
         assertTrue(result.isNull("shelfBefore"))
         assertEquals("edition", result.getString("matchKind"))
@@ -115,9 +115,9 @@ class GoodreadsTest {
         assertEquals("XMLHttpRequest", shelve.getString("requestedWith"))
         val progress = server.progressWrites().single().getJSONObject("form")
         assertEquals(GOODREADS_PAPERBACK, progress.getString("user_status[book_id]"))
-        assertEquals("47", progress.getString("user_status[percent]"))
+        assertEquals("45", progress.getString("user_status[percent]"))
         assertEquals("", progress.getString("user_status[body]"))
-        assertEquals(47, paperback.percent)
+        assertEquals(45, paperback.percent)
         assertTrue(server.requests.all { it.getString("cookie").contains(GOODREADS_SESSION_COOKIE) && it.getString("userAgent") == "test-agent" })
         // The host JVM's HttpURLConnection drops Sec-Fetch-* and Origin; Android's sends them, so only the Referer is checked here.
         assertTrue(server.requests.filter { it.getString("method") == "GET" }.all { it.getString("referer") == "${server.origin}/" })
@@ -131,9 +131,11 @@ class GoodreadsTest {
         assertEquals(45, small.getInt("remotePercent"))
         assertEquals(50, small.getInt("nextUpdateAt"))
         assertTrue(server.writes().isEmpty())
+        // Steps count from 0, not from the last post: 42% on Goodreads and 47% in NeoReader posts 45%.
         paperback.percent = 42
         assertEquals("sent", sync().send(book(), identifiers).getString("outcome"))
-        assertEquals(47, paperback.percent)
+        assertEquals(45, paperback.percent)
+        paperback.percent = 47
         val same = sync().send(book(), identifiers)
         assertEquals("already_current", same.getString("outcome"))
         assertFalse(same.has("nextUpdateAt"))
@@ -144,17 +146,27 @@ class GoodreadsTest {
         assertEquals(1, server.progressWrites().size)
     }
 
+    @Test fun eachSyncPostsTheLatestMultipleOfFiveOnce() = runBlocking {
+        paperback.reading(0)
+        assertEquals("sent", sync().send(book("1400/10000"), identifiers).getString("outcome"))
+        assertEquals(10, paperback.percent)
+        val result = sync().send(book("2300/10000"), identifiers)
+        assertEquals("sent", result.getString("outcome"))
+        assertEquals(20, result.getInt("remotePercent"))
+        assertEquals(listOf("10", "20"), server.progressWrites().map { it.getJSONObject("form").getString("user_status[percent]") })
+    }
+
     @Test fun aWantToReadEditionMovesToCurrentlyReadingWithItsFirstProgress() = runBlocking {
         paperback.shelf = "to-read"
-        val result = sync().send(book("300/10000"), identifiers)
+        val result = sync().send(book("1200/10000"), identifiers)
         assertEquals("sent", result.getString("outcome"))
         assertEquals("to_read", result.getString("shelfBefore"))
         assertEquals(listOf("/shelf/add_to_shelf", "/user_status.json"), server.writes().map { it.getString("path") })
-        assertEquals(3, paperback.percent)
+        assertEquals(10, paperback.percent)
         server.requests.clear()
-        // A new read at 0% is shelved without a progress post.
+        // A new read below the first step of 5 is shelved without a progress post.
         server.book("70000003", "91700003", "9781234567897", title = "Fresh Book")
-        assertEquals("sent", sync().send(book("0/10000", key = "fresh"), BookIdentifiers(setOf("9781234567897"), "Fresh Book", "Test Author")).getString("outcome"))
+        assertEquals("sent", sync().send(book("300/10000", key = "fresh"), BookIdentifiers(setOf("9781234567897"), "Fresh Book", "Test Author")).getString("outcome"))
         assertEquals(listOf("/shelf/add_to_shelf"), server.writes().map { it.getString("path") })
     }
 
@@ -166,7 +178,7 @@ class GoodreadsTest {
         assertTrue(result.getBoolean("existingEditionPreserved"))
         assertEquals(GOODREADS_EBOOK, server.progressWrites().single().getJSONObject("form").getString("user_status[book_id]"))
         assertTrue(server.shelfWrites().isEmpty())
-        assertEquals(47, ebook.percent)
+        assertEquals(45, ebook.percent)
         assertNull(paperback.shelf)
     }
 
@@ -265,7 +277,7 @@ class GoodreadsTest {
         assertEquals("goodreads_progress_not_applied", held { sync().send(book(), identifiers) })
         assertEquals(1, server.progressWrites().size)
         server.ignoreProgress = false
-        assertEquals("sent", sync().send(book("4800/10000"), identifiers).getString("outcome"))
+        assertEquals("sent", sync().send(book("5000/10000"), identifiers).getString("outcome"))
         assertNull(store.get("goodreads.book.posted.$GOODREADS_PAPERBACK"))
         server.failProgressOnce = true
         val failure = assertThrows(HttpProblem::class.java) { runBlocking { sync().send(book("5500/10000"), identifiers) } }
@@ -338,7 +350,7 @@ class GoodreadsTest {
         store.put("goodreads.connectionError", "")
         assertFalse(connection.drain("delivery"))
         assertEquals("synced", connection.state().getJSONObject("last").getString("delivery"))
-        assertEquals(47, paperback.percent)
+        assertEquals(45, paperback.percent)
     }
 
     @Test fun aSendRenewsAStaleSessionInTheHiddenBrowserFirst() = runBlocking {
@@ -498,7 +510,7 @@ class GoodreadsTest {
             assertEquals(1, renewalWork().size)
             awaitUi { !app.goodreads.state().isNull("profile") && toggle()?.contentDescription?.contains("Book matched") == true }
             assertEquals("reader", app.goodreads.state().getJSONObject("profile").getString("username"))
-            assertEquals(42, paperback.percent)
+            assertEquals(40, paperback.percent)
             assertTrue(store.events().any { it.optString("kind") == "goodreads_connection" && it.optString("outcome") == "connected" })
             val export = buildExport(app.diagnostics).toString()
             listOf("test-session-token", GOODREADS_ACCOUNT, "csrf-token-1", "synthetic-jwt").forEach { assertFalse(it, export.contains(it)) }

@@ -33,10 +33,17 @@ Book details show full ISBNs and other available identifiers. **Last Access** is
 ## Goodreads
 
 1. Turn **Goodreads On**. The popup must show Goodreads' own sign-in page; sign in there with your email or Amazon account. The popup must close by itself, and the details popup must show your name and username. **Cancel** must turn Goodreads Off.
-2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Goodreads, the book must be on Currently Reading with the percentage rounded down. Read a few pages, sync again, and confirm that nothing new is posted until the percentage is 5 points higher. Higher progress on Goodreads must stay unchanged.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Goodreads, the book must be on Currently Reading with the percentage rounded down to a multiple of 5. Read a few pages, sync again, and confirm that nothing new is posted until NeoReader reaches the next multiple of 5. Higher progress on Goodreads must stay unchanged.
 3. Leave the device online for more than six hours with Boox Tracker hidden, then export. A background renewal run must appear, and Goodreads must stay connected.
 4. Finish the book in NeoReader. After a sync, Goodreads must show the book on Read with the finish date of the day you last read it. Reopening it must hold the update.
 5. Log out of Goodreads in its details popup. StoryGraph, if connected, must stay connected. Export and confirm that the export contains no cookie, token, or user ID.
+
+## Pagebound
+
+1. Turn **Pagebound On**. In the popup, enter your Pagebound email and password. The popup must close by itself, and the details popup must show your username. **Cancel** must turn Pagebound Off.
+2. With a known book open in NeoReader, return to its library and press **Sync Now**. On Pagebound, the book must be on Reading with the percentage rounded down to a multiple of 5, and a book the app added must be a digital read. Read past the next multiple of 5 and sync again: the book's journey must show exactly one new update.
+3. Finish the book in NeoReader. After a sync, Pagebound must show the book as Finished with the day you last read it. Reopening it must hold the update.
+4. Log out of Pagebound in its details popup. Export and confirm that the export contains no token or email.
 
 ## Offline collection and reconnect
 

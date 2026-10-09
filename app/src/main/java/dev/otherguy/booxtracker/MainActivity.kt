@@ -56,9 +56,9 @@ class ScreenModel : ViewModel() {
     var pickerActive = false
     var gateAttempted = false
 
-    /** Fable sign-in drafts survive activity recreation; they are memory-only and never stored or logged. */
-    var fableEmail = ""
-    var fablePassword = ""
+    /** Email sign-in drafts by service survive activity recreation; they are memory-only and never stored or logged. */
+    val emails = mutableMapOf<String, String>()
+    val passwords = mutableMapOf<String, String>()
     var activityKeys: Map<String, String> = emptyMap()
 }
 
@@ -82,11 +82,33 @@ class MainActivity : AppCompatActivity() {
      * so a screen update cannot reopen it while the cancel is still running.
      */
     private var hardcoverSignIn: AlertDialog? = null
-    private var fableSignIn: FableSignInViews? = null
+    private val passwordSignIns = mutableMapOf<String, PasswordSignInViews>()
     private var storyGraphSignIn: WebSignInViews? = null
     private var goodreadsSignIn: WebSignInViews? = null
 
-    private class FableSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView)
+    private class PasswordSignInViews(val dialog: AlertDialog, val email: EditText, val password: EditText, val status: TextView, val overlay: View)
+
+    /** A service that signs in with an email and password typed into its popup, and the views of that popup. */
+    private class PasswordService(val name: String, val icon: Int, val intro: String, val emailId: Int, val passwordId: Int, val statusId: Int, val wait: String? = null, val connection: () -> PasswordConnection)
+
+    private val fableService = PasswordService(
+        "Fable",
+        R.drawable.service_fable,
+        "Sign in with your Fable email and password. Boox Tracker keeps only Fable's sign-in tokens on this device and never stores your password. Fable has no public API, so this connection may stop working if Fable changes.",
+        R.id.fable_email,
+        R.id.fable_password,
+        R.id.fable_sign_in_status
+    ) { app.fable }
+
+    private val pageboundService = PasswordService(
+        "Pagebound",
+        R.drawable.service_pagebound,
+        "Sign in with your Pagebound email and password. If you joined with Google or Apple, set a password on Pagebound first. Boox Tracker keeps only Pagebound's sign-in tokens on this device and never stores your password.",
+        R.id.pagebound_email,
+        R.id.pagebound_password,
+        R.id.pagebound_sign_in_status,
+        "Pagebound can take up to a minute to answer after a quiet period."
+    ) { app.pagebound }
 
     /** A website sign-in popup and the last main-frame load failure of its page, shown on its status line. */
     private class WebSignInViews(val dialog: AlertDialog, val status: TextView) {
@@ -271,10 +293,12 @@ class MainActivity : AppCompatActivity() {
                 val goodreads = withContext(Dispatchers.IO) { app.goodreads.state() }
                 val fable = withContext(Dispatchers.IO) { app.fable.state() }
                 val storygraph = withContext(Dispatchers.IO) { app.storygraph.state() }
+                val pagebound = withContext(Dispatchers.IO) { app.pagebound.state() }
                 content.removeAllViews()
-                showSync(snapshot, check, selected, hardcover, goodreads, fable, storygraph)
+                showSync(snapshot, check, selected, hardcover, goodreads, fable, storygraph, pagebound)
                 updateHardcoverSignIn()
-                updateFableSignIn(fable)
+                updatePasswordSignIn(fableService, fable)
+                updatePasswordSignIn(pageboundService, pagebound)
                 updateStoryGraphSignIn(storygraph)
                 updateGoodreadsSignIn(goodreads)
             }
@@ -350,6 +374,7 @@ class MainActivity : AppCompatActivity() {
                         "storygraph_session_expired" -> "StoryGraph signed you out. Turn StoryGraph off and on to sign in again."
                         "goodreads_browser_check_required" -> "Goodreads asked for a browser check that Boox Tracker could not pass. Turn Goodreads off and on to sign in again."
                         "goodreads_session_expired" -> "Goodreads signed you out. Turn Goodreads off and on to sign in again."
+                        "pagebound_session_expired" -> "Pagebound ended the session. Turn Pagebound off and on to sign in again."
                         else -> "$name is not signed in. Turn $name off and on again to sign in."
                     }
                 )
@@ -416,10 +441,10 @@ class MainActivity : AppCompatActivity() {
     /** The latest update found the tracker ahead of NeoReader and left its progress unchanged. */
     private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
-    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject) {
+    private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject, pagebound: JSONObject) {
         val providerIssue = check?.optBoolean("issue") == true
         val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Goodreads", goodreads) + serviceIssues("StoryGraph", storygraph) +
-            serviceIssues("Fable", fable)
+            serviceIssues("Fable", fable) + serviceIssues("Pagebound", pagebound)
         val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -475,7 +500,8 @@ class MainActivity : AppCompatActivity() {
         showHardcover(hardcover)
         showGoodreads(goodreads)
         showStoryGraph(storygraph)
-        showFable(fable)
+        showPasswordService(fableService, fable)
+        showPasswordService(pageboundService, pagebound)
         serviceRow("Margins", R.drawable.service_margins, getString(R.string.coming_soon))
     }
 
@@ -517,6 +543,7 @@ class MainActivity : AppCompatActivity() {
                         "hardcover-edition" -> "Hardcover Edition"
                         "storygraph" -> "StoryGraph"
                         "fable" -> "Fable"
+                        "pagebound" -> "Pagebound"
                         "margins" -> "Margins"
                         else -> tag
                     }
@@ -617,6 +644,7 @@ class MainActivity : AppCompatActivity() {
         error == "goodreads_browser_check_required" -> "Goodreads asked for a browser check; sign in again"
         error == "goodreads_session_expired" -> "Goodreads signed you out; sign in again"
         error == "goodreads_webview_profiles_unsupported" -> "Goodreads needs a newer Android System WebView"
+        error == "pagebound_session_expired" -> "Pagebound ended the session; sign in again"
         else -> error.replace('_', ' ')
     }
 
@@ -681,25 +709,26 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    private fun showFable(state: JSONObject) {
-        val fable = app.fable
+    private fun showPasswordService(service: PasswordService, state: JSONObject) {
+        val connection = service.connection()
         val signIn = when {
-            fable.signingIn -> "Signing in…\nChecking your email and password"
-            fable.awaitingCredentials -> "Sign-in required\nEnter your email and password in the popup"
+            connection.signingIn -> "Signing in…\nChecking your email and password"
+            connection.awaitingCredentials -> "Sign-in required\nEnter your email and password in the popup"
             else -> null
         }
+        val report = report(connection)
         serviceRow(
-            "Fable",
-            R.drawable.service_fable,
-            signIn ?: serviceSummary(state, "Fable"),
-            state.getBoolean("enabled") || fable.signingIn || fable.awaitingCredentials,
+            service.name,
+            service.icon,
+            signIn ?: serviceSummary(state, service.name),
+            state.getBoolean("enabled") || connection.signingIn || connection.awaitingCredentials,
             !model.busy,
-            details = { showServiceDetails("Fable", fable, fableReport) },
+            details = { showServiceDetails(service.name, connection, report) },
             changed = { checked ->
-                if (!checked) model.fablePassword = ""
-                action(fableReport) {
-                    fable.setEnabled(checked)
-                    if (checked && fable.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
+                if (!checked) model.passwords.remove(connection.service)
+                action(report) {
+                    connection.setEnabled(checked)
+                    if (checked && connection.state().getBoolean("enabled")) app.sync("manual", "service_enabled")
                 }
             }
         )
@@ -800,24 +829,22 @@ class MainActivity : AppCompatActivity() {
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = device != null
     }
 
-    private fun updateFableSignIn(state: JSONObject) {
-        val fable = app.fable
-        if (!fable.awaitingCredentials && !fable.signingIn) {
-            fableSignIn?.dialog?.dismiss()
-            fableSignIn = null
+    private fun updatePasswordSignIn(service: PasswordService, state: JSONObject) {
+        val connection = service.connection()
+        if (!connection.awaitingCredentials && !connection.signingIn) {
+            model.passwords.remove(connection.service)
+            passwordSignIns.remove(connection.service)?.dialog?.dismiss()
             return
         }
-        val form = fableSignIn ?: fableSignInDialog().also { fableSignIn = it }
-        val error = state.optString("connectionError")
-        form.status.text = when {
-            fable.signingIn -> "Signing in…"
-            error.isNotBlank() -> connectionText(error)
-            else -> ""
-        }
+        val form = passwordSignIns.getOrPut(connection.service) { passwordSignInDialog(service) }
+        val error = state.optString("connectionError").takeUnless { connection.signingIn }
+        form.status.text = error?.takeIf { it.isNotBlank() }?.let(::connectionText).orEmpty()
         form.status.isGone = form.status.text.isEmpty()
-        form.email.isEnabled = !fable.signingIn
-        form.password.isEnabled = !fable.signingIn
-        form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = fableReady()
+        // While signing in, a panel covers the form; the typed values stay and cannot change.
+        form.overlay.isGone = !connection.signingIn
+        form.email.isEnabled = !connection.signingIn
+        form.password.isEnabled = !connection.signingIn
+        form.dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = passwordReady(connection)
     }
 
     private fun updateStoryGraphSignIn(state: JSONObject) {
@@ -965,49 +992,74 @@ class MainActivity : AppCompatActivity() {
         return views
     }
 
-    private fun fableReady() = model.fableEmail.isNotBlank() && model.fablePassword.isNotEmpty() && !model.busy && !app.fable.signingIn
+    private fun passwordReady(connection: PasswordConnection) = !model.emails[connection.service].isNullOrBlank() && !model.passwords[connection.service].isNullOrEmpty() && !model.busy && !connection.signingIn
 
-    private fun fableSignInDialog(): FableSignInViews {
-        val fable = app.fable
+    private fun passwordSignInDialog(service: PasswordService): PasswordSignInViews {
+        val connection = service.connection()
+        val key = connection.service
+        val report = report(connection)
         val body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), 0)
         }
-        label("Sign in with your Fable email and password. Boox Tracker keeps only Fable's sign-in tokens on this device and never stores your password. Fable has no public API, so this connection may stop working if Fable changes.", parent = body, size = 17f).setTextIsSelectable(false)
+        label(service.intro, parent = body, size = 17f).setTextIsSelectable(false)
         lateinit var dialog: AlertDialog
-        val email = textField(body, R.id.fable_email, "Email", model.fableEmail, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_NEXT) {
-            model.fableEmail = it
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = fableReady()
+        val email = textField(body, service.emailId, "Email", model.emails[key].orEmpty(), InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, View.AUTOFILL_HINT_EMAIL_ADDRESS, EditorInfo.IME_ACTION_NEXT) {
+            model.emails[key] = it
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = passwordReady(connection)
         }
-        val password = textField(body, R.id.fable_password, "Password", model.fablePassword, InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, View.AUTOFILL_HINT_PASSWORD, EditorInfo.IME_ACTION_DONE) {
-            model.fablePassword = it
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = fableReady()
+        val password = textField(body, service.passwordId, "Password", model.passwords[key].orEmpty(), InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD, View.AUTOFILL_HINT_PASSWORD, EditorInfo.IME_ACTION_DONE) {
+            model.passwords[key] = it
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.isEnabled = passwordReady(connection)
         }.apply { isSaveEnabled = false }
         val status = label("", parent = body, size = 17f).apply {
-            id = R.id.fable_sign_in_status
+            id = service.statusId
             setTextIsSelectable(false)
         }
+        val form = FrameLayout(this).apply { addView(body) }
+        val overlay = LinearLayout(this).apply {
+            id = R.id.sign_in_overlay
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(16), dp(24), dp(16))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(Color.WHITE)
+                setStroke(dp(2), Color.BLACK)
+            }
+            // The covered fields take no touches while the panel shows.
+            isClickable = true
+            isGone = true
+        }
+        label("Signing in to ${service.name}…", true, overlay).apply {
+            gravity = Gravity.CENTER
+            setTextIsSelectable(false)
+        }
+        label(listOfNotNull("Checking your email and password.", service.wait).joinToString(" "), parent = overlay, size = 17f).apply {
+            gravity = Gravity.CENTER
+            setTextIsSelectable(false)
+        }
+        form.addView(overlay, FrameLayout.LayoutParams(-1, -1).apply { setMargins(dp(16), dp(8), dp(16), 0) })
         fun submit() {
-            if (!fableReady()) return
-            val typedEmail = model.fableEmail.trim()
-            val typedPassword = model.fablePassword
-            password.setText("")
-            action(fableReport) { fable.signIn(typedEmail, typedPassword) }
+            if (!passwordReady(connection)) return
+            val typedEmail = model.emails[key].orEmpty().trim()
+            val typedPassword = model.passwords[key].orEmpty()
+            getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.hideSoftInputFromWindow(password.windowToken, 0)
+            action(report) { connection.signIn(typedEmail, typedPassword) }
         }
         password.setOnEditorActionListener { _, actionId, _ ->
             (actionId == EditorInfo.IME_ACTION_DONE).also { if (it) submit() }
         }
         dialog = bordered(
-            AlertDialog.Builder(this).setTitle("Fable sign-in").setView(body)
+            AlertDialog.Builder(this).setTitle("${service.name} sign-in").setView(form)
                 .setPositiveButton("Sign in", null).setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
                 .setOnCancelListener {
-                    model.fablePassword = ""
-                    runDetached(fableReport) { fable.setEnabled(false) }
+                    model.passwords.remove(key)
+                    runDetached(report) { connection.setEnabled(false) }
                 }.create().apply { setCanceledOnTouchOutside(false) }
         )
         // Sign in keeps the popup open; it closes when sign-in succeeds or is cancelled.
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { submit() }
-        return FableSignInViews(dialog, email, password, status)
+        return PasswordSignInViews(dialog, email, password, status, overlay)
     }
 
     private fun textField(parent: LinearLayout, fieldId: Int, hint: String, value: String, type: Int, autofill: String, ime: Int, changed: (String) -> Unit): EditText = EditText(this).apply {
@@ -1032,7 +1084,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val hardcoverReport: (Exception) -> Unit = { app.hardcover.recordFailure("manual", "hardcover_operation", it) }
-    private val fableReport: (Exception) -> Unit = { app.fable.recordFailure("manual", "fable_operation", it) }
+    private fun report(connection: TrackerConnection): (Exception) -> Unit = { connection.recordFailure("manual", "${connection.service}_operation", it) }
     private val storyGraphReport: (Exception) -> Unit = { app.storygraph.recordFailure("manual", "storygraph_operation", it) }
     private val goodreadsReport: (Exception) -> Unit = { app.goodreads.recordFailure("manual", "goodreads_operation", it) }
 
@@ -1191,8 +1243,10 @@ class MainActivity : AppCompatActivity() {
                 when {
                     result.optBoolean("finished") -> "Finished" + (result.text("finishDate")?.let { " on ${readableDay(it)}" } ?: "")
 
-                    // Goodreads posts every update to friends' feeds, so a small step waits for the next one.
+                    // Goodreads and Pagebound post every update to a feed, so progress waits for the next whole step.
                     waiting != null -> "${result.optInt("remotePercent")}% · the next update is sent at $waiting%"
+
+                    result.has("posted") -> "${result.optInt("posted")}%"
 
                     else -> "${result.optInt(if (kept) "remotePercent" else "percent")}%$keptNote"
                 }
@@ -1201,6 +1255,8 @@ class MainActivity : AppCompatActivity() {
             result.text("shelfAfter")?.let { shelf ->
                 field("Shelf", mapOf("current_reading" to "Currently Reading", "currently_reading" to "Currently Reading", "want_to_read" to "Want to Read", "to_read" to "To Read", "finished" to "Finished", "read" to "Read", "did_not_finish" to "Did Not Finish", "paused" to "Paused", "rereading" to "Rereading")[shelf] ?: shelf)
             }
+            result.text("format")?.let { field("Format", it.replaceFirstChar(Char::uppercase)) }
+            result.text("editionError")?.let { field("Edition change", "Not applied (${it.replace('_', ' ')})") }
             val streakError = result.text("streakError")
             val streakDate = result.text("streakDate")
             when {

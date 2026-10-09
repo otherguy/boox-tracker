@@ -15,6 +15,28 @@ fun flooredPercent(raw: String?): Int {
     return numerator.multiply(100.toBigDecimal()).divide(denominator, 0, RoundingMode.DOWN).intValueExact()
 }
 
+/**
+ * Trackers that post every update to friends' feeds receive progress in whole steps of this many points, counted from
+ * 0, so a sync at 23% posts 20% and the next post is 25%.
+ */
+const val PROGRESS_STEP = 5
+
+/** [percent] rounded down to a whole step. */
+fun stepPercent(percent: Int) = percent - percent % PROGRESS_STEP
+
+/** The first step above [remote], where the next post goes. */
+fun nextStep(remote: Int) = stepPercent(remote) + PROGRESS_STEP
+
+/**
+ * The result when [percent] has not reached a step above [remote], or null when [stepPercent] is to be posted. A
+ * status or shelf change ([changed]) still counts as sent.
+ */
+fun belowNextStep(detail: JSONObject, percent: Int, remote: Int, changed: Boolean): JSONObject? {
+    if (stepPercent(percent) > remote) return null
+    if (percent > remote) detail.put("nextUpdateAt", nextStep(remote))
+    return if (changed) detail.put("outcome", "sent") else detail.put("outcome", "already_current").put("unchanged", true)
+}
+
 private val shelves = listOf("current_reading", "want_to_read", "finished", "did_not_finish")
 
 /**

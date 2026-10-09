@@ -20,6 +20,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 | [Goodreads](https://www.goodreads.com) | Enabled³ | 0.6.0 |
 | [StoryGraph](https://www.thestorygraph.com) | Enabled² | 0.5.2 |
 | [Fable](https://fable.co) | Enabled¹ | 0.4.0 |
+| [Pagebound](https://pagebound.co) | Enabled⁴ | 0.7.0 |
 | [Margins](https://margins.app) | Coming Soon | — |
 
 ¹ Fable has no public developer API. Boox Tracker uses the same endpoints as Fable's apps, so the connection can stop working if Fable changes them.
@@ -27,6 +28,8 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 ² StoryGraph has no public API. Boox Tracker signs in to StoryGraph's website inside the app and uses the same page requests as the site, which StoryGraph protects against automated access, so the connection can stop working if StoryGraph changes it.
 
 ³ Goodreads has no public API for new apps. Boox Tracker signs in to Goodreads' website inside the app and uses the same page requests as the site. Goodreads protects its site with a bot check, which Boox Tracker lets pass in a hidden browser window, so the connection can stop working if Goodreads changes it.
+
+⁴ Pagebound has no public API. Boox Tracker uses the same endpoints as Pagebound's website, so the connection can stop working if Pagebound changes them.
 
 Each provider has its own switch. Coming Soon providers cannot be enabled. Reading information remains available without a tracker account.
 
@@ -36,7 +39,9 @@ Fable matches the same way, sends the whole percentage, and keeps the book on Cu
 
 StoryGraph matches the same way, sends the whole percentage, and marks the book currently reading or read. Sign in on StoryGraph's own website inside the app; Boox Tracker keeps the browser session and never sees or remembers your password. See the [StoryGraph guide](docs/storygraph.md).
 
-Goodreads matches by identifiers or title and author, sends the whole percentage when it moved at least 5 points, because each update appears in friends' feeds, and moves the book to Currently Reading or Read with its finish date. Sign in on Goodreads' own website inside the app, with your email or Amazon account; the session stays in a browser profile that only Goodreads uses. See the [Goodreads guide](docs/goodreads.md).
+Goodreads matches by identifiers or title and author, sends the percentage in whole steps of 5 (10%, 15%, 20%), because each update appears in friends' feeds, and moves the book to Currently Reading or Read with its finish date. Sign in on Goodreads' own website inside the app, with your email or Amazon account; the session stays in a browser profile that only Goodreads uses. See the [Goodreads guide](docs/goodreads.md).
+
+Pagebound matches by identifiers or title and author, sends the percentage in whole steps of 5, because each update appears in your feed, and keeps the book on Reading or Finished. Books it adds are digital reads. Sign in with your Pagebound email and password; only Pagebound's sign-in tokens are stored. See the [Pagebound guide](docs/pagebound.md).
 
 ## Download and get started
 
@@ -44,7 +49,7 @@ Goodreads matches by identifiers or title and author, sends the whole percentage
 
 1. Open the APK on your BOOX. Allow installation from that source if Android asks.
 2. Allow read-only access to your ebook folder at startup.
-3. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, Fable, or StoryGraph **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable email and password, or sign in on Goodreads' or StoryGraph's page.
+3. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, StoryGraph, Fable, or Pagebound **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable or Pagebound email and password, or sign in on Goodreads' or StoryGraph's page.
 4. Press **Sync Now** and check your tracker. Background collection is automatic; offline updates wait until delivery is possible.
 
 Install updates over the existing app to keep settings and Activity history. Development builds install separately as **Boox Tracker (dev)**.
@@ -63,7 +68,7 @@ Requires Android 8.0 or later on a BOOX device with NeoReader. Access to saved r
 
 Your ebooks stay on your device. Connected, enabled providers receive the information needed to match and update the detected book; Boox Tracker does not upload your EPUBs or backfill your whole library.
 
-Hardcover and Fable credentials use Android Keystore encryption. Your Fable password is never stored. StoryGraph's sign-in is a browser session kept in the app's private WebView cookie store; Boox Tracker never sees your StoryGraph password. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them, and Clear in Activity deletes them. The log is bounded for months of offline use: it keeps at most 1,000 events and nothing older than 30 days, and routine checks from before the last successful sync are removed once they are two days old. Sync state and queued updates are never removed this way. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
+Hardcover, Fable, and Pagebound credentials use Android Keystore encryption. Your Fable and Pagebound passwords are never stored. StoryGraph's and Goodreads' sign-ins are browser sessions kept in the app's private WebView cookie stores; Boox Tracker never sees those passwords. Ebook folder access is read-only and limited to a folder you allow. Logs stay local until you choose to export them, and Clear in Activity deletes them. The log is bounded for months of offline use: it keeps at most 1,000 events and nothing older than 30 days, and routine checks from before the last successful sync are removed once they are two days old. Sync state and queued updates are never removed this way. Exports omit full directory paths and credentials, but can include book titles, identifiers, progress, and device information. Review them before sharing.
 
 ## Build from source
 

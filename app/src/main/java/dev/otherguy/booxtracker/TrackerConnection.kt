@@ -6,6 +6,8 @@ import android.os.SystemClock
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -230,5 +232,99 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
     fun recordFailure(source: String, kind: String, error: Exception, runId: String? = null) {
         val reason = failureReason(error)
         diagnostics.event(source, kind, runId, JSONObject().put("outcome", "held").put("reason", reason).put("errorClass", error.javaClass.name), true)
+    }
+}
+
+/** A tracker that signs in with an email and password typed into a popup. The password is never stored. */
+abstract class PasswordConnection(app: ReadingSyncApp, service: String, online: () -> Boolean) : TrackerConnection(app, service, online) {
+    private var signIn: Job? = null
+
+    /** The switch is On and the email/password popup stays open until sign-in succeeds or the user cancels. */
+    @Volatile var awaitingCredentials = false
+        private set
+
+    @Volatile var signingIn = false
+        private set
+
+    /** Signs in to the service and stores its session; the password must not outlive this call. */
+    protected abstract suspend fun authenticate(email: String, password: String)
+
+    /** Removes the stored session. */
+    protected abstract suspend fun clearSession()
+
+    /** Sends one queued book; see [deliver]. */
+    protected abstract suspend fun sendBook(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String): JSONObject
+
+    /** A send that ended the session records why, so the row's reconnect issue and the held update are one issue. */
+    final override suspend fun deliver(book: JSONObject, identifiers: BookIdentifiers, account: String, readAt: String): JSONObject = try {
+        sendBook(book, identifiers, account, readAt)
+    } catch (error: Exception) {
+        if (error !is CancellationException && !runCatching { connected() }.getOrDefault(true)) store.put("$service.connectionError", failureReason(error))
+        throw error
+    }
+
+    override suspend fun signOut() {
+        awaitingCredentials = false
+        cancelSignIn()
+        clearSession()
+    }
+
+    /** Signs in with the typed credentials. The password is passed to the service's sign-in request and is not stored. */
+    suspend fun signIn(email: String, password: String) = settingsMutex.withLock {
+        if (signingIn || !awaitingCredentials) return@withLock
+        signingIn = true
+        diagnostics.updates.value++
+        signIn = diagnostics.scope.launch {
+            try {
+                store.put("$service.enabled", "false")
+                store.put("$service.connectionError", "")
+                store.put("$service.account", "")
+                authenticate(email, password)
+                val accountId = account()
+                coroutineContext.ensureActive()
+                store.put("$service.account", accountId)
+                store.put("$service.enabled", "true")
+                recordSignIn()
+                awaitingCredentials = false
+                diagnostics.event("manual", "${service}_connection", detail = JSONObject().put("outcome", "connected"))
+                scheduleDelivery(app)
+                syncAfterSignIn()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                // awaitingCredentials stays true so the user can correct the email or password and retry.
+                store.put("$service.enabled", "false")
+                store.put("$service.connectionError", failureReason(error))
+                recordFailure("manual", "${service}_connection", error)
+            } finally {
+                signingIn = false
+                diagnostics.updates.value++
+            }
+        }
+    }
+
+    private suspend fun cancelSignIn() {
+        val job = signIn
+        signingIn = false
+        job?.cancel()
+        job?.join()
+        signIn = null
+    }
+
+    suspend fun setEnabled(value: Boolean) {
+        if (!value) store.put("$service.enabled", "false")
+        settingsMutex.withLock {
+            if (!value) {
+                awaitingCredentials = false
+                if (signIn?.isActive == true) signOut()
+            }
+            if (value && !runCatching { connected() }.getOrDefault(false)) {
+                awaitingCredentials = true
+                store.put("$service.connectionError", "")
+                diagnostics.updates.value++
+                return@withLock
+            }
+            storeEnabled(value)
+        }
     }
 }

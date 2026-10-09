@@ -9,9 +9,6 @@ import org.json.JSONObject
 
 private val goodreadsShelves = setOf("to-read", "currently-reading", "read", "did-not-finish")
 
-/** Progress moves on Goodreads in steps of at least this many points, because every update is a post in friends' feeds. */
-const val GOODREADS_PROGRESS_STEP = 5
-
 /** Next.js' serialized router tree for `/review/edit/[id]`, whose dynamic segment is the edition id. */
 private fun reviewEditTree(bookId: String) = "[\"\",{\"children\":[\"review\",{\"children\":[\"edit\",{\"children\":[[\"id\",\"$bookId\",\"d\"],{\"children\":[\"__PAGE__\",{},null,null]},null,null]}]},null,null]},null,null,true]"
 
@@ -103,26 +100,24 @@ class GoodreadsSync(private val http: GoodreadsHttp, private val store: Diagnost
         val remote = shelved.edition(target)?.percent ?: throw SyncProblem("goodreads_page_unrecognized")
         detail.put("remotePercent", remote).put("shelfAfter", "currently_reading")
         if (remote > percent) return detail.put("outcome", "kept_higher_remote_progress")
-        if (percent == remote || (!shelfChanged && percent - remote < GOODREADS_PROGRESS_STEP)) {
-            if (percent > remote) detail.put("nextUpdateAt", remote + GOODREADS_PROGRESS_STEP)
-            if (shelfChanged) return detail.put("outcome", "sent")
-            return detail.put("outcome", "already_current").put("unchanged", true)
-        }
+        // Every update is a post in friends' feeds, so progress moves in whole steps.
+        belowNextStep(detail, percent, remote, shelfChanged)?.let { return it }
+        val step = stepPercent(percent)
         // Each post is public, so a value whose earlier post Goodreads did not show is held instead of posted again.
         val posted = "goodreads.book.posted.$target"
-        if (store.get(posted) == percent.toString()) throw SyncProblem("goodreads_progress_not_applied")
-        store.put(posted, percent.toString())
+        if (store.get(posted) == step.toString()) throw SyncProblem("goodreads_progress_not_applied")
+        store.put(posted, step.toString())
         try {
-            post("/user_status.json", mapOf("user_status[book_id]" to target, "user_status[percent]" to percent.toString(), "user_status[body]" to ""), shelved.csrf, referer)
+            post("/user_status.json", mapOf("user_status[book_id]" to target, "user_status[percent]" to step.toString(), "user_status[body]" to ""), shelved.csrf, referer)
         } catch (error: HttpProblem) {
             // Goodreads answered and refused the post, so a retry posts nothing twice.
             store.delete(posted)
             throw error
         }
         shelved = editions(workId)
-        if (shelved.edition(target)?.percent != percent) throw SyncProblem("goodreads_progress_not_applied")
+        if (shelved.edition(target)?.percent != step) throw SyncProblem("goodreads_progress_not_applied")
         store.delete(posted)
-        return detail.put("remotePercent", percent).put("outcome", "sent")
+        return detail.put("remotePercent", step).put("posted", step).put("outcome", "sent")
     }
 
     /**

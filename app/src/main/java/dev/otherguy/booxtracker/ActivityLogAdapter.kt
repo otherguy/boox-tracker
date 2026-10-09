@@ -103,12 +103,14 @@ fun bookTitle(book: JSONObject) = book.raw("title") ?: book.text("title")
 
 fun bookParts(book: JSONObject?): List<String> = if (book == null) emptyList() else listOfNotNull(bookTitle(book), book.text("percentage")?.let { "$it%" })
 
-/** The progress a tracker holds after a send: pages for Hardcover, a percentage for Fable. */
+/** The progress a tracker holds after a send: pages for Hardcover, a percentage for the others. */
 private fun progressText(result: JSONObject, kept: Boolean): String? = when {
     result.optBoolean("finished") -> "Finished"
 
-    // Goodreads holds its own value until NeoReader is a full step ahead.
+    // Goodreads and Pagebound receive whole steps of 5 and hold their own value until NeoReader reaches the next one.
     result.optInt("nextUpdateAt") > 0 -> "${result.optInt("remotePercent")}%"
+
+    result.has("posted") -> "${result.optInt("posted")}%"
 
     result.optInt("editionPages") > 0 -> "${result.optInt(if (kept) "remoteProgressPages" else "progressPages")} of ${result.optInt("editionPages")} pages"
 
