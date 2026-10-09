@@ -52,9 +52,13 @@ Margins matches by ISBN, Goodreads ID, or ASIN, adds a reading session for each 
 [APK downloads and updates → GitHub Releases](https://github.com/otherguy/boox-tracker/releases)
 
 1. Open the APK on your BOOX. Allow installation from that source if Android asks.
-2. Allow read-only access to your ebook folder at startup.
-3. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, StoryGraph, Fable, Pagebound, or Margins **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable or Pagebound email and password, enter the code Margins emails you, or sign in on Goodreads' or StoryGraph's page.
-4. Press **Sync Now** and check your tracker. Background collection is automatic; offline updates wait until delivery is possible.
+2. Let Boox Tracker run in the background. BOOX stops apps that it freezes or keeps in the background for too long, and a stopped Boox Tracker sends nothing until you open it again.
+   - In **Apps**, tap the snowflake to open **Freeze Settings** and turn Boox Tracker **Off**. BOOX freezes new apps by default. You can also long-press Boox Tracker and choose **Unfreeze**.
+   - Long-press Boox Tracker in **Apps**, choose **Optimize**, open **Others**, and set **Stay active in the background** to **Unlimited**. With the default of 5 minutes, BOOX stops Boox Tracker 5 minutes after you leave it.
+   - Do not close Boox Tracker on the recent-apps screen. Closing it there also stops it.
+3. Allow read-only access to your ebook folder at startup.
+4. Open a book in NeoReader, return to its library, then turn Hardcover, Goodreads, StoryGraph, Fable, Pagebound, or Margins **On** in Boox Tracker. Approve the Hardcover sign-in code, enter your Fable or Pagebound email and password, enter the code Margins emails you, or sign in on Goodreads' or StoryGraph's page.
+5. Press **Sync Now** and check your tracker. Background collection is automatic; offline updates wait until delivery is possible.
 
 Install updates over the existing app to keep settings and Activity history. Development builds install separately as **Boox Tracker (dev)**.
 

@@ -70,6 +70,14 @@ The Activity log on the GoColor7 showed six "Background run interrupted" issues 
 
 A stopped app runs no background collection or delivery until it is opened again; opening it restores the jobs. The second reboot, planned for 15:55, was skipped because the app had been force-stopped at 15:45. The app was opened by ADB at 15:57 to restore its jobs.
 
+**Background setting, 2026-10-09 (user-approved):** Boox Tracker's BOOX App optimization popup (Apps → long-press → Optimize → Others) had **Stay active in the background** at the default **5 min**; the other choices are 10 min, 15 min, 30 min, 1 hr, and Unlimited. It was set to Unlimited at 16:16; BOOX restarted the process on each change ("killAppForConfigChange") without stopping the package. Freeze Settings showed **Freeze new apps** On, Boox Tracker's own freeze switch Off, and Auto Freeze "Do not freeze"; nothing there was changed. Then:
+
+- **Five-minute check:** at 16:23:35, about seven minutes after the app left the screen, the package was not stopped, both jobs existed, and no force-stop was recorded.
+- **Reboot at 16:27:05,** with the collection job due during boot: the boot was at 16:27:27, the job's process started at 16:27:36.6, and ActivityManager killed it at 16:27:38.0 with `eac_enable_status_changed` (adj 250). WorkManager's `RescheduleReceiver` started a new process at 16:27:45, and the retried run completed. Activity shows the 16:27 "Background run interrupted" issue, as the same-boot rule requires.
+- **Hidden run:** Activity has a background check at 16:42 with the app hidden from the boot until it was opened by ADB at 16:46. This is independent background evidence for 0.8.1 with the setting at Unlimited.
+
+The README's setup steps now tell users to turn off freezing for Boox Tracker, to set Stay active in the background to Unlimited, and not to close it on the recent-apps screen.
+
 ## Margins tracker 0.8.0
 
 Margins is the sixth tracker, under the [Margins plan](plan-20261009-margins-sync.md) and the [contract](integrations.md#margins). Margins has no public API; the user accepted using its website's Supabase sign-in and Zero sync server on 2026-10-09. Deviations from the approved plan are in its Notes.
