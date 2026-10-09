@@ -46,6 +46,16 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Routine BOOX boot kill 0.8.2
+
+A run whose process BOOX killed shortly after a boot is routine (user decision, 2026-10-09). `startRun` also stores the process ID; recovery reads Android's process exit history (`ActivityManager.getHistoricalProcessExitReasons`, Android 11 and later) for that pid and keeps the newest exit at or after the run's start. The description `eac_enable_status_changed` records the routine `run_stopped_by_boox` ("Background run stopped by BOOX"); any other interruption stays the issue and keeps the description, at most 200 characters, as `exitDescription`. A run from an earlier boot is still `run_stopped_by_restart`, and a marker without a pid keeps the issue.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.2/code 32. Artifact `dist/boox-tracker-0.8.2-diagnostic.apk`, 4,219,206 bytes, SHA-256 `bc315a620c693338f7fba04ef93aa4d3ee70e7c590f6009172c7b5b878b6f269`. Package, certificate, schemas, ebook cache namespace, and permissions are unchanged.
+
+**Automatically tested:** 301 tests, zero failures/errors/skips. `BackgroundTest` checks that an `eac_enable_status_changed` exit is routine, and that an interrupted run keeps only the exit of its own pid at or after its start: an exit from another pid and an earlier exit from the same pid are ignored. That test fails when the time filter is removed. Robolectric reports pid 0 for the test process and filters exit records by the pid argument. Both lint variants, both assemblies, ktlint, markdownlint, and packaging passed. The code-simplifier review removed a flag and split the test; the code review's applied findings: a test that exercises the pid and time filters, row text that matches the evidence, a length limit on the description, and a reason that no longer calls a recorded cause unknown.
+
+**Verified on physical BOOX:** the signed 0.8.2/code 32 APK was installed over 0.8.1/code 31 by USB at 16:56 device time on 2026-10-09, data inode `129824` unchanged, no uninstall or data clear. It started by ADB with no crash logged, the package was not stopped, and both jobs were present. BOOX kept **Stay active in the background** at Unlimited across the update. A "Background run stopped by BOOX" row has not been seen on the device yet; it needs a boot with a due job.
+
 ## Interrupted background runs and export to a folder 0.8.1
 
 The Activity log on the GoColor7 showed six "Background run interrupted" issues from 23:08 on 2026-10-07 to 10:28 on 2026-10-09 (device time, UTC+07:00). All six were `scheduled` runs, every one was detected 22–35 s after a boot, and each was followed by a retried run that completed, so no progress was lost.
@@ -73,7 +83,7 @@ A stopped app runs no background collection or delivery until it is opened again
 **Background setting, 2026-10-09 (user-approved):** Boox Tracker's BOOX App optimization popup (Apps → long-press → Optimize → Others) had **Stay active in the background** at the default **5 min**; the other choices are 10 min, 15 min, 30 min, 1 hr, and Unlimited. It was set to Unlimited at 16:16; BOOX restarted the process on each change ("killAppForConfigChange") without stopping the package. Freeze Settings showed **Freeze new apps** On, Boox Tracker's own freeze switch Off, and Auto Freeze "Do not freeze"; nothing there was changed. Then:
 
 - **Five-minute check:** at 16:23:35, about seven minutes after the app left the screen, the package was not stopped, both jobs existed, and no force-stop was recorded.
-- **Reboot at 16:27:05,** with the collection job due during boot: the boot was at 16:27:27, the job's process started at 16:27:36.6, and ActivityManager killed it at 16:27:38.0 with `eac_enable_status_changed` (adj 250). WorkManager's `RescheduleReceiver` started a new process at 16:27:45, and the retried run completed. Activity shows the 16:27 "Background run interrupted" issue, as the same-boot rule requires.
+- **Reboot at 16:27:05,** with the collection job due during boot: the boot was at 16:27:27, the job's process started at 16:27:36.6, and ActivityManager killed it at 16:27:38.0 with `eac_enable_status_changed` (adj 250). WorkManager's `RescheduleReceiver` started a new process at 16:27:45, and the retried run completed. On 0.8.1, Activity shows it as the 16:27 "Background run interrupted" issue; 0.8.2 records such a run as routine.
 - **Hidden run:** Activity has a background check at 16:42 with the app hidden from the boot until it was opened by ADB at 16:46. This is independent background evidence for 0.8.1 with the setting at Unlimited.
 
 The README's setup steps now tell users to turn off freezing for Boox Tracker, to set Stay active in the background to Unlimited, and not to close it on the recent-apps screen.

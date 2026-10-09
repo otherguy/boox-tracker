@@ -1,10 +1,12 @@
 package dev.otherguy.booxtracker
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.app.Application
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.Process
 import android.os.SystemClock
 import android.provider.Settings
 import java.time.Instant
@@ -273,14 +275,20 @@ class Diagnostics(
                 // Android stops every process when the device shuts down, so a run from an earlier boot is not an app failure.
                 val started = active.optInt("bootCount", -1)
                 val restarted = started >= 0 && bootCount().let { it >= 0 && it != started }
+                val exit = if (restarted) null else processExit(active)
                 val (kind, reason) =
-                    if (restarted) {
-                        "run_stopped_by_restart" to "The device shut down or restarted during the run"
-                    } else {
-                        "interruption_detected" to "Previous run has no recorded stop; termination time and cause are unknown"
+                    when {
+                        restarted -> "run_stopped_by_restart" to "The device shut down or restarted during the run"
+
+                        // BOOX kills running apps shortly after a boot; WorkManager retries the run.
+                        exit == "eac_enable_status_changed" -> "run_stopped_by_boox" to "BOOX stopped the app shortly after the device started"
+
+                        exit != null -> "interruption_detected" to "Previous run has no recorded stop; Android recorded how the app ended"
+
+                        else -> "interruption_detected" to "Previous run has no recorded stop; termination time and cause are unknown"
                     }
-                val detail = JSONObject().put("reason", reason).putOpt("startedAt", active.text("startedAt"))
-                event(source, kind, active.getString("id"), detail, !restarted)
+                val detail = JSONObject().put("reason", reason).putOpt("startedAt", active.text("startedAt")).putOpt("exitDescription", exit)
+                event(source, kind, active.getString("id"), detail, kind == "interruption_detected")
                 store.put("active.$source", "")
             }
         }
@@ -317,8 +325,19 @@ class Diagnostics(
         store.put(
             "active.$source",
             JSONObject().put("id", id).put("startedAt", Instant.now().toString()).put("startedElapsedMs", SystemClock.elapsedRealtime())
-                .put("appVisible", app.visible).put("bootCount", bootCount()).toString()
+                .put("appVisible", app.visible).put("bootCount", bootCount()).put("pid", Process.myPid()).toString()
         )
+    }
+
+    /** Android's description of how the process that ran [active] ended, when Android recorded it (Android 11 and later). */
+    private fun processExit(active: JSONObject): String? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val pid = active.optInt("pid", -1).takeIf { it >= 0 } ?: return null
+        val since = isoMillis(active.text("startedAt")) ?: return null
+        return runCatching {
+            app.getSystemService(ActivityManager::class.java).getHistoricalProcessExitReasons(app.packageName, pid, 0)
+                .filter { it.timestamp >= since }.maxByOrNull { it.timestamp }?.description?.take(200)
+        }.getOrNull()
     }
 
     /** How many times the device has booted, or -1 when Android does not report it. */

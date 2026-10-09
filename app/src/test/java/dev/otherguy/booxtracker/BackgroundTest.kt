@@ -83,6 +83,54 @@ class BackgroundTest {
         assertTrue(d.store.events().single { it.optString("runId") == "no-count" }.getBoolean("issue"))
     }
 
+    /** Records that process [pid] ended at [time] with Android's [reason] and [description]. */
+    private fun exited(app: ReadingSyncApp, reason: Int, description: String, pid: Int = android.os.Process.myPid(), time: Long = System.currentTimeMillis()) = shadowOf(app.getSystemService(android.app.ActivityManager::class.java)).addApplicationExitInfo(
+        org.robolectric.shadows.ShadowActivityManager.ApplicationExitInfoBuilder.newBuilder()
+            .setPid(pid).setReason(reason).setDescription(description).setTimestamp(time).build()
+    )
+
+    @Test fun aRunThatBooxStoppedAfterABootIsRoutine() = runBlocking {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        val d = app.diagnostics
+        d.ensureRecovered()
+        d.startRun("scheduled", "eac")
+        exited(app, android.app.ApplicationExitInfo.REASON_OTHER, "eac_enable_status_changed")
+        d.recover()
+        val stop = d.store.events().single { it.optString("runId") == "eac" }
+        assertEquals("run_stopped_by_boox", stop.getString("kind"))
+        assertFalse(stop.getBoolean("issue"))
+    }
+
+    @Test fun anInterruptedRunKeepsTheExitOfItsOwnProcessAfterItStarted() = runBlocking {
+        val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
+        val d = app.diagnostics
+        d.ensureRecovered()
+        val started = System.currentTimeMillis()
+        d.store.put(
+            "active.scheduled",
+            JSONObject().put("id", "recents").put("startedAt", java.time.Instant.ofEpochMilli(started).toString()).put("bootCount", -1).put("pid", 4242).toString()
+        )
+        // An earlier process with the same pid and another process after the start are not this run's exit.
+        exited(app, android.app.ApplicationExitInfo.REASON_OTHER, "eac_enable_status_changed", pid = 4242, time = started - 1000)
+        exited(app, android.app.ApplicationExitInfo.REASON_OTHER, "eac_enable_status_changed", pid = 9999, time = started + 1000)
+        exited(app, android.app.ApplicationExitInfo.REASON_USER_REQUESTED, "remove task", pid = 4242, time = started + 500)
+        d.recover()
+        val interruption = d.store.events().single { it.optString("runId") == "recents" }
+        assertEquals("interruption_detected", interruption.getString("kind"))
+        assertTrue(interruption.getBoolean("issue"))
+        assertEquals("remove task", interruption.getString("exitDescription"))
+        // A process with the same pid that ended before the run started is not this run's exit.
+        d.store.put(
+            "active.scheduled",
+            JSONObject().put("id", "reused").put("startedAt", java.time.Instant.ofEpochMilli(started).toString()).put("bootCount", -1).put("pid", 5151).toString()
+        )
+        exited(app, android.app.ApplicationExitInfo.REASON_OTHER, "eac_enable_status_changed", pid = 5151, time = started - 1000)
+        d.recover()
+        val unknown = d.store.events().single { it.optString("runId") == "reused" }
+        assertTrue(unknown.getBoolean("issue"))
+        assertFalse(unknown.has("exitDescription"))
+    }
+
     @Test fun collectionIsOneUniqueFifteenMinuteWork() = runBlocking {
         val app = RuntimeEnvironment.getApplication() as ReadingSyncApp
         scheduleCollection(app)

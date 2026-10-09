@@ -155,11 +155,11 @@ class DiagnosticsStore(
         private const val VACUUM_AFTER = 500
         private const val MAX_READ_CHARS = 500_000
 
-        /** Checks, runs, runs stopped by a device restart, queue entries, and waiting sends. `start`, `stop`, and `*_sync_start` are kinds older versions wrote. */
+        /** Checks, runs, runs stopped by a device restart or by BOOX, queue entries, and waiting sends. `start`, `stop`, and `*_sync_start` are kinds older versions wrote. */
         private fun routine(event: JSONObject): Boolean {
             if (event.optBoolean("issue")) return false
             val kind = event.optString("kind")
-            return runMarker(kind) || kind == "run_stopped_by_restart" || kind == "query" || kind == "queued" || (kind.endsWith("_sync") && event.optString("outcome") == "pending")
+            return runMarker(kind) || kind == "run_stopped_by_restart" || kind == "run_stopped_by_boox" || kind == "query" || kind == "queued" || (kind.endsWith("_sync") && event.optString("outcome") == "pending")
         }
     }
 }

@@ -212,9 +212,11 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
 
         kind.endsWith("_interruption_detected") -> "$service send interrupted".also { parts += "the app stopped during a send" }
 
-        kind == "interruption_detected" -> "$background interrupted"
+        kind == "interruption_detected" -> "$background interrupted".also { parts += listOfNotNull(event.text("exitDescription")) }
 
         kind == "run_stopped_by_restart" -> "$background stopped by shutdown".also { parts += "the device shut down or restarted during the run" }
+
+        kind == "run_stopped_by_boox" -> "$background stopped by BOOX".also { parts += "BOOX stopped the app shortly after the device started" }
 
         kind == "worker_failed" -> "$background failed".also { parts += listOfNotNull(reason) }
 
