@@ -1,11 +1,11 @@
 package dev.otherguy.booxtracker
 
-/** The progress form of a book the user is currently reading. Hidden values stay as text so a write can echo them verbatim. */
+/** The progress fields of a book the user is currently reading. Hidden values stay as text so a write can echo them verbatim. */
 data class ReadingProgress(val lastReachedPercent: Int?, val lastReachedPages: String, val bookNumOfPages: String, val progressType: String?, val barPercent: Int?)
 
 /**
  * What the app reads from a StoryGraph book page: the edition's title and `ISBN/UID`, the user's status for this
- * edition, the edition the user shelved instead when this one is unshelved, the page's CSRF token, and the progress form.
+ * edition, the edition the user shelved instead when this one is unshelved, the page's CSRF token, and the progress fields.
  */
 data class BookPage(val id: String, val title: String?, val isbnUid: String?, val status: String?, val otherEditionId: String?, val csrf: String, val progress: ReadingProgress?)
 
@@ -82,12 +82,12 @@ internal fun bookPage(html: String, id: String): BookPage {
 private fun progressPane(html: String, id: String): ReadingProgress? {
     val pane = bookDiv(html, "progress-tracker-pane", id) ?: return null
     val start = html.indexOf(pane)
-    val formStart = html.indexOf("action=\"/update-progress\"", start).takeIf { it > 0 } ?: return null
-    val formEnd = html.indexOf("</form>", formStart).takeIf { it > 0 } ?: return null
-    val form = html.substring(formStart, formEnd)
-    fun hidden(name: String): String = tags(form, "input", "read_status[$name]").firstOrNull { attribute(it, "name") == "read_status[$name]" }?.let { attribute(it, "value") }.orEmpty()
-    val bar = Regex("style=\"width:\\s*(\\d{1,3})%\"").find(html.substring(start, formStart))?.groupValues?.get(1)?.toIntOrNull()
-    val selected = tags(form, "option", "selected=\"selected\"").firstNotNullOfOrNull { attribute(it, "value")?.takeIf(String::isNotEmpty) }
+    // The pane holds the bar and the fields; its Save button posts the fields to the button's `data-progress-url`.
+    val end = html.indexOf("data-progress-url=\"/update-progress\"", start).takeIf { it > 0 } ?: return null
+    val fields = html.substring(start, end)
+    fun hidden(name: String): String = tags(fields, "input", "read_status[$name]").firstOrNull { attribute(it, "name") == "read_status[$name]" }?.let { attribute(it, "value") }.orEmpty()
+    val bar = Regex("style=\"width:\\s*(\\d{1,3})%\"").find(fields)?.groupValues?.get(1)?.toIntOrNull()
+    val selected = tags(fields, "option", "selected=\"selected\"").firstNotNullOfOrNull { attribute(it, "value")?.takeIf(String::isNotEmpty) }
     return ReadingProgress(hidden("last_reached_percent").toIntOrNull(), hidden("last_reached_pages"), hidden("book_num_of_pages"), selected, bar)
 }
 

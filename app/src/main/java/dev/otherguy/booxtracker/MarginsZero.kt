@@ -77,6 +77,16 @@ internal val MARGINS_CLIENT_SCHEMA: JSONObject = JSONObject().put(
     }
 )
 
+/**
+ * A Zero error without its own handling as a reason that names it: the kind, then the failure reason and HTTP status
+ * Zero adds to some kinds, for example `margins_zero_transform_failed_http_502`. The server's message text is not kept.
+ */
+private fun zeroErrorCode(error: JSONObject): String {
+    fun snakeCase(text: String) = text.take(40).replace(Regex("([a-z0-9])([A-Z])"), "$1_$2").lowercase().replace(Regex("[^a-z0-9]+"), "_").trim('_')
+    val parts = listOf((error.opt("kind") as? String).orEmpty(), (error.opt("reason") as? String).orEmpty(), error.optInt("status").takeIf { it > 0 }?.toString().orEmpty()).map(::snakeCase).filter(String::isNotEmpty)
+    return if (parts.isEmpty()) "margins_sync_error" else "margins_zero_" + parts.joinToString("_")
+}
+
 /** One named Zero query; its hash is derived from the name and arguments, as Zero's own client does. */
 class ZeroQuery(val name: String, vararg arguments: Any) {
     val args = JSONArray(arguments.toList())
@@ -332,21 +342,22 @@ class MarginsZero(private val url: String = MARGINS_ZERO_URL, private val store:
 
                 is ZeroEvent.Text -> {
                     val message = runCatching { JSONArray(event.text) }.getOrNull() ?: throw SyncProblem("margins_invalid_message")
-                    if (message.optString(0) == "error") serverError(message.optJSONObject(1)?.optString("kind").orEmpty())
+                    if (message.optString(0) == "error") serverError(message.optJSONObject(1) ?: JSONObject())
                     message
                 }
             }
         }
 
-        private fun serverError(kind: String): Nothing = when (kind) {
+        /** Bare `InvalidConnectionRequest` means Zero no longer accepts the group's stored schema or connection state. */
+        private fun serverError(error: JSONObject): Nothing = when (val kind = (error.opt("kind") as? String).orEmpty()) {
             "Unauthorized", "AuthInvalidated" -> throw HttpProblem(401, MARGINS_REJECTED_TOKEN, "margins")
             "SchemaVersionNotSupported" -> throw SyncProblem("margins_schema_changed")
             "VersionNotSupported" -> throw SyncProblem("margins_protocol_unsupported")
-            "ClientNotFound", "InvalidConnectionRequestBaseCookie", "InvalidConnectionRequestLastMutationID", "InvalidConnectionRequestClientDeleted" -> throw ZeroGroupReset()
+            "ClientNotFound", "InvalidConnectionRequest", "InvalidConnectionRequestBaseCookie", "InvalidConnectionRequestLastMutationID", "InvalidConnectionRequestClientDeleted" -> throw ZeroGroupReset()
             "MutationRateLimited" -> throw HttpProblem(429, "rate_limited", "margins")
             "Rebalance", "Rehome", "ServerOverloaded", "Internal", "PushFailed" -> throw HttpProblem(503, kind.lowercase(), "margins")
             "MutationFailed", "InvalidPush" -> throw SyncProblem("margins_push_rejected")
-            else -> throw SyncProblem("margins_sync_error")
+            else -> throw SyncProblem(zeroErrorCode(error))
         }
 
         override fun close() {

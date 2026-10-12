@@ -40,7 +40,7 @@ Current state, versions, device results, and next steps are in [project status](
 
 ## Queue and background work
 
-- Local collection is unique fifteen-minute WorkManager work without a network constraint. Separate network-constrained delivery work (`APPEND_OR_REPLACE`) drains the queue. Opening the app and Sync Now also collect and attempt delivery.
+- Local collection is unique fifteen-minute WorkManager work without a network constraint. Separate network-constrained delivery work (`APPEND_OR_REPLACE`) drains the queue. Opening the app and Sync Now also collect and attempt delivery. A send schedules delivery work only for what its own attempt left (offline with a queued item, a temporary failure, a newer revision, or a cancelled attempt); a held update waits for the next sync, so delivery runs never repeat the same refusal.
 - A connected Goodreads session adds unique six-hour network-constrained renewal work that loads Goodreads in a hidden WebView; a send renews first when the last renewal is older than six hours. Log out cancels the work.
 - The queue holds the latest observation per account, service, and source book. Acknowledge only the revision that was sent. Read remote state before retrying an uncertain write. Another account never receives a queue.
 - Do not add an observation service, observer polling, a background toggle, an app-managed wake lock, or forced screen-on.

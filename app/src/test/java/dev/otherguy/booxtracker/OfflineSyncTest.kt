@@ -86,6 +86,34 @@ class OfflineSyncTest {
         assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
     }
 
+    @Test fun aSyncThatHoldsItsUpdateQueuesNoBackgroundDelivery() = runBlocking {
+        online = true
+        val update = check(book(progress = "100/100"))
+        store.put("lastCheck", update.toString())
+        val work = WorkManager.getInstance(app)
+        fun deliveryWork() = work.getWorkInfosForUniqueWork(DELIVERY_WORK_NAME).get().count { it.state == WorkInfo.State.ENQUEUED }
+        work.cancelUniqueWork(DELIVERY_WORK_NAME).result.get()
+        connection.send("manual", update)
+        connection.send("scheduled", update)
+        assertEquals("source_status_not_finished", connection.state().getJSONObject("last").getString("reason"))
+        assertEquals(2, store.events().count { it.optString("kind") == "hardcover_sync" })
+        assertEquals(0, deliveryWork())
+        online = false
+        connection.send("manual", check(book(progress = "100/100", status = "2")))
+        assertEquals(1, deliveryWork())
+    }
+
+    @Test fun anOfflineSyncWithNothingQueuedQueuesNoBackgroundDelivery() = runBlocking {
+        online = true
+        connection.send("manual", check(book()))
+        assertTrue(store.pending("1", "hardcover").isEmpty())
+        val work = WorkManager.getInstance(app)
+        work.cancelUniqueWork(DELIVERY_WORK_NAME).result.get()
+        online = false
+        connection.send("scheduled", check(book()))
+        assertEquals(0, work.getWorkInfosForUniqueWork(DELIVERY_WORK_NAME).get().count { it.state == WorkInfo.State.ENQUEUED })
+    }
+
     @Test fun successRemainsPerBookAndSurvivesALaterHeldAttempt() = runBlocking {
         online = true
         store.put("lastCheck", check(book()).toString())

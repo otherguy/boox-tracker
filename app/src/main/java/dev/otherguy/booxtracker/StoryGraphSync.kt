@@ -70,8 +70,7 @@ class StoryGraphSync(private val http: StoryGraphHttp, private val store: Diagno
                     "read_status[last_reached_pages]" to progress.lastReachedPages,
                     "read_status[last_reached_percent]" to progress.lastReachedPercent?.toString().orEmpty(),
                     "book_id" to target,
-                    "on_book_page" to "true",
-                    "commit" to "Save"
+                    "on_book_page" to "true"
                 ),
                 current.csrf,
                 referer

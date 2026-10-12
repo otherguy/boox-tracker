@@ -106,7 +106,7 @@ class StoryGraphTest {
         assertEquals("", progress.getString("read_status[progress_minutes]"))
         assertEquals(STORYGRAPH_EBOOK, progress.getString("book_id"))
         assertEquals("true", progress.getString("on_book_page"))
-        assertEquals("Save", progress.getString("commit"))
+        assertFalse(progress.has("commit"))
         assertEquals(47, ebook.percent)
         assertEquals("percentage", ebook.progressType)
         assertTrue(server.requests.all { it.getString("cookie").contains(STORYGRAPH_SESSION_COOKIE) && it.getString("userAgent") == "test-agent" })

@@ -101,16 +101,23 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
                     )
                 }
             }
-            if (store.pending(accountId, service).isNotEmpty()) scheduleDelivery(app)
         }
-        drain(source)
+        // A held update waits for the next sync instead of a delivery run; a cancelled send leaves its queue to one.
+        val unfinished = try {
+            drain(source)
+        } catch (error: CancellationException) {
+            scheduleDelivery(app)
+            throw error
+        }
+        if (unfinished) scheduleDelivery(app)
     }
 
+    /** Sends the queue. True when work is left that a later delivery run can finish: offline, a temporary failure, or an unattempted newer revision. */
     suspend fun drain(source: String): Boolean = mutex.withLock {
         if (!enabled()) return@withLock false
-        if (!online()) return@withLock true
-        requireEbookFolder(app, store)
         val accountId = store.get("$service.account")?.takeIf { it.isNotBlank() } ?: return@withLock false
+        if (!online()) return@withLock store.pending(accountId, service).isNotEmpty()
+        requireEbookFolder(app, store)
         var retry = false
         var synced = false
         val attempted = mutableSetOf<String>()

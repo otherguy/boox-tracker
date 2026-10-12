@@ -56,6 +56,8 @@ class MarginsServer : AutoCloseable {
     val revoked = mutableSetOf<String>()
     var invalidRefresh = false
     var schemaRejected = false
+    var connectionError: JSONObject? = null
+    val rejectedGroups = mutableSetOf<String>()
     var pushAppError = false
     var pushFailedOnce = false
     var rateLimitedOnce = false
@@ -224,6 +226,14 @@ class MarginsServer : AutoCloseable {
             when (message.getString(0)) {
                 "initConnection" -> {
                     check(body.getJSONObject("clientSchema").getJSONObject("tables").has("userspace.readthroughs"))
+                    connectionError?.let {
+                        webSocket.message("error", it)
+                        return
+                    }
+                    if (connection.getString("clientGroupID") in rejectedGroups) {
+                        webSocket.message("error", JSONObject().put("kind", "InvalidConnectionRequest").put("message", "Provided schema does not match previous schema"))
+                        return
+                    }
                     if (schemaRejected) {
                         webSocket.message("error", JSONObject().put("kind", "SchemaVersionNotSupported").put("message", "The \"public.languages\" table does not exist"))
                         return

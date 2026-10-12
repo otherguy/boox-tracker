@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-09 for Boox Tracker 0.8.0/code 30 (Margins), built and automatically tested and not yet committed or installed. 0.7.0/code 29 (Pagebound and the shared step rule) is committed at `7247556` and installed on the GoColor7; 0.6.0/code 25 added Goodreads at `1b52866`. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-10-12 for Boox Tracker 0.8.3/code 33 (StoryGraph progress fields, held-update delivery, Margins group refusal), installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -45,6 +45,24 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## StoryGraph progress fields, held-update delivery, and Margins group refusal 0.8.3
+
+On 2026-10-12 the GoColor7 (0.8.2) showed "Margins update held · margins sync error" and "StoryGraph update held · storygraph page unrecognized" in Activity, each "12 times since 12:41", and the two rows swapped places at the top.
+
+**Diagnosis:**
+
+- **StoryGraph:** StoryGraph removed the `<form action="/update-progress">` around the progress fields (first held at 01:47 local). The inputs now sit in `div.progress-update-fields`, and the Save button carries `data-progress-url="/update-progress"`; StoryGraph's script posts the serialized fields with `Rails.ajax` and no `commit` field (checked in the user's Chrome session and the public script bundle). `progressPane` found no form, so `progress` was null and the sync held.
+- **Repeated held rows:** logcat showed 12 `DeliveryWorker` runs one after another from 12:41:03, each about 4 s. `send()` scheduled delivery (`APPEND_OR_REPLACE`) before its own attempt whenever an item was queued, and a held item stays queued. Each sync therefore appended one delivery run per held service, and each run held the same revision again and wrote another issue. The two services' rows took turns as newest. The runs were sequential, not racing.
+- **Margins:** `margins_sync_error` was the fallback for any Zero error kind without handling, and the kind was not stored. The same queries from the user's Margins browser session with a new client group worked. 0.8.3's first build named the kind on the device at 13:19: bare `InvalidConnectionRequest`, which zero-cache sends for a group whose stored client schema or connection state it no longer accepts. The device's group dates from the 2026-10-09 sign-in. The 50→55% session created at 23:54 on 2026-10-11 is on Margins while the device's last Margins success was 14:42, so the push probably went through and the confirming read failed (guess; no event detail exists from 0.8.2).
+
+**Change:** the StoryGraph parser bounds the progress fields from the pane to the `data-progress-url` button, and the write no longer sends `commit`. `send()` schedules delivery only when its own attempt leaves work (offline with a queued item, a temporary failure, or a newer revision), and also when the attempt is cancelled; an offline `drain` with an empty queue returns false. Unhandled Zero kinds hold as `margins_zero_<kind>[_<reason>][_<status>]` without the server's message. Bare `InvalidConnectionRequest` starts a new client group and retries once, like `ClientNotFound`.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.3/code 33. Artifact `dist/boox-tracker-0.8.3-diagnostic.apk`, 4,219,418 bytes, SHA-256 `d4b825dbf34b78a1c5e0c0883b5af916cfad3235b7505f4734a60ff2cc0aa376`. Package, certificate, schemas, ebook cache namespace, and permissions are unchanged.
+
+**Automatically tested:** 305 tests, zero failures/errors/skips. The StoryGraph fixture carries the live markup, and the StoryGraph tests failed with `storygraph_page_unrecognized` before the parser change. `OfflineSyncTest` checks that a sync that holds queues no delivery run, that an offline sync with nothing queued queues none, and that an offline sync with a new revision queues one; the first two failed on 0.8.2's code. `MarginsTest` checks the named fallback code and that a refused group is replaced once and a refused new group holds as `margins_client_group_rejected`. Both lint variants, both assemblies, ktlint, ruff, markdownlint, yamllint, actionlint, and packaging passed. The code-simplifier review shortened `zeroErrorCode` and the comments; the code review's applied findings: no delivery run for an offline sync with an empty queue, a delivery run for a cancelled send, and no `null` text from JSON nulls in the code.
+
+**Verified on physical BOOX:** the first 0.8.3 build was installed over 0.8.2 by USB at 13:19 on 2026-10-12, data inode `129824` unchanged, no uninstall or data clear. The app-open sync wrote 62% to StoryGraph ("Synced at 13:19 · 62.07%", confirmed by the app's read-back) and held Margins with `margins zero invalid connection request` as one "App open" row. The final 0.8.3 build was installed at 13:24 the same way; the app-open sync started a new group and added a Margins session 55→60% (created 13:24, seen from the browser session). All six services showed green, logcat showed no delivery run after the opens, and Activity showed one row per attempt and no "Background delivery" rows. Under 0.8.2 the same two holds had reached "27 times since 12:41" by 13:12.
 
 ## Routine BOOX boot kill 0.8.2
 

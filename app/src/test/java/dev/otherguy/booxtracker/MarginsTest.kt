@@ -306,6 +306,14 @@ class MarginsTest {
         assertEquals("margins_query_rejected_librarymembershipreadthroughs", held { send() })
     }
 
+    @Test fun anUnmappedZeroErrorHoldsWithItsKindReasonAndStatus() {
+        server.connectionError = JSONObject().put("kind", "TransformFailed").put("origin", "zeroCache").put("reason", "http").put("status", 502).put("message", "upstream")
+        assertEquals("margins_zero_transform_failed_http_502", held { send() })
+        server.connectionError = JSONObject().put("kind", "InvalidMessage").put("message", "bad initConnection")
+        assertEquals("margins_zero_invalid_message", held { send() })
+        assertTrue(server.pushes.isEmpty())
+    }
+
     @Test fun aSchemaMarginsNoLongerServesHoldsAndAnotherAccountHoldsBeforeAnyWrite() {
         server.schemaRejected = true
         assertEquals("margins_schema_changed", held { send() })
@@ -320,6 +328,15 @@ class MarginsTest {
         assertEquals(1, server.connections.map { it.getString("clientGroupID") }.distinct().size)
         assertEquals(server.connections.size, server.connections.map { it.getString("clientID") }.distinct().size)
         assertTrue(server.connections.all { it.getString("userID") == MARGINS_ACCOUNT })
+    }
+
+    @Test fun aClientGroupZeroRefusesIsReplacedOnceAndARefusedNewGroupHolds() {
+        send("1400/10000")
+        server.rejectedGroups.add(server.connections.last().getString("clientGroupID"))
+        assertEquals(20, send("2300/10000").getInt("posted"))
+        assertEquals(2, server.connections.map { it.getString("clientGroupID") }.distinct().size)
+        server.connectionError = JSONObject().put("kind", "InvalidConnectionRequest")
+        assertEquals("margins_client_group_rejected", held { send("3400/10000") })
     }
 
     @Test fun nothingIsSentWhileOff() {
