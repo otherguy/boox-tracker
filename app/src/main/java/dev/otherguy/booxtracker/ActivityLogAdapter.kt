@@ -69,7 +69,7 @@ private fun hidden(event: JSONObject) = !event.optBoolean("issue") && runMarker(
 
 /** Consecutive events with the same key share one row: unchanged checks of one book, and repeats of one issue. */
 private fun groupKey(event: JSONObject): String? = when {
-    event.optBoolean("issue") -> listOf("issue", event.optString("kind"), event.optString("outcome"), event.optString("reason"), event.optString("service")).joinToString("|")
+    event.optBoolean("issue") -> listOf("issue", event.optString("kind"), event.optString("outcome"), event.optString("reason"), event.optString("service"), event.optString("title")).joinToString("|")
 
     event.optString("kind") == "query" && event.optBoolean("unchanged") ->
         listOf("check", event.optString("source"), event.optString("trigger"), event.optJSONObject("selected")?.optString("key")).joinToString("|")
@@ -134,6 +134,7 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
         kind == "query" -> {
             val book = event.optJSONObject("selected")
             val changes = changeCount(event) ?: 0
+            val skipped = event.optInt("recentSkipped").takeIf { it > 0 }?.let { count(it, "earlier book") + " changed since the last check" }
             when {
                 outcome != "success" -> {
                     parts += words(outcome)
@@ -144,11 +145,12 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
                     }
                 }
 
-                book == null -> if (event.optInt("recordCount") == 0) "Library empty" else "No book detected"
+                book == null -> (if (event.optInt("recordCount") == 0) "Library empty" else "No book detected").also { parts += listOfNotNull(skipped) }
 
                 else -> {
-                    parts += bookParts(book)
+                    parts += bookParts(book) + listOfNotNull(skipped)
                     when {
+                        skipped != null && !book.isNull("percentage") -> "Earlier books not sent"
                         issue -> "Progress unreadable"
                         event.optBoolean("unchanged") -> "No change"
                         changes > 0 -> "Library changed".also { parts += count(changes, "change") }
@@ -188,11 +190,11 @@ fun eventText(entry: ActivityEntry, time: (String) -> String): EventText {
                     "$service already up to date"
                 }
 
-                "pending" -> "$service unreachable".also { parts += listOfNotNull("Will retry", reason) }
+                "pending" -> "$service unreachable".also { parts += book + listOfNotNull("Will retry", reason) }
 
-                "held" -> "$service update held".also { parts += listOfNotNull(reason) }
+                "held" -> "$service update held".also { parts += book + listOfNotNull(reason) }
 
-                "interrupted" -> "$service send interrupted"
+                "interrupted" -> "$service send interrupted".also { parts += book }
 
                 else -> "$service sync".also { parts += listOfNotNull(words(outcome).ifEmpty { null }, reason) }
             }

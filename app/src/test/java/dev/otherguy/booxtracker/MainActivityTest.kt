@@ -215,6 +215,26 @@ class MainActivityTest {
         }
     }
 
+    @Test fun aCheckThatSkipsEarlierBooksWarnsWithoutCallingTheBookUnreadable() = runBlocking {
+        grantTestFolder(app)
+        val provider = FixtureProvider().withAccessTimes("A" to "1791200000000")
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, provider)
+        app.diagnostics.collect("manual", "test")
+        provider.withAccessTimes(*(1..11).map { "R$it" to "${1791300000000 + it}" }.toTypedArray(), "D" to "1791500000000")
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            val activity = controller.get()
+            awaitUi { activity.findViewById<View>(R.id.access_warning) != null }
+            layout(activity)
+            assertFalse(descendants(activity.findViewById(R.id.content)).filterIsInstance<TextView>().any { it.text.toString() == "Saved book or progress unavailable" })
+            activity.findViewById<View>(R.id.book_summary).performClick()
+            awaitUi { popupMessage()?.contains("NeoReader Database") == true }
+            assertEquals(listOf("11 earlier books changed since the last check. Boox Tracker did not send them."), issueLines(popupMessage()!!))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
     @Test fun metadataPopupReadsEbookIdentifiersWhenProviderIsbnIsNull() = runBlocking {
         val oldZone = java.util.TimeZone.getDefault()
         java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"))

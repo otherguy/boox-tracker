@@ -74,6 +74,21 @@ class ActivityTextTest {
         assertEquals(EventText("Hardcover unreachable", "Background delivery · Will retry · hardcover http 503", "•"), text)
     }
 
+    @Test fun heldUpdatesNameTheirBookAndStaySeparatePerBook() {
+        fun held(title: String) = event("hardcover_sync", fields = arrayOf("outcome" to "held", "reason" to "hardcover_title_ambiguous", "title" to title, "issue" to true))
+        assertEquals(
+            listOf(EventText("Hardcover update held", "Background · Second Book · hardcover title ambiguous", "❌"), EventText("Hardcover update held", "Background · First Book · hardcover title ambiguous", "❌")),
+            rows(held("Second Book"), held("First Book"))
+        )
+    }
+
+    @Test fun aCheckThatSkippedEarlierBooksSaysSo() {
+        val text = row(event("query", fields = arrayOf("outcome" to "success", "unchanged" to false, "selected" to book, "recentSkipped" to 11, "issue" to true)))
+        assertEquals(EventText("Earlier books not sent", "Background · In the Blood · 52% · 11 earlier books changed since the last check", "❌"), text)
+        val tie = row(event("query", fields = arrayOf("outcome" to "success", "recordCount" to 13, "selected" to null, "recentSkipped" to 11, "issue" to true)))
+        assertEquals(EventText("No book detected", "Background · 11 earlier books changed since the last check", "❌"), tie)
+    }
+
     @Test fun repeatedHeldUpdatesBecomeOneRow() {
         val held = (0 until 3).map { event("hardcover_sync", fields = arrayOf("outcome" to "held", "reason" to "edition_missing_page_count", "issue" to true)) }
         val runs = (0 until 3).map { event("run", fields = arrayOf("reason" to "completed")) }

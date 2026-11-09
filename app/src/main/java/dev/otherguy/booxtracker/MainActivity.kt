@@ -403,6 +403,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 )
             }
+            state.optJSONArray("held")?.objects().orEmpty().filter { it.optString("reason") != connectionError }.forEach {
+                add("Progress for “${it.text("title") ?: "Unknown title"}” was not sent to $name: ${it.optString("reason").replace('_', ' ')}.")
+            }
             if (last == null) return@buildList
             // A held update whose reason is the session problem named above is the same issue, not a second one.
             if (last.optString("delivery") == "error" && last.optString("reason") != connectionError) add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
@@ -420,7 +423,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** The full text of the NeoReader read issue that the header warns about, if there is one. */
+    /** The full text of the NeoReader library or current-book issue that the header warns about, if there is one. */
     private fun readIssue(check: JSONObject?): String? {
         if (check?.optBoolean("issue") != true) return null
         val outcome = check.optString("outcome")
@@ -428,9 +431,16 @@ class MainActivity : AppCompatActivity() {
         return when {
             outcome != "success" -> "NeoReader's library could not be read: ${outcome.replace('_', ' ')}."
             book == null -> "No single latest book: no book has a usable last access time, or two books share the latest one."
-            else -> "NeoReader's progress for this book is unknown: ${progressState(book).lowercase()}."
+            book.isNull("percentage") -> "NeoReader's progress for this book is unknown: ${progressState(book).lowercase()}."
+            else -> null
         }
     }
+
+    /** Every NeoReader issue that the header warns about: [readIssue], then earlier books that a check did not send. */
+    private fun readIssues(check: JSONObject?): List<String> = listOfNotNull(
+        readIssue(check),
+        check?.optInt("recentSkipped")?.takeIf { it > 0 }?.let { "$it earlier books changed since the last check. Boox Tracker did not send them." }
+    )
 
     /** Each issue on its own line after ⚠, then a blank line; nothing when there is no issue. */
     private fun SpannableStringBuilder.appendIssues(issues: List<String>): SpannableStringBuilder = apply {
@@ -466,8 +476,8 @@ class MainActivity : AppCompatActivity() {
     private fun JSONObject.keptHigherProgress() = optString("delivery") == "synced" && optString("outcome") == "kept_higher_remote_progress"
 
     private fun showSync(snapshot: JSONObject?, check: JSONObject?, selected: JSONObject?, hardcover: JSONObject, goodreads: JSONObject, fable: JSONObject, storygraph: JSONObject, pagebound: JSONObject, margins: JSONObject) {
-        val providerIssue = check?.optBoolean("issue") == true
-        val issues = listOfNotNull(readIssue(check)) + serviceIssues("Hardcover", hardcover) + serviceIssues("Goodreads", goodreads) + serviceIssues("StoryGraph", storygraph) +
+        val providerIssue = check != null && readIssue(check) != null
+        val issues = readIssues(check) + serviceIssues("Hardcover", hardcover) + serviceIssues("Goodreads", goodreads) + serviceIssues("StoryGraph", storygraph) +
             serviceIssues("Fable", fable) + serviceIssues("Pagebound", pagebound) + serviceIssues("Margins", margins)
         val attention = issues.isNotEmpty()
         val row = LinearLayout(this).apply {

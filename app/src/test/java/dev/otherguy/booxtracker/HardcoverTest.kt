@@ -861,6 +861,41 @@ class HardcoverTest {
 
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
+    fun aHeldEarlierBookWarnsInTheHeaderAndBothPopups() = capturingStderr {
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        // Offline, so the earlier books stay in the queue as written.
+        app.hardcover = HardcoverConnection(app, auth) { false }
+        app.hardcover.setEnabled(true)
+        val store = app.diagnostics.store
+        fun earlier(key: String, title: String, delivery: String) {
+            store.enqueue("1", JSONObject().put("key", key).put("title", JSONObject().put("state", "value").put("raw", title)), identifiers, "2026-11-01T10:00:00Z", "hardcover")
+            store.put("hardcover.book.1.${digest(key)}", JSONObject().put("delivery", delivery).put("reason", "hardcover_title_ambiguous").toString())
+        }
+        earlier("held", "Held Book", "error")
+        // An earlier book that waits for the network is neutral.
+        earlier("waiting", "Waiting Book", "pending")
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        fun descendants(view: View): List<View> = listOf(view) +
+            if (view is ViewGroup) (0 until view.childCount).flatMap { descendants(view.getChildAt(it)) } else emptyList()
+        fun views() = descendants(controller.get().findViewById(android.R.id.content))
+        val expected = listOf("Progress for “Held Book” was not sent to Hardcover: hardcover title ambiguous.")
+        try {
+            awaitUi { controller.get().findViewById<View>(R.id.access_warning) != null }
+            tap(controller.get().findViewById(R.id.book_summary))
+            awaitUi { popupMessage()?.contains("NeoReader Database") == true }
+            assertTrue(warningsDrawn(popupMessage()!!))
+            assertEquals(expected, issueLines(popupMessage()!!))
+            org.robolectric.shadows.ShadowDialog.getLatestDialog().dismiss()
+            tap(views().filterIsInstance<android.widget.TextView>().single { it.text.toString() == "Hardcover" })
+            awaitUi { popupMessage()?.contains("Current book") == true }
+            assertEquals(expected, issueLines(popupMessage()!!))
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
     fun theDetailsPopupNamesAnotherEditionWhenTheEbookEditionHasNoPages() = capturingStderr {
         // The ebook's ISBN matches edition 20, which has no page count, so the default edition 21 receives progress.
         server.editionPageCount = 0

@@ -189,6 +189,122 @@ class OfflineSyncTest {
         assertEquals(3, store.events().count { it.optString("kind") == "queued" })
     }
 
+    private fun library(vararg books: List<Any?>) = FixtureProvider().apply { libraryRecords = books.toList() }.also { ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, it) }
+
+    /** A NeoReader record whose key is `uuid:<name>`, titled [name]. */
+    private fun record(name: String, progress: String, status: String, lastAccess: String?, path: String? = null) = listOf(name, name, progress, status, path, null, lastAccess)
+
+    /** The book that the Hardcover fake finds by title. */
+    private val known = "Synthetic Book"
+
+    /** Queued Hardcover books by name, each with its raw progress and reading status. */
+    private fun queued() = store.pending("1", "hardcover").map { it.getJSONObject("book") }
+        .associate { it.getString("key").removePrefix("uuid:") to (it.raw("progress") to it.raw("readingStatus")) }
+
+    @Test fun booksReadOfflineSinceTheLastCheckAreQueuedWithTheirFinalState() = runBlocking {
+        val provider = library(record(known, "50/100", "1", "1791200000000"), record("E", "10/100", "1", "1791100000000"), record("F", "0/100", "0", null))
+        app.sync("scheduled", "periodic")
+        assertEquals(setOf(known), queued().keys)
+        // Offline, the known book is finished, B and C are read, and D is the current book. The known book keeps its last
+        // access time, as it would if NeoReader updates it only when a book opens. E changed but was last read before the
+        // previous check; F is not started.
+        provider.libraryRecords = listOf(
+            record(known, "100/100", "2", "1791200000000"),
+            record("B", "75/100", "1", "1791300000000"),
+            record("C", "100/100", "2", "1791400000000"),
+            record("D", "20/100", "1", "1791500000000"),
+            record("E", "60/100", "1", "1791100000000"),
+            record("F", "0/100", "0", "1791450000000")
+        )
+        app.sync("scheduled", "periodic")
+        assertEquals(mapOf(known to ("100/100" to "2"), "B" to ("75/100" to "1"), "C" to ("100/100" to "2"), "D" to ("20/100" to "1")), queued())
+        assertEquals(listOf("uuid:$known", "uuid:B", "uuid:C"), JSONObject(store.get("lastCheck")!!).getJSONArray("recent").objects().map { it.getString("key") })
+        assertTrue(server.requests.isEmpty())
+        // Online, the earliest read goes first, and its finish reaches Hardcover.
+        online = true
+        connection.drain("delivery")
+        val first = store.events().last { it.optString("kind") == "hardcover_sync" }
+        assertEquals("sent" to true, first.getString("outcome") to first.getBoolean("finished"))
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+    }
+
+    @Test fun aRunStoppedBeforeTheServicesQueuedOffersTheEarlierBooksAgain() = runBlocking {
+        val provider = library(record("A", "50/100", "1", "1791200000000"))
+        app.sync("scheduled", "periodic")
+        provider.libraryRecords = listOf(record("A", "100/100", "2", "1791200000000"), record("D", "20/100", "1", "1791500000000"))
+        // The run stops after its check, before any service queues.
+        app.diagnostics.collect("scheduled", "periodic")
+        assertEquals(mapOf("A" to ("50/100" to "1")), queued())
+        app.sync("scheduled", "periodic")
+        assertEquals(mapOf("A" to ("100/100" to "2"), "D" to ("20/100" to "1")), queued())
+    }
+
+    @Test fun anEarlierBookThatCouldNotBeQueuedIsOfferedAgain() = runBlocking {
+        val folder = grantTestFolder(app)
+        val provider = library(record("A", "50/100", "1", "1791200000000", "/books/A.epub"))
+        app.sync("scheduled", "periodic")
+        provider.libraryRecords = listOf(record("A", "100/100", "2", "1791200000000", "/books/A.epub"), record("D", "20/100", "1", "1791500000000"))
+        // Two files share A's name, so its ebook identifiers cannot be read.
+        folder.files = listOf("A.epub", "A.epub")
+        app.sync("scheduled", "periodic")
+        // The current book is still queued, and the failure names the earlier book.
+        assertEquals(mapOf("A" to ("50/100" to "1"), "D" to ("20/100" to "1")), queued())
+        assertTrue(store.events().any { it.optString("kind") == "hardcover_sync" && it.optString("title") == "A" && it.optString("reason") == "epub_filename_ambiguous" })
+        folder.files = emptyList()
+        app.sync("scheduled", "periodic")
+        assertEquals(mapOf("A" to ("100/100" to "2"), "D" to ("20/100" to "1")), queued())
+    }
+
+    @Test fun anEarlierBookReopenedAfterItsFinishWasSentIsLeftAsTheTrackerHasIt() = runBlocking {
+        online = true
+        val provider = library(record(known, "100/100", "2", "1791200000000"))
+        app.sync("scheduled", "periodic")
+        assertEquals(3, server.library.getJSONObject(0).getInt("status_id"))
+        val mutations = server.mutations().size
+        // Paging back in the finished book sets it to reading, and then another book becomes the current one.
+        provider.libraryRecords = listOf(record(known, "90/100", "1", "1791300000000"), record("D", "20/100", "1", "1791500000000"))
+        app.sync("scheduled", "periodic")
+        assertEquals(mutations, server.mutations().size)
+        assertFalse(queued().containsKey(known))
+        assertTrue(connection.state().getJSONArray("held").objects().none { it.optString("title") == known })
+    }
+
+    @Test fun aCheckWithMoreThanTenEarlierBooksQueuesOnlyTheCurrentBook() = runBlocking {
+        val provider = library(record("A", "50/100", "1", "1791200000000"))
+        app.sync("scheduled", "periodic")
+        provider.libraryRecords = (1..11).map { record("R$it", "10/100", "1", "${1791300000000 + it}") } + listOf(record("D", "20/100", "1", "1791500000000"))
+        app.sync("scheduled", "periodic")
+        assertEquals(setOf("A", "D"), queued().keys)
+        val check = JSONObject(store.get("lastCheck")!!)
+        assertEquals(11, check.getInt("recentSkipped"))
+        assertTrue(check.getBoolean("issue"))
+        assertEquals(11, store.events().first { it.optString("kind") == "query" }.getInt("recentSkipped"))
+    }
+
+    @Test fun aTieOnTheLatestBookStillQueuesTheEarlierBooks() = runBlocking {
+        val provider = library(record("A", "10/100", "1", "1791200000000"))
+        app.sync("scheduled", "periodic")
+        provider.libraryRecords = listOf(record("A", "30/100", "1", "1791300000000"), record("B", "5/100", "1", "1791400000000"), record("C", "5/100", "1", "1791400000000"))
+        app.sync("scheduled", "periodic")
+        assertEquals(mapOf("A" to ("30/100" to "1")), queued())
+        assertTrue(store.events().any { it.optString("kind") == "hardcover_sync" && it.optString("reason") == "fresh_book_detection_required" })
+    }
+
+    @Test fun deliverySendsTheEarliestReadFirstAndHeldBooksNameTheirTitle() = runBlocking {
+        store.put("lastCheck", check(book("current")).toString())
+        // The queue lists items by a digest of their key; the earlier read gets the key that the queue lists last.
+        val (later, earlier) = listOf("one", "two").sortedBy { digest(it) }
+        fun enqueue(key: String, title: String, lastAccess: String) = store.enqueue("1", book(key, status = "9").put("title", raw(title)).put("lastAccess", raw(lastAccess)), identifiers, "2026-11-01T10:00:00Z", "hardcover")
+        enqueue(later, "Later Book", "1791300000000")
+        enqueue(earlier, "Earlier Book", "1791200000000")
+        online = true
+        connection.drain("delivery")
+        val held = store.events().filter { it.optString("kind") == "hardcover_sync" }.reversed()
+        assertEquals(listOf("Earlier Book", "Later Book"), held.map { it.getString("title") })
+        assertTrue(held.all { it.optString("outcome") == "held" && it.optString("reason") == "source_status_unsupported" })
+        assertEquals(setOf("Earlier Book", "Later Book"), connection.state().getJSONArray("held").objects().map { it.getString("title") }.toSet())
+    }
+
     @Test fun anUnchangedBookWaitingOfflineIsQueuedOnce() = runBlocking {
         repeat(3) { connection.send("scheduled", check(book())) }
         assertEquals(1, store.events().count { it.optString("kind") == "queued" })

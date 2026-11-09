@@ -12,6 +12,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import org.json.JSONArray
 import org.json.JSONObject
 
 fun networkAvailable(app: android.content.Context): Boolean {
@@ -60,48 +61,53 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         val current = store.get("lastCheck")?.let(::JSONObject)?.optJSONObject("selected")?.optString("key")
         val account = store.get("$service.account")
         val book = current?.let { store.get(bookStateKey(account.orEmpty(), it)) }?.let(::JSONObject)
+        val pending = account?.let { store.pending(it, service) }.orEmpty()
+        // Queued earlier books whose last attempt was held; a book that waits for the network is neutral.
+        val held = pending.map { it.getJSONObject("book") }.filter { it.optString("key") != current }.mapNotNull { queued ->
+            store.get(bookStateKey(account.orEmpty(), queued.getString("key")))?.let(::JSONObject)?.takeIf { it.optString("delivery") == "error" }
+                ?.let { JSONObject().put("title", queued.raw("title") ?: JSONObject.NULL).put("reason", it.optString("reason")) }
+        }
         return JSONObject().put("connected", connection.getOrDefault(false)).put("credentialProblem", connection.isFailure)
             .put("profile", store.get("$service.profile")?.let(::JSONObject) ?: JSONObject.NULL).put("connectedAt", store.get("$service.connectedAt")?.toLongOrNull() ?: JSONObject.NULL)
             .put("enabled", enabled()).put("folder", !store.get("ebook.tree").isNullOrBlank())
             .put("connectionError", store.get("$service.connectionError").orEmpty()).put("last", book ?: JSONObject.NULL)
-            .put("pending", if (account == null) 0 else store.pending(account, service).size)
+            .put("pending", pending.size).put("held", JSONArray(held))
     }
 
-    suspend fun send(source: String, check: JSONObject?, runId: String? = null) {
-        if (!enabled()) return
-        val candidate = check?.takeIf { it.optString("outcome") == "success" }?.optJSONObject("selected")
-        if (candidate == null || candidate.isNull("key")) {
-            recordFailure(source, "${service}_sync", SyncProblem("fresh_book_detection_required"), runId)
-            return
-        }
+    /**
+     * Queues the books read since the previous check, oldest first, then the current book, and sends the queue. False
+     * when an earlier book could not be queued, so that the next check offers it again.
+     */
+    suspend fun send(source: String, check: JSONObject?, runId: String? = null): Boolean {
+        if (!enabled()) return true
+        val successful = check?.takeIf { it.optString("outcome") == "success" }
+        val candidate = successful?.optJSONObject("selected")?.takeUnless { it.isNull("key") }
+        val recent = successful?.optJSONArray("recent")?.objects().orEmpty()
+        // Without a single latest book, the earlier books are still queued.
+        if (candidate == null) recordFailure(source, "${service}_sync", SyncProblem("fresh_book_detection_required"), runId)
+        if (successful == null || (candidate == null && recent.isEmpty())) return true
+        val readAt = successful.optString("timestamp")
         val accountId = store.get("$service.account")?.takeIf { it.isNotBlank() } ?: run {
-            if (!online()) return
+            if (!online()) return recent.isEmpty()
             val id = account()
             store.put("$service.account", id)
             id
         }
-        val metadata = identifiers.read(candidate)
-        val key = candidate.getString("key")
-        val stateKey = bookStateKey(accountId, key)
-        settingsMutex.withLock {
-            if (!enabled() || store.get("$service.account") != accountId) return
-            val previous = store.get(stateKey)?.let(::JSONObject)
-            val waiting = store.pending(accountId, service).firstOrNull { it.getJSONObject("book").getString("key") == key }
-            if (previous?.optString("sourceState") != sourceState(candidate, metadata) || waiting != null) {
-                val item = store.enqueue(accountId, candidate, metadata, check.optString("timestamp"), service)
-                store.put(stateKey, (previous ?: JSONObject()).put("delivery", "pending").toString())
-                // A book already waiting with the same state keeps its revision; only a new revision is news.
-                if (item.getString("revision") != waiting?.optString("revision")) {
-                    diagnostics.event(
-                        source,
-                        "queued",
-                        runId,
-                        JSONObject().put("service", service).put("key", key).put("title", candidate.raw("title") ?: JSONObject.NULL)
-                            .put("percentage", candidate.opt("percentage") ?: JSONObject.NULL).put("revision", item.getString("revision")).put("outcome", "pending")
-                    )
-                }
+        var complete = true
+        for (book in recent) {
+            // One earlier book's failure is recorded with its title and never stops the others or the current book.
+            val queued = try {
+                queue(source, readAt, book, accountId, runId, earlier = true)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                recordFailure(source, "${service}_sync", error, runId, book.raw("title"))
+                complete = false
+                true
             }
+            if (!queued) return true
         }
+        if (candidate != null && !queue(source, readAt, candidate, accountId, runId, earlier = false)) return true
         // A held update waits for the next sync instead of a delivery run; a cancelled send leaves its queue to one.
         val unfinished = try {
             drain(source)
@@ -110,6 +116,37 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
             throw error
         }
         if (unfinished) scheduleDelivery(app)
+        return complete
+    }
+
+    /** Queues [book] when its state differs from the last one queued or sent. False when the service was switched Off or changed account. */
+    private suspend fun queue(source: String, readAt: String, book: JSONObject, accountId: String, runId: String?, earlier: Boolean): Boolean {
+        val key = book.getString("key")
+        val stateKey = bookStateKey(accountId, key)
+        // NeoReader reopening a finished book is not a new read, and every tracker holds it; an earlier book is not the one
+        // being read, so it is left as the tracker has it.
+        if (earlier && book.raw("readingStatus") != "2" && store.get(stateKey)?.let(::JSONObject)?.optJSONObject("lastSuccess")?.optBoolean("finished") == true) return true
+        val metadata = identifiers.read(book)
+        settingsMutex.withLock {
+            if (!enabled() || store.get("$service.account") != accountId) return false
+            val previous = store.get(stateKey)?.let(::JSONObject)
+            val waiting = store.pending(accountId, service).firstOrNull { it.getJSONObject("book").getString("key") == key }
+            if (previous?.optString("sourceState") != sourceState(book, metadata) || waiting != null) {
+                val item = store.enqueue(accountId, book, metadata, readAt, service)
+                store.put(stateKey, (previous ?: JSONObject()).put("delivery", "pending").toString())
+                // A book already waiting with the same state keeps its revision; only a new revision is news.
+                if (item.getString("revision") != waiting?.optString("revision")) {
+                    diagnostics.event(
+                        source,
+                        "queued",
+                        runId,
+                        JSONObject().put("service", service).put("key", key).put("title", book.raw("title") ?: JSONObject.NULL)
+                            .put("percentage", book.opt("percentage") ?: JSONObject.NULL).put("revision", item.getString("revision")).put("outcome", "pending")
+                    )
+                }
+            }
+        }
+        return true
     }
 
     /** Sends the queue. True when work is left that a later delivery run can finish: offline, a temporary failure, or an unattempted newer revision. */
@@ -121,10 +158,12 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         var retry = false
         var synced = false
         val attempted = mutableSetOf<String>()
-        for (item in store.pending(accountId, service)) {
+        // The earliest read goes first, so feed posts follow reading order; a book without an access time goes last.
+        for (item in store.pending(accountId, service).sortedBy { accessTime(it.getJSONObject("book")) ?: Long.MAX_VALUE }) {
             if (!enabled()) break
             attempted.add(item.getString("revision"))
             val book = item.getJSONObject("book")
+            val title = book.raw("title")
             val key = bookStateKey(accountId, book.getString("key"))
             val old = store.get(key)?.let(::JSONObject) ?: JSONObject()
             val id = UUID.randomUUID().toString()
@@ -141,14 +180,20 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
                 store.put(key, result.toString())
                 diagnostics.event(source, "${service}_sync", id, result)
             } catch (error: CancellationException) {
-                diagnostics.event(source, "${service}_sync", id, JSONObject().put("outcome", "interrupted"), true)
+                diagnostics.event(source, "${service}_sync", id, JSONObject().put("outcome", "interrupted").putOpt("title", title), true)
                 throw error
             } catch (error: Exception) {
                 val transient = temporaryFailure(error)
                 retry = retry || transient
                 val detail = old.put("delivery", if (transient || !enabled()) "pending" else "error").put("reason", failureReason(error))
                 store.put(key, detail.toString())
-                diagnostics.event(source, "${service}_sync", id, JSONObject().put("outcome", if (transient) "pending" else "held").put("reason", failureReason(error)).put("errorClass", error.javaClass.name), !transient && enabled())
+                diagnostics.event(
+                    source,
+                    "${service}_sync",
+                    id,
+                    JSONObject().put("outcome", if (transient) "pending" else "held").putOpt("title", title).put("reason", failureReason(error)).put("errorClass", error.javaClass.name),
+                    !transient && enabled()
+                )
             } finally {
                 store.put("$service.active", "")
                 diagnostics.updates.value++
@@ -237,9 +282,9 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         diagnostics.event("manual", "${service}_setting", detail = JSONObject().put("enabled", value))
     }
 
-    fun recordFailure(source: String, kind: String, error: Exception, runId: String? = null) {
+    fun recordFailure(source: String, kind: String, error: Exception, runId: String? = null, title: String? = null) {
         val reason = failureReason(error)
-        diagnostics.event(source, kind, runId, JSONObject().put("outcome", "held").put("reason", reason).put("errorClass", error.javaClass.name), true)
+        diagnostics.event(source, kind, runId, JSONObject().put("outcome", "held").putOpt("title", title).put("reason", reason).put("errorClass", error.javaClass.name), true)
     }
 }
 

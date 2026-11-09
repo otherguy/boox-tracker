@@ -69,17 +69,22 @@ open class ReadingSyncApp :
         requireEbookFolder(this, diagnostics.store)
         val fresh = diagnostics.collect(source, trigger, runId)
         var failed = false
+        var queued = true
         // Each service records its own failure so one service cannot stop delivery to another.
         for (connection in connections) {
             try {
-                connection.send(source, fresh, runId)
+                queued = connection.send(source, fresh, runId) && queued
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 connection.recordFailure(source, "${connection.service}_sync", error, runId)
                 failed = true
+                queued = false
             }
         }
+        // The next check looks for earlier books from here only when every service queued them or the check skipped them,
+        // so a stopped or failed run offers them again.
+        if (queued || fresh?.has("recentSkipped") == true) fresh?.optJSONObject("baseline")?.let { diagnostics.store.put(RECENT_BASELINE, it.toString()) }
         failed
     }
 
@@ -110,25 +115,28 @@ open class ReadingSyncApp :
 
 private const val LOGGED_CHANGES = 25
 
+/** The six fields of a book record that the event log keeps. */
+private fun bookSummary(book: JSONObject): JSONObject = JSONObject().apply {
+    listOf(
+        "key" to book.opt("key"),
+        "title" to book.raw("title"),
+        "authors" to book.raw("authors"),
+        "percentage" to book.opt("percentage"),
+        "readingStatus" to book.raw("readingStatus"),
+        "lastAccess" to book.raw("lastAccess")
+    ).forEach { (name, value) -> put(name, value ?: JSONObject.NULL) }
+}
+
 /**
- * The check as the event log keeps it: without the provider's column list, with a summary of the selected book, and
- * with only the first [LOGGED_CHANGES] library changes plus their count. The full check stays in `lastCheck`.
+ * The check as the event log keeps it: without the provider's column list, with summaries of the selected and recent
+ * books, and with only the first [LOGGED_CHANGES] library changes plus their count. The full check stays in `lastCheck`.
  */
 fun loggedCheck(detail: JSONObject): JSONObject = JSONObject(detail.toString()).apply {
     remove("columns")
+    remove("baseline")
     // An issue check keeps the full record, so the log still shows why progress was unusable.
-    optJSONObject("selected")?.takeIf { !optBoolean("issue") }?.let { book ->
-        val summary = JSONObject()
-        listOf(
-            "key" to book.opt("key"),
-            "title" to book.raw("title"),
-            "authors" to book.raw("authors"),
-            "percentage" to book.opt("percentage"),
-            "readingStatus" to book.raw("readingStatus"),
-            "lastAccess" to book.raw("lastAccess")
-        ).forEach { (name, value) -> summary.put(name, value ?: JSONObject.NULL) }
-        put("selected", summary)
-    }
+    optJSONObject("selected")?.takeIf { !optBoolean("issue") }?.let { put("selected", bookSummary(it)) }
+    optJSONArray("recent")?.let { put("recent", JSONArray(it.objects().map(::bookSummary))) }
     optJSONArray("changes")?.let { all ->
         put("changeCount", all.length())
         if (all.length() > LOGGED_CHANGES) put("changes", JSONArray((0 until LOGGED_CHANGES).map { all.get(it) }))
@@ -173,6 +181,39 @@ fun mostRecentlyAccessedBook(snapshot: JSONObject?): JSONObject? {
     val records = books(snapshot).filter { accessTime(it) != null }
     val latest = records.maxOfOrNull { accessTime(it)!! } ?: return null
     return records.filter { accessTime(it) == latest }.singleOrNull()
+}
+
+/** More earlier books than this in one check are not sent, because so many reads between two checks suggest a bulk change. */
+private const val MAX_RECENT_BOOKS = 10
+
+/** The state key of the [recentBaseline] that the next check compares with. */
+private const val RECENT_BASELINE = "recentBaseline"
+
+/**
+ * The part of [snapshot] that [recentBooks] compares with: the books saved at its latest access time. A book saved
+ * earlier is new or changed to [recentBooks] once its access time passes that time, so the rest of the snapshot is not needed.
+ */
+fun recentBaseline(snapshot: JSONObject): JSONObject {
+    val latest = books(snapshot).mapNotNull(::accessTime).maxOrNull()
+    return JSONObject().put("books", JSONArray(books(snapshot).filter { latest != null && accessTime(it) == latest }))
+}
+
+/**
+ * Books read since the [previous] check other than the latest book in [current], oldest first. Each one is started or
+ * finished, was last accessed at or after the previous check's latest book and before the current latest time, and is new
+ * or has a changed progress, status, or access time. A book that the previous check selected keeps its access time if
+ * NeoReader saves it only on open, so a changed record at that time qualifies.
+ */
+fun recentBooks(previous: JSONObject?, current: JSONObject): List<JSONObject> {
+    val since = books(previous).mapNotNull(::accessTime).maxOrNull() ?: return emptyList()
+    val latest = books(current).mapNotNull(::accessTime).maxOrNull() ?: return emptyList()
+    val before = books(previous).filter { !it.isNull("key") }.associateBy { it.getString("key") }
+    return books(current).filter { book ->
+        val time = accessTime(book) ?: return@filter false
+        if (book.isNull("key") || book.raw("readingStatus") !in setOf("1", "2") || time !in since until latest) return@filter false
+        val old = before[book.getString("key")] ?: return@filter true
+        listOf("progress", "readingStatus", "lastAccess").any { old.optJSONObject(it)?.toString() != book.optJSONObject(it)?.toString() }
+    }.sortedBy { accessTime(it) }
 }
 
 fun changes(
@@ -397,6 +438,10 @@ class Diagnostics(
         val previous = snapshot()
         val selected = if (result.optString("outcome") == "success") mostRecentlyAccessedBook(result) else null
         val changes = if (result.optString("outcome") == "success") changes(previous, result) else JSONArray()
+        // Before the first completed sync after an update, the previous snapshot is the baseline.
+        val baseline = store.get(RECENT_BASELINE)?.let(::JSONObject) ?: previous
+        val recent = if (result.optString("outcome") == "success") recentBooks(baseline, result) else emptyList()
+        val skipped = recent.size > MAX_RECENT_BOOKS
         val detail =
             JSONObject()
                 .put("trigger", trigger)
@@ -411,7 +456,10 @@ class Diagnostics(
                     "columns",
                     result.optJSONArray("columns") ?: JSONArray()
                 ).put("selected", selected ?: JSONObject.NULL)
+                .put("recent", JSONArray(if (skipped) emptyList() else recent))
                 .put("changes", changes)
+        if (skipped) detail.put("recentSkipped", recent.size)
+        if (result.optString("outcome") == "success") detail.put("baseline", recentBaseline(result))
         result.optJSONObject("error")?.let { detail.put("error", it) }
         val last = store.get("lastElapsed.$source")?.toLongOrNull()
         val lastProcess = store.get("lastProcess.$source")
@@ -420,7 +468,7 @@ class Diagnostics(
         store.put("lastProcess.$source", process)
         val issue =
             result.optString("outcome") != "success" || selected?.isNull("percentage") == true ||
-                (result.optInt("recordCount") > 0 && selected == null)
+                (result.optInt("recordCount") > 0 && selected == null) || skipped
         detail.put("unchanged", previous != null && changes.length() == 0 && result.optString("outcome") == "success")
         detail.put("issue", issue)
         if (result.optString("outcome") ==

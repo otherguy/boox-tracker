@@ -15,7 +15,7 @@ All distributed builds use the application's public OAuth client ID. Each user a
 
 ## Automatic matching
 
-No book selection or confirmation is required. Boox Tracker detects the latest saved book and tries Hardcover identifiers, ISBN-13/ISBN-10, Amazon/ASIN, Goodreads mappings, then title and author. It accepts one distinct book; conflicting identifiers or ambiguous titles hold the update.
+No book selection or confirmation is required. Boox Tracker detects the latest saved book and the other books read since its previous check, and for each one tries Hardcover identifiers, ISBN-13/ISBN-10, Amazon/ASIN, Goodreads mappings, then title and author. It accepts one distinct book; conflicting identifiers or ambiguous titles hold the update.
 
 Database metadata works for all formats that NeoReader exposes. For EPUBs, the app also reads embedded metadata from your allowed folder. It does not infer identifiers from filenames or upload ebook contents.
 
@@ -40,9 +40,9 @@ The row shows the result of the last update Boox Tracker sent. If you change the
 
 The raw NeoReader fraction becomes approximate pages, rounded to the nearest whole page. These fraction units are not physical pages. Hardcover may show a different percentage because its edition page count and rounding differ from NeoReader.
 
-Boox Tracker keeps higher remote progress. It can start a Want to Read book or advance an existing unfinished read. When NeoReader marks the detected book finished, Boox Tracker records full progress and the finish date on that read and sets the book to Read. The finish date is the day of NeoReader's last saved access. A book already marked Read on Hardcover is left unchanged. It does not change catalogue records, ratings, reviews, historical dates, paused reads, or rereads; reopening a finished book keeps the existing finished read protected.
+Boox Tracker keeps higher remote progress. It can start a Want to Read book or advance an existing unfinished read. When NeoReader marks a detected book finished, Boox Tracker records full progress and the finish date on that read and sets the book to Read. The finish date is the day of NeoReader's last saved access. A book already marked Read on Hardcover is left unchanged. It does not change catalogue records, ratings, reviews, historical dates, paused reads, or rereads; reopening a finished book keeps the existing finished read protected.
 
-Delivery is shown separately as **Pending**, **Synced at…**, or a failure. The last successful time and progress remain visible after a failed attempt for that book. A result for another book is not shown as the current book's success.
+Delivery is shown separately as **Pending**, **Synced at…**, or a failure. The last successful time and progress remain visible after a failed attempt for that book. A result for another book is not shown as the current book's success. When an update for an earlier book is held, the warning names that book.
 
 The device retains the latest pending update for each account and book, including when you switch books, restart, or reboot. Local collection requests a fifteen-minute schedule without a network requirement. Separate delivery work waits for a network and retries temporary failures. Android and BOOX decide when work can run.
 

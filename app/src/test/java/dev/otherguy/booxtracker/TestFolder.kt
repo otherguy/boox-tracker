@@ -27,13 +27,20 @@ class TestFolderProvider : ContentProvider() {
     var entered: java.util.concurrent.CountDownLatch? = null
     var release: java.util.concurrent.CountDownLatch? = null
     var denied = false
+
+    /** Display names of the files in the folder; each file's document ID is its position. */
+    var files: List<String> = emptyList()
     override fun onCreate() = true
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, selectionArgs: Array<out String>?, sortOrder: String?): MatrixCursor {
         entered?.countDown()
         release?.await()
         if (denied) throw SecurityException("Grant revoked")
         return MatrixCursor(projection).apply {
-            if (!uri.path.orEmpty().endsWith("/children")) addRow(arrayOf(DocumentsContract.Document.MIME_TYPE_DIR))
+            if (!uri.path.orEmpty().endsWith("/children")) {
+                addRow(arrayOf(DocumentsContract.Document.MIME_TYPE_DIR))
+            } else {
+                files.forEachIndexed { id, name -> addRow(arrayOf<Any>("$id", name, "application/epub+zip", 0L, 0L)) }
+            }
         }
     }
     override fun getType(uri: Uri) = DocumentsContract.Document.MIME_TYPE_DIR

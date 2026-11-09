@@ -19,6 +19,13 @@ Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local t
 3. On Hardcover, confirm exactly one read entry with that finish date and no duplicate read. This is the only evidence that inserting a read with `finished_at` does not duplicate a read Hardcover creates on its own.
 4. Reopen the finished book and page backwards. If NeoReader returns it to status `1`, the next sync must hold with a history conflict and leave the finished read unchanged.
 
+## Books read since the last check
+
+1. With Wi-Fi off, finish book A and return to the NeoReader library. Open book B at once, read a few pages, and return to the library.
+2. Turn Wi-Fi on, then open Boox Tracker or wait for a background run.
+3. Export Activity: a `queued` event for A with status `2`, and for each enabled tracker a sync result for A before the one for B.
+4. On each enabled tracker, A is Read with the local date of its last access, and B shows its progress.
+
 ## Fable sync
 
 Fable is built in 0.4.0 through Fable's unofficial app API; see the [Fable plan](plan-20261006-fable-sync.md). In the Blood is on Currently Reading at 50% (checked 2026-10-07). The UK paperback sibling has a stray 0% progress record and is on no list.

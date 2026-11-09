@@ -6,7 +6,7 @@ Boox Tracker is an open-source Android companion. Keep your preferred reader, co
 
 ## Read on BOOX, track where you want
 
-- **Automatic book detection.** Boox Tracker finds the latest saved book in your NeoReader library.
+- **Automatic book detection.** Boox Tracker finds the latest saved book in your NeoReader library, and every other book you read since its previous check.
 - **Progress updates.** Send progress now or let background work collect it while you read.
 - **Simple provider controls.** Turn a provider On to connect it. Turn it Off to stop updates.
 - **Clear activity history.** See what was read, what was sent, and which updates need attention. Tap an entry for its details. Export diagnostics when you need help.
@@ -64,7 +64,7 @@ Install updates over the existing app to keep settings and Activity history. Dev
 
 ## How it works
 
-Boox Tracker reads NeoReader's saved library information without changing it. It uses saved access times to detect the latest book and reads its progress from the library provider. The allowed ebook folder supplies additional EPUB metadata; other formats use NeoReader's database title, author, and identifiers.
+Boox Tracker reads NeoReader's saved library information without changing it. It uses saved access times to detect the latest book and the other books read since its previous check, and reads their progress from the library provider. A book you finish offline is still marked finished after you start the next one. The allowed ebook folder supplies additional EPUB metadata; other formats use NeoReader's database title, author, and identifiers.
 
 Saved library progress can lag behind page turns or differ from the percentage inside the book. Returning to NeoReader's library can help it save the latest state. Background checks request a fifteen-minute interval; Android and BOOX control when they run, especially during sleep.
 

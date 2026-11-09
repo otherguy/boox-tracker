@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-10-12 for Boox Tracker 0.8.3/code 33 (StoryGraph progress fields, held-update delivery, Margins group refusal), installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-11-09 for Boox Tracker 0.8.4/code 34 (books read since the last check), built and automatically tested but not installed; 0.8.3/code 33 is installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -45,6 +45,18 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Capture/assert expected Robolectric zero-resource-ID diagnostics; reject other stderr. Close test WorkManager/SQLite resources instead of suppressing warnings.
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
+
+## Books read since the last check 0.8.4
+
+**Problem:** each check queued only the book with the latest `lastAccess`. A book finished offline lost its finish when the next book became the latest before a check ran, and nothing warned (user question, 2026-11-09). See the [plan](plan-20261109-recent-books-sync.md).
+
+**Change:** each check also queues the earlier books read since the last check whose earlier books every service queued (`recentBaseline`): status `1` or `2`, a `lastAccess` at or after that check's latest and before the current latest, and a new or changed record. `send` queues them oldest first, then the current book, and `drain` attempts the oldest `lastAccess` first. More than 10 earlier books are not sent, and the check is an issue. A held earlier book warns in the header and both popups with its title. Activity rows for held, pending, and interrupted sends name the book. An earlier book that a tracker received as finished and that NeoReader now shows at status `1` is not queued for that tracker.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.4/code 34. Artifact `dist/boox-tracker-0.8.4-diagnostic.apk`, 4,220,542 bytes, SHA-256 `dc5da124ef4ed53bc2aca9a2e57a17e517ae6754fa00e27b9751388805991e06`, signer certificate SHA-256 `678df89d…b4420d` (the existing diagnostic key). Package, schemas, ebook cache namespace, and permissions are unchanged; the baseline is one new `state` row.
+
+**Automatically tested:** 316 tests, zero failures/errors/skips. The first seven new tests (the vacation example through `app.sync`, the cap, a tie, delivery order with titles, the held earlier book in the header and both popups, and two Activity rows) failed on 0.8.3's code. The header-label test and the three tests added after the review (a run stopped after its check, a failed earlier book, a reopened finished book) failed with their fix reverted. The vacation test also delivers online, and the Hardcover fake marks the earliest book Read. Both lint variants (33 existing warnings each, none on a changed line), both assemblies, ktlint, ruff, markdownlint, yamllint, actionlint, and packaging passed. The code-simplifier review led to shared helpers (`objects()`, `count()`, `withAccessTimes`) and a shorter `send`. The code review led to the stored baseline, the retry of a failed earlier book, the rule for a reopened finished book, the delivery and failure tests, and the cap text for a tie.
+
+**Verified on physical BOOX:** not yet. The [device protocol](device-testing.md#books-read-since-the-last-check) is open.
 
 ## StoryGraph progress fields, held-update delivery, and Margins group refusal 0.8.3
 
