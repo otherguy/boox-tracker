@@ -8,6 +8,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import java.util.UUID
@@ -29,8 +30,14 @@ suspend fun scheduleCollection(app: ReadingSyncApp) {
     withContext(Dispatchers.IO) { operation.result.get() }
 }
 
+/**
+ * Adds a delivery run after the one in progress. A run that has not started yet sends every queued item, so while one
+ * waits, no other is added. Blocks briefly; call it off the main thread.
+ */
 fun scheduleDelivery(app: ReadingSyncApp) {
-    WorkManager.getInstance(app).enqueueUniqueWork(
+    val work = WorkManager.getInstance(app)
+    if (work.getWorkInfosForUniqueWork(DELIVERY_WORK_NAME).get().any { it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }) return
+    work.enqueueUniqueWork(
         DELIVERY_WORK_NAME,
         ExistingWorkPolicy.APPEND_OR_REPLACE,
         OneTimeWorkRequestBuilder<DeliveryWorker>().setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build()

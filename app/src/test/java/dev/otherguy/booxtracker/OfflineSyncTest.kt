@@ -103,6 +103,13 @@ class OfflineSyncTest {
         assertEquals(1, deliveryWork())
     }
 
+    @Test fun offlineChecksLeaveOneWaitingDeliveryRun() = runBlocking {
+        val work = WorkManager.getInstance(app)
+        work.cancelUniqueWork(DELIVERY_WORK_NAME).result.get()
+        listOf("42/100", "50/100", "60/100").forEach { connection.send("scheduled", check(book(progress = it))) }
+        assertEquals(1, work.getWorkInfosForUniqueWork(DELIVERY_WORK_NAME).get().count { !it.state.isFinished })
+    }
+
     @Test fun anOfflineSyncWithNothingQueuedQueuesNoBackgroundDelivery() = runBlocking {
         online = true
         connection.send("manual", check(book()))

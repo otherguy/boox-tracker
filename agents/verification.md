@@ -1,6 +1,6 @@
 # Verification record
 
-Updated 2026-11-09 for Boox Tracker 0.8.4/code 34 (books read since the last check), built and automatically tested but not installed; 0.8.3/code 33 is installed on the GoColor7. Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
+Updated 2026-11-09 for Boox Tracker 0.8.5/code 35 (one waiting delivery run), built, automatically tested, and installed on the GoColor7 over 0.8.4/code 34 (books read since the last check). Version sections record the evidence available at each handoff; a pending result in an older section is not the current status. Use the matrix below; the open checks and their order are in [project status](project-status.md#resume-here). No compatibility or scheduling guarantee follows from compilation, emulator rendering, local HTTP tests, ADB access, or one firmware result.
 
 ## Current evidence summary
 
@@ -46,6 +46,20 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## One waiting delivery run 0.8.5
+
+**Problem:** after the 0.8.4 install on 2026-11-09, logcat showed 14 `DeliveryWorker` runs one after another, about 3 s apart from 22:35:56. The export showed that the first run sent the whole queue, and each later run only held Fable's update for Only the Dead again, so Activity showed "Fable update held … 7 times since 22:35". The app was force-stopped at 22:36:54; the chain had ended at 22:36:45.
+
+**Diagnosis:** `scheduleDelivery` enqueued with `APPEND_OR_REPLACE`, which appends a run to every waiting one. A send that finds no network calls it once per service with a queued item, so each offline check added one waiting run per service. The 14 runs were one chain when the first started; the export does not show when they were enqueued, because routine events before the last successful sync are pruned. Offline 0.8.3 checks before the 2026-10-22 shutdown, or the boot at 22:33 before Wi-Fi was up, probably added them (guess). The same repeat shows in the 2026-10-12 rows that 0.8.3 addressed for held updates. 0.8.3 has the cause, so 0.8.4 did not introduce it.
+
+**Change:** `scheduleDelivery` adds a run only when no delivery run is enqueued or blocked. A run that has not started sends every queued item, so one is enough. While only a run is in progress, it still appends one run, as before, so an item queued during that run is not lost.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.5/code 35. Artifact `dist/boox-tracker-0.8.5-diagnostic.apk`, SHA-256 `95467b9e099123b6462287ae8a6d46ce19fe83715659012cd0b3870ed669ee83`, signer certificate SHA-256 `678df89d…b4420d` (the existing diagnostic key). Package, schemas, ebook cache namespace, and permissions are unchanged.
+
+**Automatically tested:** 317 tests, zero failures/errors/skips. `OfflineSyncTest.offlineChecksLeaveOneWaitingDeliveryRun` sends three offline checks and expects one unfinished delivery run; on 0.8.4's code it found three. No test covers a send during a running delivery run; that case falls through to the unchanged `APPEND_OR_REPLACE` enqueue. Both lint variants (33 existing warnings each), both assemblies, ktlint, ruff, markdownlint, yamllint, actionlint, and packaging passed.
+
+**Verified on physical BOOX:** installed over 0.8.4 by USB at 22:46 device time on 2026-11-09, versionCode 34 → 35, data inode `129824` unchanged, package enabled, no uninstall or data clear. Started by ADB with no crash logged; the app-open check finished, and no `DeliveryWorker` ran in the next 60 s. 0.8.3 and 0.8.4 do the same for a held update, so this does not test the fix. The chain itself needs offline checks, so step 5 of the [device protocol](device-testing.md#books-read-since-the-last-check) is open.
+
 ## Books read since the last check 0.8.4
 
 **Problem:** each check queued only the book with the latest `lastAccess`. A book finished offline lost its finish when the next book became the latest before a check ran, and nothing warned (user question, 2026-11-09). See the [plan](plan-20261109-recent-books-sync.md).
@@ -56,7 +70,7 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 
 **Automatically tested:** 316 tests, zero failures/errors/skips. The first seven new tests (the vacation example through `app.sync`, the cap, a tie, delivery order with titles, the held earlier book in the header and both popups, and two Activity rows) failed on 0.8.3's code. The header-label test and the three tests added after the review (a run stopped after its check, a failed earlier book, a reopened finished book) failed with their fix reverted. The vacation test also delivers online, and the Hardcover fake marks the earliest book Read. Both lint variants (33 existing warnings each, none on a changed line), both assemblies, ktlint, ruff, markdownlint, yamllint, actionlint, and packaging passed. The code-simplifier review led to shared helpers (`objects()`, `count()`, `withAccessTimes`) and a shorter `send`. The code review led to the stored baseline, the retry of a failed earlier book, the rule for a reopened finished book, the delivery and failure tests, and the cap text for a tie.
 
-**Verified on physical BOOX:** not yet. The [device protocol](device-testing.md#books-read-since-the-last-check) is open.
+**Verified on physical BOOX:** installed over 0.8.3 by USB at 22:34 device time on 2026-11-09, versionCode 33 → 34, data inode `129824` unchanged, package enabled, no uninstall or data clear. Started by ADB with no crash logged. The device had been off since 2026-10-22; the 0.8.3 check after its boot (22:33) found Terminal List #06 – Only the Dead as the current book, with In the Blood still queued from before. After the install, every service received In the Blood as finished and Only the Dead at 0.99%; Fable held Only the Dead with `fable_identifier_conflict`. These sends are foreground and install-time evidence only, and they do not exercise the new rule: In the Blood was queued before the update, and each 0.8.4 check had `recent: []`. The [device protocol](device-testing.md#books-read-since-the-last-check) is open. The same run showed the delivery chain fixed in 0.8.5.
 
 ## StoryGraph progress fields, held-update delivery, and Margins group refusal 0.8.3
 

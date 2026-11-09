@@ -25,6 +25,7 @@ Update checks opened Boox Tracker around 22:03–22:04 and 22:31–22:32 local t
 2. Turn Wi-Fi on, then open Boox Tracker or wait for a background run.
 3. Export Activity: a `queued` event for A with status `2`, and for each enabled tracker a sync result for A before the one for B.
 4. On each enabled tracker, A is Read with the local date of its last access, and B shows its progress.
+5. Activity shows no held update repeated by background delivery after the reconnect; with ADB attached, logcat shows at most two `DeliveryWorker` runs one after another.
 
 ## Fable sync
 
