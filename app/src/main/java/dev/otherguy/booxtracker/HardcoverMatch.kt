@@ -38,6 +38,7 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
         metadata.tags["hardcover-slug"].orEmpty().forEach {
             query("query BookSlug(\$slug: String!) { books(where: {slug: {_eq: \$slug}}) { id } }", JSONObject().put("slug", it)).records("books").forEach { book -> evidence.add(book.getInt("id") to null) }
         }
+        val tagged = evidence.toList()
         if (metadata.isbns.isNotEmpty() || metadata.tags["asin"].orEmpty().isNotEmpty()) {
             val editions = query(
                 "query Match(\$isbns: [String!]!, \$tens: [String!]!, \$asins: [String!]!) { editions(where: {_or: [{isbn_13: {_in: \$isbns}}, {isbn_10: {_in: \$tens}}, {asin: {_in: \$asins}}]}) { id book_id isbn_13 isbn_10 asin pages book { title } } }",
@@ -49,19 +50,22 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
                 evidence.add(it.getInt("book_id") to it.getInt("id"))
             }
         }
-        metadata.tags["goodreads"].orEmpty().forEach {
-            // External mappings identify the work, not the source ebook's exact edition.
-            val mappings = try {
-                query("query Goodreads(\$id: String!) { book_mappings(where: {external_id: {_eq: \$id}, platform: {name: {_eq: \"goodreads\"}}}) { book_id } }", JSONObject().put("id", it)).records("book_mappings")
-            } catch (error: SyncProblem) {
-                if (error.code == "hardcover_graphql_error") emptyList() else throw error
+        // External mappings identify the work, not the source ebook's exact edition, so they cannot change a tagged book.
+        if (tagged.isEmpty()) {
+            for (id in metadata.tags["goodreads"].orEmpty()) {
+                val mappings = try {
+                    query("query Goodreads(\$id: String!) { book_mappings(where: {external_id: {_eq: \$id}, platform: {name: {_eq: \"goodreads\"}}}) { book_id } }", JSONObject().put("id", id)).records("book_mappings")
+                } catch (error: SyncProblem) {
+                    if (error.code == "hardcover_graphql_error") emptyList() else throw error
+                }
+                mappings.forEach { value -> evidence.add(value.getInt("book_id") to null) }
             }
-            mappings.forEach { value -> evidence.add(value.getInt("book_id") to null) }
         }
-        val ids = evidence.map { it.first }.toSet()
+        // A book named by a tag decides the match; other identifiers only name its edition.
+        val ids = tagged.ifEmpty { evidence }.map { it.first }.toSet()
         if (ids.size > 1) throw SyncProblem("hardcover_identifier_conflict")
         val bookId = ids.singleOrNull() ?: titleMatch(metadata)
-        val exact = evidence.mapNotNull { it.second }.distinct().singleOrNull()
+        val exact = tagged.mapNotNull { it.second }.ifEmpty { evidence.filter { it.first == bookId }.mapNotNull { it.second } }.distinct().singleOrNull()
         val result = JSONObject().put("bookId", bookId).put("exactEditionId", exact ?: JSONObject.NULL)
             .put("matchKind", if (exact == null) "book" else "edition").put("fingerprint", fingerprint).put("matchedAt", now())
         if (cacheKey != null) store.put(cacheKey, result.toString())

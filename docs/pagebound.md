@@ -20,7 +20,7 @@ Pagebound's server sleeps when nobody uses it. The first update after a quiet pe
 
 ## Matching
 
-No book selection or confirmation is required. Boox Tracker tries a `pagebound:` identifier tag that holds a Pagebound book ID, then ISBN-13 and ISBN-10, then title and author. Pagebound has no ASIN lookup. When the ebook's ISBNs name several editions of one book, the Kindle or ebook edition is preferred. Identifiers that point to different books, or several Pagebound books with the same title and author, hold the update.
+No book selection or confirmation is required. Boox Tracker tries a `pagebound:` identifier tag that holds a Pagebound book ID, then ISBN-13 and ISBN-10, then title and author. A `pagebound:` tag that names a Pagebound book wins: ISBNs of another book are then ignored, so the tag also settles a **pagebound identifier conflict**. ISBNs of the tagged book still choose its edition. Pagebound has no ASIN lookup. When the ebook's ISBNs name several editions of one book, the Kindle or ebook edition is preferred. Identifiers that point to different books, or several Pagebound books with the same title and author, hold the update.
 
 When your library entry has no edition yet, Boox Tracker sets it to the edition the ISBN found. An edition you already chose is kept. Tap the Pagebound row to see which edition your entry uses.
 

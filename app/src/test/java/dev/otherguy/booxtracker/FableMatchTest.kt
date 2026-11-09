@@ -43,6 +43,12 @@ class FableMatchTest {
         assertEquals(0, searches())
     }
 
+    @Test fun anExplicitTagWinsOverAnIsbnOfAnotherFamily() {
+        val result = match(BookIdentifiers(setOf("9780000000009"), null, null, mapOf("fable" to setOf(FABLE_PAPERBACK))))
+        assertEquals(FABLE_PAPERBACK, result.getString("bookId"))
+        assertEquals(0, searches())
+    }
+
     @Test fun isbnSearchKeepsOnlyTheExactRecord() {
         val result = match(BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author"))
         assertEquals(FABLE_EBOOK, result.getString("bookId"))

@@ -43,7 +43,7 @@ class PageboundSync(private val auth: PageboundAuth, private val store: Diagnost
         val date = pageboundDate(day)
         val pages = match.optInt("pages").takeIf { it > 0 } ?: catalogue.optInt("page_count").takeIf { it > 0 }
         val detail = JSONObject().put("title", catalogue.text("title") ?: JSONObject.NULL).put("bookUuid", bookUuid).put("bookId", catalogue.optLong("id"))
-            .put("matchKind", match.getString("matchKind")).put("matchedEditionId", matchedEdition ?: JSONObject.NULL)
+            .put("matchKind", match.getString("matchKind")).putOpt("matchedBy", match.opt("matchedBy")).put("matchedEditionId", matchedEdition ?: JSONObject.NULL)
             .put("rawProgress", book.raw("progress")).put("percent", percent).put("finished", finished).put("shelfBefore", status)
 
         if (finished && status == "finished") return@authorized detail.put("outcome", "already_current").put("unchanged", true).put("shelfAfter", "finished")

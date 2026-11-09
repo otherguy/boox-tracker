@@ -31,10 +31,13 @@ class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) 
             hits.forEach { evidence[it.id] = normalized(it.title) to authorsKey(it.authors) }
             return hits.isNotEmpty()
         }
-        for (isbn in metadata.isbns.sorted()) {
-            val isbn10 = isbn10(isbn)
-            val accepted = setOfNotNull(isbn, isbn10)
-            if (!confirmed(isbn, accepted) && isbn10 != null) confirmed(isbn10, accepted)
+        // An edition named by a tag decides the match, so identifiers are searched only without one.
+        if (evidence.isEmpty()) {
+            for (isbn in metadata.isbns.sorted()) {
+                val isbn10 = isbn10(isbn)
+                val accepted = setOfNotNull(isbn, isbn10)
+                if (!confirmed(isbn, accepted) && isbn10 != null) confirmed(isbn10, accepted)
+            }
         }
         if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { confirmed(it, setOf(it)) }
         // StoryGraph has no cheap family id, so sibling editions are recognised by their shared title and author.

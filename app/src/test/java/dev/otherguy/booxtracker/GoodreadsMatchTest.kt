@@ -90,6 +90,18 @@ class GoodreadsMatchTest {
         assertEquals("goodreads_identifier_conflict", held { matcher().match("conflict", identifiers(setOf("9781982181680", "9780000000019"))) })
     }
 
+    @Test fun anExplicitTagWinsOverAnIsbnOfAnotherWork() = runBlocking {
+        fun editions(result: org.json.JSONObject) = result.getJSONArray("editions").let { a -> (0 until a.length()).map(a::getString).toSet() }
+        val result = matcher().match("key", identifiers(setOf("9780000000019"), tags = mapOf("goodreads" to setOf(GOODREADS_EBOOK))))
+        assertEquals(GOODREADS_EBOOK, result.getString("bookId"))
+        assertEquals(GOODREADS_WORK, result.getString("workId"))
+        assertEquals(setOf(GOODREADS_EBOOK), editions(result))
+        // An ISBN of the tagged work still confirms its edition.
+        val same = matcher().match("same", identifiers(setOf("9781982181680"), tags = mapOf("goodreads" to setOf(GOODREADS_PAPERBACK))))
+        assertEquals(GOODREADS_PAPERBACK, same.getString("bookId"))
+        assertEquals(setOf(GOODREADS_PAPERBACK, GOODREADS_EBOOK), editions(same))
+    }
+
     @Test fun titleAndAuthorMatchOneWorkOrHold() = runBlocking {
         val result = matcher().match("key", identifiers(title = "Synthetic Book", author = "Author, Test"))
         assertEquals("book", result.getString("matchKind"))

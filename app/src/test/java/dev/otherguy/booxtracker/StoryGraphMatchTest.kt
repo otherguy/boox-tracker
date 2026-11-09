@@ -75,6 +75,12 @@ class StoryGraphMatchTest {
         assertEquals("storygraph_identifier_conflict", held { matcher().match("key", identifiers(setOf("9781398508255", "9780000000009"))) })
     }
 
+    @Test fun anExplicitTagWinsOverAnIsbnOfAnotherBook() = runBlocking {
+        val result = matcher().match("key", identifiers(setOf("9780000000009"), tags = mapOf("storygraph" to setOf(STORYGRAPH_EBOOK))))
+        assertEquals(STORYGRAPH_EBOOK, result.getString("bookId"))
+        assertEquals(0, searches().size)
+    }
+
     @Test fun editionsOfOneWorkEstablishTheBook() = runBlocking {
         // An ebook can carry its own ISBN and the one NeoReader shows; both confirm editions with one title and author.
         val result = matcher().match("key", identifiers(setOf("9781398508255", "9780000000002"), title = null, author = null))

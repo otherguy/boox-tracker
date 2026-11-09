@@ -20,7 +20,7 @@ This needs an Android System WebView that supports separate browser profiles. On
 
 ## Matching
 
-No book selection or confirmation is required. Boox Tracker tries a `goodreads:` identifier tag that holds a Goodreads book ID, then ISBN-13 and ISBN-10, then title and author. An ISBN counts only when the found edition's own page shows the same ISBN. Goodreads search does not find ebook ASINs, so ASIN tags are not used. Identifiers that point to different books, or several Goodreads books with the same title and author, hold the update.
+No book selection or confirmation is required. Boox Tracker tries a `goodreads:` identifier tag that holds a Goodreads book ID, then ISBN-13 and ISBN-10, then title and author. A `goodreads:` tag that names a Goodreads book wins: ISBNs of another book are then ignored, so the tag also settles a **goodreads identifier conflict**. An ISBN counts only when the found edition's own page shows the same ISBN. Goodreads search does not find ebook ASINs, so ASIN tags are not used. Identifiers that point to different books, or several Goodreads books with the same title and author, hold the update.
 
 If you already shelved another edition of the book on Goodreads, Boox Tracker updates that edition. Tap the Goodreads row to see which edition receives your progress.
 

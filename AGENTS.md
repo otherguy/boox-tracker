@@ -25,7 +25,7 @@ Current state, versions, device results, and next steps are in [project status](
 
 ## Trackers
 
-- Match from explicit service IDs, then ISBN-13, ISBN-10, ASIN, and mapped identifiers, then one normalized title and author match. Several editions of one book establish the book. Conflicts and ambiguity hold the update with a visible error.
+- Match from explicit service IDs, then ISBN-13, ISBN-10, ASIN, and mapped identifiers, then one normalized title and author match. An explicit service ID that resolves decides the book, and identifiers of another book are ignored. Hardcover, Goodreads, and Pagebound still look up identifiers to confirm editions of that book; Fable and StoryGraph tags name the edition, so they skip the identifier search. Several editions of one book establish the book. Conflicts and ambiguity hold the update with a visible error.
 - `BookIdentifiers.kt` is the only identifier-tag allowlist. The metadata popup labels its output and does not filter again. Tags for services without an integration are display-only.
 - The service switch drives the connection. On opens that service's sign-in popup when no session exists; Cancel or Back in the popup turns the switch Off. Off cancels sign-in or pauses sends and keeps queued items. A failed Hardcover connection returns Off with a message on the row; a rejected Fable email or password keeps the popup open with the reason. Only enabled services can show a warning.
 - Fable uses Fable's unofficial app API by the user's decision; public docs must say so. Never store the Fable password, only its tokens.
@@ -56,6 +56,7 @@ Current state, versions, device results, and next steps are in [project status](
 - The SQLite schema, the export schema, and the ebook identity cache namespace each have their own version, separate from `versionCode`. Bump the cache namespace when the extracted fields change.
 - Inspect the merged APK manifest before stating permissions. WorkManager adds foreground-service, wake-lock, and boot declarations that the app's own manifest does not contain.
 - Never put credentials, tokens, cookies, signing passwords, private exports, ebook contents, or full directory paths into source, logs, exports, or docs.
+- On the test device, save diagnostics with Activity → Export → Save to folder into `Download/Boox Tracker`. Pull them over ADB into a scratch directory outside the repository. After reading, delete the export files from that folder; keep the folder.
 - The signing key and its properties file stay outside the repository in `~/.config/reading-sync/`. Reuse them. Never regenerate, print, or commit them.
 
 ## Code map

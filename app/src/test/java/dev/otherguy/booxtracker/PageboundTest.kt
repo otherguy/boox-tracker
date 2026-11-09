@@ -270,6 +270,17 @@ class PageboundTest {
         assertEquals("pagebound_book_not_found", held { send(ids = BookIdentifiers(emptySet(), "Unknown Book", "Test Author")) })
     }
 
+    @Test fun anExplicitTagWinsOverAnIsbnOfAnotherBook() {
+        val tagged = mapOf("pagebound" to setOf(PAGEBOUND_BOOK))
+        val result = send(ids = BookIdentifiers(setOf(PAGEBOUND_OTHER_ISBN), "Synthetic Book", "Test Author", tagged))
+        assertEquals(PAGEBOUND_BOOK, result.getString("bookUuid"))
+        assertEquals("book", result.getString("matchKind"))
+        assertEquals("tag", result.getString("matchedBy"))
+        store.deletePrefix("pagebound.match.")
+        // An ISBN of the tagged book still names its edition.
+        assertEquals("edition", send(ids = BookIdentifiers(setOf(PAGEBOUND_EBOOK_ISBN, PAGEBOUND_OTHER_ISBN), "Synthetic Book", "Test Author", tagged)).getString("matchKind"))
+    }
+
     @Test fun anotherAccountHoldsBeforeAnyWrite() {
         server.account = "someone-else"
         assertEquals("pagebound_account_changed", held { send() })

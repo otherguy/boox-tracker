@@ -1430,7 +1430,14 @@ class MainActivity : AppCompatActivity() {
                 val by = mapOf("tag" to "Margins tag", "isbn" to "ISBN", "goodreads" to "Goodreads ID", "asin" to "ASIN")[result.optString("matchedBy")] ?: "identifier"
                 field("Match", "Book, by its $by")
             } else {
-                field("Match", if (exact) "Exact edition, by its identifiers" else "Book, by title and author")
+                field(
+                    "Match",
+                    when {
+                        exact -> "Exact edition, by its identifiers"
+                        result.optString("matchedBy") == "tag" -> "Book, by its $name tag"
+                        else -> "Book, by title and author"
+                    }
+                )
                 field("Edition", if (preserved) "The edition you shelved on $name, not the one your ebook matched" else "The edition your ebook matched")
             }
             val waiting = result.optInt("nextUpdateAt").takeIf { it > 0 }

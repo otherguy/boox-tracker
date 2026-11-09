@@ -33,8 +33,11 @@ class FableMatcher(private val get: suspend (String) -> JSONObject, private val 
             hits.forEach { evidence.add(it.getString("id") to priority) }
             return hits.isNotEmpty()
         }
-        for (isbn in metadata.isbns.sorted()) {
-            if (!exact(isbn, 1)) isbn10(isbn)?.let { exact(it, 2) }
+        // A Fable book named by a tag decides the match, so identifiers are searched only without one.
+        if (evidence.isEmpty()) {
+            for (isbn in metadata.isbns.sorted()) {
+                if (!exact(isbn, 1)) isbn10(isbn)?.let { exact(it, 2) }
+            }
         }
         if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { exact(it, 3) }
         val ids = evidence.map { it.first }.distinct()

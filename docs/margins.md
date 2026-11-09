@@ -19,7 +19,7 @@ Boox Tracker never stores the code. It keeps only Margins' sign-in tokens, encry
 
 ## Matching
 
-No book selection or confirmation is required. Boox Tracker tries a `margins:` identifier tag that holds a Margins book ID, then ISBN-13 and ISBN-10, then a `goodreads:` tag, and an ASIN only when nothing else identifies the book. Margins tracks books rather than editions, so several ISBNs of one book are one match. Identifiers that point to different books hold the update.
+No book selection or confirmation is required. Boox Tracker tries a `margins:` identifier tag that holds a Margins book ID, then ISBN-13 and ISBN-10, then a `goodreads:` tag, and an ASIN only when nothing else identifies the book. A `margins:` tag that names a Margins book wins over the other identifiers, so it also settles a **margins identifier conflict**. Margins tracks books rather than editions, so several ISBNs of one book are one match. Identifiers that point to different books hold the update.
 
 Margins has no title search. A book without an ISBN, ASIN, Goodreads, or Margins identifier is not matched; the row shows **margins identifier missing**.
 

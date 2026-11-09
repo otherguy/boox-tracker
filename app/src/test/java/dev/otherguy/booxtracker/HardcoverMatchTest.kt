@@ -82,6 +82,24 @@ class HardcoverMatchTest {
         time += 3_600_000
         assertEquals(11, matcher.match("stable", metadata).getInt("bookId"))
         assertTrue(server.requests.size > requests)
-        assertEquals("hardcover_identifier_conflict", assertThrows(SyncProblem::class.java) { runBlocking { matcher.match("stable", metadata.copy(tags = mapOf("hardcover-id" to setOf("10")))) } }.code)
+        assertEquals(10, matcher.match("stable", metadata.copy(tags = mapOf("hardcover-id" to setOf("10")))).getInt("bookId"))
+    }
+
+    @Test fun anExplicitTagWinsOverIdentifiersOfAnotherBook() = runBlocking {
+        server.matchBook = 11
+        val book = matcher().match(null, metadata.copy(tags = mapOf("hardcover-id" to setOf("10"))))
+        assertEquals(10, book.getInt("bookId"))
+        assertTrue(book.isNull("exactEditionId"))
+        val edition = matcher().match(null, metadata.copy(tags = mapOf("hardcover-edition" to setOf("30"))))
+        assertEquals(10, edition.getInt("bookId"))
+        assertEquals(30, edition.getInt("exactEditionId"))
+        // An ISBN of the tagged book still names the exact edition, unless the tag names one.
+        server.matchBook = 10
+        assertEquals(20, matcher().match(null, metadata.copy(tags = mapOf("hardcover-id" to setOf("10")))).getInt("exactEditionId"))
+        assertEquals(30, matcher().match(null, metadata.copy(tags = mapOf("hardcover-edition" to setOf("30")))).getInt("exactEditionId"))
+        // A Goodreads mapping cannot change a tagged book, so it is not looked up.
+        server.goodreadsBook = 11
+        assertEquals(10, matcher().match(null, metadata.copy(tags = mapOf("hardcover-id" to setOf("10"), "goodreads" to setOf("58438630")))).getInt("bookId"))
+        assertFalse(server.requests.any { it.optString("query").startsWith("query Goodreads") })
     }
 }

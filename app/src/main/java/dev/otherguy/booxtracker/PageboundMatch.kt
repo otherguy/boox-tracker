@@ -11,8 +11,9 @@ private val ebookFormats = setOf("kindle", "ebook")
 internal fun withoutSeries(title: String) = title.replace(Regex("\\s*\\([^()]*\\)\\s*$"), "")
 
 /**
- * Matches a source book to one Pagebound book. A `pagebound:` tag names the book; each ISBN names an edition of one
- * book through Pagebound's ISBN lookup; otherwise one catalogue hit must have the same normalized title and author.
+ * Matches a source book to one Pagebound book. A `pagebound:` tag names the book and wins over ISBNs; each ISBN names
+ * an edition of one book through Pagebound's ISBN lookup; otherwise one catalogue hit must have the same normalized
+ * title and author.
  */
 class PageboundMatcher(
     private val get: suspend (String) -> JSONObject,
@@ -26,12 +27,14 @@ class PageboundMatcher(
         val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
         val tagged = metadata.tags["pagebound"].orEmpty().sorted().filter { book(it) != null }
-        val editions = metadata.isbns.sorted().mapNotNull { isbn -> edition(isbn) ?: isbn10(isbn)?.let { edition(it) } }.distinctBy { it.optLong("id") }
-        val books = (tagged + editions.map { it.getString("book_uuid") }).toSet()
+        val found = metadata.isbns.sorted().mapNotNull { isbn -> edition(isbn) ?: isbn10(isbn)?.let { edition(it) } }.distinctBy { it.optLong("id") }
+        // A book named by a tag decides the match; ISBNs only name its edition.
+        val books = tagged.ifEmpty { found.map { it.getString("book_uuid") } }.toSet()
         if (books.size > 1) throw SyncProblem("pagebound_identifier_conflict")
         val uuid = books.singleOrNull() ?: titleMatch(metadata)
+        val editions = found.filter { it.getString("book_uuid") == uuid }
         val chosen = editions.firstOrNull { it.optString("format").lowercase() in ebookFormats } ?: editions.firstOrNull()
-        val result = JSONObject().put("bookUuid", uuid).put("matchKind", if (chosen == null) "book" else "edition")
+        val result = JSONObject().put("bookUuid", uuid).put("matchKind", if (chosen == null) "book" else "edition").putOpt("matchedBy", "tag".takeIf { tagged.isNotEmpty() })
             .put("editionId", chosen?.optLong("id") ?: JSONObject.NULL).put("editions", JSONArray(editions.map { it.optLong("id") }))
             .put("pages", chosen?.optInt("pages")?.takeIf { it > 0 } ?: JSONObject.NULL)
             .put("fingerprint", fingerprint).put("matchedAt", now())

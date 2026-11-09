@@ -15,7 +15,7 @@ All distributed builds use the application's public OAuth client ID. Each user a
 
 ## Automatic matching
 
-No book selection or confirmation is required. Boox Tracker detects the latest saved book and the other books read since its previous check, and for each one tries Hardcover identifiers, ISBN-13/ISBN-10, Amazon/ASIN, Goodreads mappings, then title and author. It accepts one distinct book; conflicting identifiers or ambiguous titles hold the update.
+No book selection or confirmation is required. Boox Tracker detects the latest saved book and the other books read since its previous check, and for each one tries Hardcover identifiers, ISBN-13/ISBN-10, Amazon/ASIN, Goodreads mappings, then title and author. It accepts one distinct book; conflicting identifiers or ambiguous titles hold the update. A Hardcover identifier (a `hardcover:` book ID or slug, or a Hardcover book or edition URL) wins: identifiers of another book are then ignored, so it also settles a **hardcover identifier conflict**. Identifiers of that book still choose its edition.
 
 Database metadata works for all formats that NeoReader exposes. For EPUBs, the app also reads embedded metadata from your allowed folder. It does not infer identifiers from filenames or upload ebook contents.
 

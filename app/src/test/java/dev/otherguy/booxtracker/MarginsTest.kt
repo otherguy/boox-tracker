@@ -250,6 +250,11 @@ class MarginsTest {
         store.deletePrefix("margins.match.")
         assertEquals("margins_identifier_conflict", held { send(ids = BookIdentifiers(setOf(MARGINS_ISBN, MARGINS_OTHER_ISBN), null, null)) })
         store.deletePrefix("margins.match.")
+        // An explicit tag wins over an ISBN of another work.
+        val tagged = send(ids = BookIdentifiers(setOf(MARGINS_OTHER_ISBN), null, null, mapOf("margins" to setOf(MARGINS_WORK))))
+        assertEquals(MARGINS_WORK, tagged.getString("workId"))
+        assertEquals("tag", tagged.getString("matchedBy"))
+        store.deletePrefix("margins.match.")
         assertEquals("margins_book_not_found", held { send(ids = BookIdentifiers(setOf("9780000000002"), "Synthetic Book", "Test Author")) })
         store.deletePrefix("margins.match.")
         // Margins has no title search.

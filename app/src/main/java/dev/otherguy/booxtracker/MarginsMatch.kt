@@ -3,8 +3,9 @@ package dev.otherguy.booxtracker
 import org.json.JSONObject
 
 /**
- * Matches a source book to one Margins work. A `margins:` tag names the work; each ISBN, and each `goodreads:` edition
- * id, names a work through Margins' catalogue lookups; an ASIN is used only when nothing else identifies the book.
+ * Matches a source book to one Margins work. A `margins:` tag names the work and wins over the rest; each ISBN, and
+ * each `goodreads:` edition id, names a work through Margins' catalogue lookups; an ASIN is used only when nothing else
+ * identifies the book.
  * Margins has no title search, so a book without such an identifier is not matched.
  */
 class MarginsMatch(
@@ -33,7 +34,8 @@ class MarginsMatch(
         // Margins stores ISBNs with hyphens.
         rows.rows("catalog.work_isbn13s").filter { it.optString("isbn13").replace("-", "") in isbns }.forEach { found("isbn", it.text("work_id")) }
         rows.rows("catalog.goodreads_edition_ids").filter { it.optLong("goodreads_edition_id") in goodreads }.forEach { found("goodreads", it.text("work_id")) }
-        val identified = evidence.values.flatten().toSet()
+        // A work named by a tag decides the match.
+        val identified = (evidence["tag"] ?: evidence.values.flatten()).toSet()
         if (identified.size > 1) throw SyncProblem("margins_identifier_conflict")
         val byAsin = rows.rows("catalog.work_asins").filter { it.optString("asin") in asins }.mapNotNull { it.text("work_id") }.toSet()
         val work = identified.singleOrNull() ?: when (byAsin.size) {

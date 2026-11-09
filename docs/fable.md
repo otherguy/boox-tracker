@@ -18,7 +18,7 @@ Boox Tracker never stores your password. It keeps only Fable's sign-in tokens, e
 
 ## Matching
 
-No book selection or confirmation is required. Boox Tracker tries a `fable:` identifier tag that holds a Fable book ID, then ISBN-13, ISBN-10, and ASIN, then title and author. Each Fable book record is one edition. Several matching records are accepted only when they are editions of the same book; otherwise the update holds.
+No book selection or confirmation is required. Boox Tracker tries a `fable:` identifier tag that holds a Fable book ID, then ISBN-13, ISBN-10, and ASIN, then title and author. A `fable:` tag that names a Fable book wins: the other identifiers are then not searched, so the tag also settles a **fable identifier conflict**. Each Fable book record is one edition. Several matching records are accepted only when they are editions of the same book; otherwise the update holds.
 
 If you already shelved another edition of the book on Fable, Boox Tracker updates that edition. Tap the Fable row to see which edition receives your progress.
 

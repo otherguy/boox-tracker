@@ -46,6 +46,20 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Explicit tags win 0.8.6
+
+**Problem:** on 2026-11-09 Fable held Terminal List #06 – Only the Dead with `fable_identifier_conflict`. The EPUB, written by calibre, has two ISBNs: `isbn:9781398508293` (Simon & Schuster UK) and a plain `9781982181727` (Atria, US ebook). Fable's public API returns one eBook record for each, in families 2469774 and 863363, which Fable does not link. The family rule dates from Fable's first version (`0b435be`); this is the first book that met it. Every matcher added an explicit tag to the ISBN evidence, so a `fable:` tag could not settle the conflict, although AGENTS.md said explicit IDs match first.
+
+**Change:** by the user's decision, an explicit service tag that resolves decides the book for all six services. Fable and StoryGraph do not search ISBNs or ASINs when a tag resolves. Hardcover, Goodreads, and Pagebound still look up identifiers, but use only editions of the tagged book; a tagged Hardcover edition is the exact edition, and Hardcover skips its Goodreads mapping lookup. Margins uses the tagged work. A Pagebound match by tag alone records `matchedBy: "tag"`, and the details popup says "Book, by its Pagebound tag" instead of "by title and author". Tags that name different books still conflict, and a tag that does not resolve falls back to the identifiers. The public service guides say that a tag settles an identifier conflict.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.6/code 36.
+
+**Automatically tested:** 322 tests, zero failures/errors/skips. One new test per service (Hardcover with three cases, Pagebound with two) puts a tag next to an ISBN of another book; all seven failed with the conflict on 0.8.5's code. The Hardcover cache test expected the old conflict for a `hardcover-id` tag and now expects the tagged book. Both lint variants (33 existing warnings each), both assemblies, ktlint, ruff, markdownlint, yamllint, and actionlint passed. The code-simplifier review shortened the Pagebound set handling. The code review led to the Goodreads ISBN confirmation of the tagged work's editions (without it, a shelved ISBN-confirmed ebook showed "different edition"), the skipped Hardcover mapping lookup, and the Pagebound tag label, each with an assertion.
+
+**Built (artifact):** `dist/boox-tracker-0.8.6-diagnostic.apk`, SHA-256 `fca072a550fa24b51448f6115f20f792b0d3b04ca96e971146ef944bd1c9eb2e`, signer certificate SHA-256 `678df89d…b4420d`.
+
+**Verified on physical BOOX:** installed over 0.8.5 by USB at 23:13 device time on 2026-11-09, versionCode 35 → 36, data inode `129824` unchanged, package enabled, no uninstall or data clear. Started by ADB with no crash logged; the app-open check finished, and no `DeliveryWorker` ran in the next 45 s. Only the Dead still holds on Fable, because its EPUB carries no `fable:` tag. The EPUB's second ISBN is its `unique-identifier` (`<dc:identifier id="eisbn">`, no scheme), which calibre keeps but does not list under Identifiers; `identifierTags` reads a value without a scheme as an ISBN.
+
 ## One waiting delivery run 0.8.5
 
 **Problem:** after the 0.8.4 install on 2026-11-09, logcat showed 14 `DeliveryWorker` runs one after another, about 3 s apart from 22:35:56. The export showed that the first run sent the whole queue, and each later run only held Fable's update for Only the Dead again, so Activity showed "Fable update held … 7 times since 22:35". The app was force-stopped at 22:36:54; the chain had ended at 22:36:45.

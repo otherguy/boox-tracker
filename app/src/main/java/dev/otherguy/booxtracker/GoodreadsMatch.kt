@@ -24,9 +24,12 @@ class GoodreadsMatcher(private val get: suspend (String) -> GoodreadsPage, priva
                 if (error.status != 404) throw error
             }
         }
+        val tagged = evidence.values.map { it.workId }.toSet()
         for (isbn in metadata.isbns.sorted()) {
             if (!confirmed(isbn, isbn, evidence)) isbn10(isbn)?.let { confirmed(it, isbn, evidence) }
         }
+        // A tagged edition decides the work; ISBN hits of another work are ignored.
+        if (tagged.isNotEmpty()) evidence.values.retainAll { it.workId in tagged }
         if (evidence.values.map { it.workId }.distinct().size > 1) throw SyncProblem("goodreads_identifier_conflict")
         val found = evidence.values.firstOrNull() ?: titleMatch(metadata)
         val result = JSONObject().put("bookId", found.id).put("workId", found.workId).put("title", found.title ?: JSONObject.NULL).put("matchKind", if (evidence.isEmpty()) "book" else "edition")

@@ -16,7 +16,7 @@ Boox Tracker never sees or remembers your password. It keeps the browser session
 
 ## Matching
 
-No book selection or confirmation is required. Boox Tracker tries a `storygraph:` identifier tag that holds a StoryGraph book ID, then ISBN-13, ISBN-10, and ASIN, then title and author. StoryGraph's search answers an unknown ISBN with a similar book, so an identifier counts only when the found edition's own page shows the same ISBN or ID. Several StoryGraph books with the same title and author hold the update.
+No book selection or confirmation is required. Boox Tracker tries a `storygraph:` identifier tag that holds a StoryGraph book ID, then ISBN-13, ISBN-10, and ASIN, then title and author. A `storygraph:` tag that names a StoryGraph book wins: the other identifiers are then not searched, so the tag also settles a **storygraph identifier conflict**. StoryGraph's search answers an unknown ISBN with a similar book, so an identifier counts only when the found edition's own page shows the same ISBN or ID. Several StoryGraph books with the same title and author hold the update.
 
 If you already shelved another edition of the book on StoryGraph, Boox Tracker updates that edition. Tap the StoryGraph row to see which edition receives your progress.
 
