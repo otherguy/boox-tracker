@@ -65,7 +65,7 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
         // Queued earlier books whose last attempt was held; a book that waits for the network is neutral.
         val held = pending.map { it.getJSONObject("book") }.filter { it.optString("key") != current }.mapNotNull { queued ->
             store.get(bookStateKey(account.orEmpty(), queued.getString("key")))?.let(::JSONObject)?.takeIf { it.optString("delivery") == "error" }
-                ?.let { JSONObject().put("title", queued.raw("title") ?: JSONObject.NULL).put("reason", it.optString("reason")) }
+                ?.let { JSONObject().put("title", queued.raw("title") ?: JSONObject.NULL).put("reason", it.optString("reason")).putOpt("conflict", it.optJSONArray("conflict")) }
         }
         return JSONObject().put("connected", connection.getOrDefault(false)).put("credentialProblem", connection.isFailure)
             .put("profile", store.get("$service.profile")?.let(::JSONObject) ?: JSONObject.NULL).put("connectedAt", store.get("$service.connectedAt")?.toLongOrNull() ?: JSONObject.NULL)
@@ -185,13 +185,16 @@ abstract class TrackerConnection(protected val app: ReadingSyncApp, val service:
             } catch (error: Exception) {
                 val transient = temporaryFailure(error)
                 retry = retry || transient
-                val detail = old.put("delivery", if (transient || !enabled()) "pending" else "error").put("reason", failureReason(error))
+                val conflict = (error as? SyncProblem)?.identifiers?.takeIf { it.isNotEmpty() }?.let(::JSONArray)
+                // A null conflict removes the one stored for an earlier failure.
+                val detail = old.put("delivery", if (transient || !enabled()) "pending" else "error").put("reason", failureReason(error)).put("conflict", conflict)
                 store.put(key, detail.toString())
                 diagnostics.event(
                     source,
                     "${service}_sync",
                     id,
-                    JSONObject().put("outcome", if (transient) "pending" else "held").putOpt("title", title).put("reason", failureReason(error)).put("errorClass", error.javaClass.name),
+                    JSONObject().put("outcome", if (transient) "pending" else "held").putOpt("title", title).put("reason", failureReason(error)).putOpt("conflict", conflict)
+                        .put("errorClass", error.javaClass.name),
                     !transient && enabled()
                 )
             } finally {

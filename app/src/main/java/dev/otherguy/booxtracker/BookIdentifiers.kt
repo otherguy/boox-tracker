@@ -65,7 +65,11 @@ fun identifierTags(raw: String, scheme: String? = null): Map<String, Set<String>
 
 private fun mergeTags(a: Map<String, Set<String>>, b: Map<String, Set<String>>) = (a.keys + b.keys).associateWith { a[it].orEmpty() + b[it].orEmpty() }
 
-class SyncProblem(val code: String) : Exception(code)
+/** A held sync. A match conflict also names the [identifiers] that point to different books, for the issue text. */
+class SyncProblem(val code: String, val identifiers: List<String> = emptyList()) : Exception(code)
+
+/** The conflict of [service]'s match, naming each identifier that points to one of the different books. */
+fun identifierConflict(service: String, identifiers: Iterable<String>) = SyncProblem("${service}_identifier_conflict", identifiers.distinct())
 
 /** A UUID in its canonical 8-4-4-4-12 hex form, the identifier shape of Fable, StoryGraph, Pagebound, and Margins records. */
 internal val uuidPattern = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
@@ -119,6 +123,7 @@ fun readEpubIdentifiers(file: File): BookIdentifiers = ZipFile(file).use { zip -
     }
     val opf = rootfiles.singleOrNull() ?: throw SyncProblem("epub_ambiguous_package")
     var tags = emptyMap<String, Set<String>>()
+    var bare = emptyMap<String, Set<String>>()
     var title: String? = null
     var author: String? = null
     var metadataDepth: Int? = null
@@ -144,7 +149,7 @@ fun readEpubIdentifiers(file: File): BookIdentifiers = ZipFile(file).use { zip -
                 if (field != null && parser.depth == fieldDepth) {
                     val value = text.toString().trim()
                     when (field) {
-                        "identifier" -> tags = mergeTags(tags, identifierTags(value, scheme))
+                        "identifier" -> if (scheme.isNullOrBlank() && ':' !in value) bare = mergeTags(bare, identifierTags(value)) else tags = mergeTags(tags, identifierTags(value, scheme))
                         "title" -> if (title == null) title = value.take(300)
                         "creator" -> if (author == null) author = value.take(300)
                     }
@@ -154,7 +159,10 @@ fun readEpubIdentifiers(file: File): BookIdentifiers = ZipFile(file).use { zip -
             }
         }
     }
-    BookIdentifiers(tags["isbn"].orEmpty(), title, author, tags)
+    // An identifier without a scheme, such as the publisher's package ID, is not listed in calibre, so it counts only
+    // when no `isbn:` identifier names the edition.
+    val merged = if (tags["isbn"].isNullOrEmpty()) mergeTags(tags, bare) else tags
+    BookIdentifiers(merged["isbn"].orEmpty(), title, author, merged)
 }
 
 fun readLimited(stream: InputStream, limit: Int): ByteArray {
@@ -180,7 +188,7 @@ class BookIdentifierRepository(private val context: Context, private val store: 
         } catch (error: SyncProblem) {
             if (error.code == "epub_not_in_folder") return database else throw error
         }
-        val cacheKey = "ebook.identity.2.${digest(tree.toString() + document.id + document.modified + document.size)}"
+        val cacheKey = "ebook.identity.3.${digest(tree.toString() + document.id + document.modified + document.size)}"
         fun combined(value: BookIdentifiers): BookIdentifiers {
             val merged = mergeTags(database.tags, value.tags)
             return BookIdentifiers(database.isbns + value.isbns, database.title?.takeIf { it.isNotBlank() } ?: value.title, database.author?.takeIf { it.isNotBlank() } ?: value.author, merged)

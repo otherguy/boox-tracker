@@ -404,11 +404,11 @@ class MainActivity : AppCompatActivity() {
                 )
             }
             state.optJSONArray("held")?.objects().orEmpty().filter { it.optString("reason") != connectionError }.forEach {
-                add("Progress for “${it.text("title") ?: "Unknown title"}” was not sent to $name: ${it.optString("reason").replace('_', ' ')}.")
+                add("Progress for “${it.text("title") ?: "Unknown title"}” was not sent to $name: ${heldReason(name, it)}.")
             }
             if (last == null) return@buildList
             // A held update whose reason is the session problem named above is the same issue, not a second one.
-            if (last.optString("delivery") == "error" && last.optString("reason") != connectionError) add("Progress was not sent to $name: ${last.optString("reason").replace('_', ' ')}.")
+            if (last.optString("delivery") == "error" && last.optString("reason") != connectionError) add("Progress was not sent to $name: ${heldReason(name, last)}.")
             last.text("streakError")?.let { add("$name did not mark the streak day: ${it.replace('_', ' ')}.") }
             last.text("finishDateError")?.let { add("$name marked the book Read but did not set its finish date: ${it.replace('_', ' ')}.") }
             if (last.keptHigherProgress()) {
@@ -421,6 +421,19 @@ class MainActivity : AppCompatActivity() {
                 add("$name has $held; NeoReader's ${Progress.parse(last.optString("rawProgress")).percent}% is $compared. Boox Tracker does not lower progress on a tracker.")
             }
         }
+    }
+
+    /** Why an update was held. An identifier conflict names the identifiers that point to different books and how to settle it. */
+    private fun heldReason(name: String, held: JSONObject): String {
+        val reason = held.optString("reason")
+        if (!reason.endsWith("_identifier_conflict")) return reason.replace('_', ' ')
+        val identifiers = held.optJSONArray("conflict")?.let { a -> (0 until a.length()).map(a::getString) }.orEmpty()
+        val named = when (identifiers.size) {
+            0 -> "the ebook's identifiers name"
+            1 -> "${identifiers.single()} names"
+            else -> "${identifiers.dropLast(1).joinToString(", ")} and ${identifiers.last()} name"
+        }
+        return "$named different $name books. Correct the ebook's identifiers, or add a ${reason.removeSuffix("_identifier_conflict")}: identifier that names the right book"
     }
 
     /** The full text of the NeoReader library or current-book issue that the header warns about, if there is one. */

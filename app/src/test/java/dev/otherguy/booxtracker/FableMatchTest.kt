@@ -49,6 +49,13 @@ class FableMatchTest {
         assertEquals(0, searches())
     }
 
+    @Test fun aConflictNamesTheEbooksIsbnWhenItsIsbnTenMatched() {
+        server.books.clear()
+        server.book(FABLE_EBOOK, "139850825X")
+        server.book(FABLE_OTHER, "9780000000009", family = 2)
+        assertEquals(listOf("ISBN 9780000000009", "ISBN 9781398508255"), conflict { match(BookIdentifiers(setOf("9781398508255", "9780000000009"), null, null)) }.second)
+    }
+
     @Test fun isbnSearchKeepsOnlyTheExactRecord() {
         val result = match(BookIdentifiers(setOf("9781398508255"), "Synthetic Book", "Test Author"))
         assertEquals(FABLE_EBOOK, result.getString("bookId"))
@@ -67,7 +74,7 @@ class FableMatchTest {
     }
 
     @Test fun identifiersAcrossFamiliesConflictButEditionsOfOneFamilyAgree() {
-        assertEquals("fable_identifier_conflict", held(BookIdentifiers(setOf("9781398508255", "9780000000009"), null, null)))
+        assertEquals("fable_identifier_conflict" to listOf("ISBN 9780000000009", "ISBN 9781398508255"), conflict { match(BookIdentifiers(setOf("9781398508255", "9780000000009"), null, null)) })
         assertEquals(FABLE_PAPERBACK, match(BookIdentifiers(setOf("9781398508255"), null, null, mapOf("fable" to setOf(FABLE_PAPERBACK)))).getString("bookId"))
         assertEquals(FABLE_EBOOK, match(BookIdentifiers(setOf("9781398508255", "9780000000002"), null, null)).getString("bookId"))
     }

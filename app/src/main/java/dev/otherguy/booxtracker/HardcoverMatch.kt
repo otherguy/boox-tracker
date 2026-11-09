@@ -25,18 +25,19 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
         val cacheKey = sourceKey?.let { "hardcover.match.${digest(it)}" }
         val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
-        val evidence = mutableListOf<Pair<Int, Int?>>()
+        // Evidence is (book id, edition id, identifier).
+        val evidence = mutableListOf<Triple<Int, Int?, String>>()
         suspend fun edition(id: Int) {
             val value = query("query Edition(\$id: Int!) { editions_by_pk(id: \$id) { id book_id } }", JSONObject().put("id", id)).optJSONObject("editions_by_pk")
-            if (value != null) evidence.add(value.getInt("book_id") to value.getInt("id"))
+            if (value != null) evidence.add(Triple(value.getInt("book_id"), value.getInt("id"), "Hardcover edition $id"))
         }
         metadata.tags["hardcover-edition"].orEmpty().forEach { edition(it.toInt()) }
         metadata.tags["hardcover-id"].orEmpty().forEach {
             val value = query("query BookIdentifier(\$id: Int!) { books_by_pk(id: \$id) { id } }", JSONObject().put("id", it.toInt())).optJSONObject("books_by_pk")
-            if (value != null) evidence.add(value.getInt("id") to null)
+            if (value != null) evidence.add(Triple(value.getInt("id"), null, "hardcover:$it"))
         }
         metadata.tags["hardcover-slug"].orEmpty().forEach {
-            query("query BookSlug(\$slug: String!) { books(where: {slug: {_eq: \$slug}}) { id } }", JSONObject().put("slug", it)).records("books").forEach { book -> evidence.add(book.getInt("id") to null) }
+            query("query BookSlug(\$slug: String!) { books(where: {slug: {_eq: \$slug}}) { id } }", JSONObject().put("slug", it)).records("books").forEach { book -> evidence.add(Triple(book.getInt("id"), null, "hardcover:$it")) }
         }
         val tagged = evidence.toList()
         if (metadata.isbns.isNotEmpty() || metadata.tags["asin"].orEmpty().isNotEmpty()) {
@@ -44,10 +45,11 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
                 "query Match(\$isbns: [String!]!, \$tens: [String!]!, \$asins: [String!]!) { editions(where: {_or: [{isbn_13: {_in: \$isbns}}, {isbn_10: {_in: \$tens}}, {asin: {_in: \$asins}}]}) { id book_id isbn_13 isbn_10 asin pages book { title } } }",
                 JSONObject().put("isbns", JSONArray(metadata.isbns.sorted())).put("tens", JSONArray(metadata.isbns.mapNotNull(::isbn10).sorted())).put("asins", JSONArray(metadata.tags["asin"].orEmpty().sorted()))
             ).records("editions")
-            editions.forEach {
-                val valid = listOf(it.optString("isbn_13"), it.optString("isbn_10")).mapNotNull(::isbn13).any { isbn -> isbn in metadata.isbns } || it.optString("asin") in metadata.tags["asin"].orEmpty()
-                if (!valid) throw SyncProblem("hardcover_identifier_response_mismatch")
-                evidence.add(it.getInt("book_id") to it.getInt("id"))
+            editions.forEach { row ->
+                val isbn = listOf(row.optString("isbn_13"), row.optString("isbn_10")).mapNotNull(::isbn13).firstOrNull { it in metadata.isbns }
+                val asin = row.optString("asin").takeIf { it in metadata.tags["asin"].orEmpty() }
+                val identifier = isbn?.let { "ISBN $it" } ?: asin?.let { "ASIN $it" } ?: throw SyncProblem("hardcover_identifier_response_mismatch")
+                evidence.add(Triple(row.getInt("book_id"), row.getInt("id"), identifier))
             }
         }
         // External mappings identify the work, not the source ebook's exact edition, so they cannot change a tagged book.
@@ -58,12 +60,13 @@ class HardcoverMatcher(private val query: suspend (String, JSONObject) -> JSONOb
                 } catch (error: SyncProblem) {
                     if (error.code == "hardcover_graphql_error") emptyList() else throw error
                 }
-                mappings.forEach { value -> evidence.add(value.getInt("book_id") to null) }
+                mappings.forEach { value -> evidence.add(Triple(value.getInt("book_id"), null, "Goodreads ID $id")) }
             }
         }
         // A book named by a tag decides the match; other identifiers only name its edition.
-        val ids = tagged.ifEmpty { evidence }.map { it.first }.toSet()
-        if (ids.size > 1) throw SyncProblem("hardcover_identifier_conflict")
+        val decisive = tagged.ifEmpty { evidence }
+        val ids = decisive.map { it.first }.toSet()
+        if (ids.size > 1) throw identifierConflict("hardcover", decisive.map { it.third })
         val bookId = ids.singleOrNull() ?: titleMatch(metadata)
         val exact = tagged.mapNotNull { it.second }.ifEmpty { evidence.filter { it.first == bookId }.mapNotNull { it.second } }.distinct().singleOrNull()
         val result = JSONObject().put("bookId", bookId).put("exactEditionId", exact ?: JSONObject.NULL)

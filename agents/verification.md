@@ -46,6 +46,18 @@ The merged diagnostic manifest was also inspected: WorkManager adds generic FORE
 - Activity checks bound operation/row counts and state retention; reported faster scrolling is qualitative physical evidence, not a benchmark.
 - BOOX XML dumps returned null roots while screenshots worked. Fresh package disabling by com.onyx was observed, but its cause is unknown. Installation/UI ADB use is not ordinary-UID provider proof.
 
+## Hidden publisher ISBN and named conflicts 0.8.7
+
+**Problem:** the user's calibre shows only `isbn:9781398508293, amazon:B0B6GPDJJ1, goodreads:62598578` for Only the Dead. The second ISBN, `9781982181727`, is the EPUB's `unique-identifier` (`<dc:identifier id="eisbn">`, no scheme), which calibre keeps but does not list; `identifierTags` read every value without a scheme as an ISBN. The warning said only "fable identifier conflict", so a user could neither find nor fix the cause (user report, 2026-11-09).
+
+**Change:** by the user's decision, an EPUB identifier without a scheme counts as an ISBN only when the EPUB has no `isbn:` identifier; the ebook identity cache namespace is now 3. Every matcher throws `identifierConflict` with a label per identifier that points to one of the different books (`ISBN …`, `ASIN …`, `Goodreads ID …`, `Hardcover edition …`, or the service tag). `drain` stores the labels as `conflict` in the book state and the held event, `state().held` passes them on, and `serviceIssues` writes, for example, "ISBN A and ISBN B name different Fable books. Correct the ebook's identifiers, or add a fable: identifier that names the right book." The README explains the hidden ID and the fix.
+
+**Built:** debug and signed diagnostic APKs, version 0.8.7/code 37.
+
+**Automatically tested:** 326 tests, zero failures/errors/skips. The parser test (a bare ISBN next to an `isbn:` one is dropped; alone it counts), a conflict label assertion for each of the six matchers, the stored `conflict` array after a Hardcover conflict in `OfflineSyncTest`, and the book popup issue naming the identifiers and the `hardcover:` tag in `HardcoverTest` all failed on 0.8.6's code. After the code review, labels use the ebook's ISBN-13 even when a tracker matched its ISBN-10 or stores another form; a Fable test for that failed first. The code-simplifier review led to one Margins map of work and identifier, the `conflict` test helper, and a single `put` that clears a stale conflict. Not changed after the review: NeoReader's database ISBN is still added to the EPUB's (null for Only the Dead in the export), and a held earlier book keeps the identifiers it was queued with until it is queued again. Both lint variants (33 existing warnings each), both assemblies, ktlint, ruff, markdownlint, yamllint, and actionlint passed.
+
+**Verified on physical BOOX:** not yet. The install is held: with only the UK `isbn:` identifier, the next check would shelve the UK Fable record, which then keeps receiving progress after the user switches calibre to the US ISBN.
+
 ## Explicit tags win 0.8.6
 
 **Problem:** on 2026-11-09 Fable held Terminal List #06 – Only the Dead with `fable_identifier_conflict`. The EPUB, written by calibre, has two ISBNs: `isbn:9781398508293` (Simon & Schuster UK) and a plain `9781982181727` (Atria, US ebook). Fable's public API returns one eBook record for each, in families 2469774 and 863363, which Fable does not link. The family rule dates from Fable's first version (`0b435be`); this is the first book that met it. Every matcher added an explicit tag to the ISBN evidence, so a `fable:` tag could not settle the conflict, although AGENTS.md said explicit IDs match first.

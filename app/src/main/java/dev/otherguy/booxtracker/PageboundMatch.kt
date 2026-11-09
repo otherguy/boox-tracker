@@ -30,7 +30,7 @@ class PageboundMatcher(
         val found = metadata.isbns.sorted().mapNotNull { isbn -> edition(isbn) ?: isbn10(isbn)?.let { edition(it) } }.distinctBy { it.optLong("id") }
         // A book named by a tag decides the match; ISBNs only name its edition.
         val books = tagged.ifEmpty { found.map { it.getString("book_uuid") } }.toSet()
-        if (books.size > 1) throw SyncProblem("pagebound_identifier_conflict")
+        if (books.size > 1) throw identifierConflict("pagebound", tagged.map { "pagebound:$it" }.ifEmpty { found.map { "ISBN ${listOf(it.optString("isbn13"), it.optString("isbn10")).firstNotNullOfOrNull(::isbn13)}" } })
         val uuid = books.singleOrNull() ?: titleMatch(metadata)
         val editions = found.filter { it.getString("book_uuid") == uuid }
         val chosen = editions.firstOrNull { it.optString("format").lowercase() in ebookFormats } ?: editions.firstOrNull()

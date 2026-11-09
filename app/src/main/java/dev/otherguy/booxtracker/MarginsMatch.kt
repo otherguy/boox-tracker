@@ -26,24 +26,27 @@ class MarginsMatch(
             goodreads.map { ZeroQuery("workByGoodreadsEditionID", it) } + asins.map { ZeroQuery("workByASIN", it) }
         if (queries.isEmpty()) throw SyncProblem("margins_identifier_missing")
         val rows = query(queries)
-        val evidence = linkedMapOf<String, MutableSet<String>>()
-        fun found(kind: String, work: String?) {
-            work?.takeIf { it.isNotBlank() }?.let { evidence.getOrPut(kind) { mutableSetOf() }.add(it) }
+        // Per kind of identifier: each work found, with the identifier that found it.
+        val evidence = linkedMapOf<String, MutableList<Pair<String, String>>>()
+        fun found(kind: String, work: String?, identifier: String) {
+            work?.takeIf { it.isNotBlank() }?.let { evidence.getOrPut(kind) { mutableListOf() }.add(it to identifier) }
         }
-        rows.rows("catalog.works").filter { it.optString("work_id") in tags }.forEach { found("tag", it.optString("work_id")) }
+        rows.rows("catalog.works").filter { it.optString("work_id") in tags }.forEach { found("tag", it.optString("work_id"), "margins:${it.optString("work_id")}") }
         // Margins stores ISBNs with hyphens.
-        rows.rows("catalog.work_isbn13s").filter { it.optString("isbn13").replace("-", "") in isbns }.forEach { found("isbn", it.text("work_id")) }
-        rows.rows("catalog.goodreads_edition_ids").filter { it.optLong("goodreads_edition_id") in goodreads }.forEach { found("goodreads", it.text("work_id")) }
+        rows.rows("catalog.work_isbn13s").filter { it.optString("isbn13").replace("-", "") in isbns }.forEach { found("isbn", it.text("work_id"), "ISBN ${it.optString("isbn13").replace("-", "")}") }
+        rows.rows("catalog.goodreads_edition_ids").filter { it.optLong("goodreads_edition_id") in goodreads }.forEach { found("goodreads", it.text("work_id"), "Goodreads ID ${it.optLong("goodreads_edition_id")}") }
         // A work named by a tag decides the match.
-        val identified = (evidence["tag"] ?: evidence.values.flatten()).toSet()
-        if (identified.size > 1) throw SyncProblem("margins_identifier_conflict")
-        val byAsin = rows.rows("catalog.work_asins").filter { it.optString("asin") in asins }.mapNotNull { it.text("work_id") }.toSet()
+        val decisive = evidence["tag"] ?: evidence.values.flatten()
+        val identified = decisive.map { it.first }.toSet()
+        if (identified.size > 1) throw identifierConflict("margins", decisive.map { it.second })
+        val asinRows = rows.rows("catalog.work_asins").filter { it.optString("asin") in asins && it.text("work_id") != null }
+        val byAsin = asinRows.mapNotNull { it.text("work_id") }.toSet()
         val work = identified.singleOrNull() ?: when (byAsin.size) {
             0 -> throw SyncProblem("margins_book_not_found")
-            1 -> byAsin.single().also { found("asin", it) }
-            else -> throw SyncProblem("margins_identifier_conflict")
+            1 -> byAsin.single()
+            else -> throw identifierConflict("margins", asinRows.map { "ASIN ${it.optString("asin")}" })
         }
-        val result = JSONObject().put("workId", work).put("matchKind", "book").put("matchedBy", evidence.keys.first())
+        val result = JSONObject().put("workId", work).put("matchKind", "book").put("matchedBy", evidence.keys.firstOrNull() ?: "asin")
             .put("fingerprint", fingerprint).put("matchedAt", now())
         if (cacheKey != null) store.put(cacheKey, result.toString())
         return result

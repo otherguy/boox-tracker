@@ -265,7 +265,10 @@ class PageboundTest {
         assertEquals("book", byTitle.getString("matchKind"))
         assertEquals(PAGEBOUND_BOOK, byTitle.getString("bookUuid"))
         store.deletePrefix("pagebound.match.")
-        assertEquals("pagebound_identifier_conflict", held { send(ids = BookIdentifiers(setOf(PAGEBOUND_PAPERBACK_ISBN, PAGEBOUND_OTHER_ISBN), "Synthetic Book", "Test Author")) })
+        assertEquals(
+            "pagebound_identifier_conflict" to listOf("ISBN $PAGEBOUND_OTHER_ISBN", "ISBN $PAGEBOUND_PAPERBACK_ISBN"),
+            conflict { send(ids = BookIdentifiers(setOf(PAGEBOUND_PAPERBACK_ISBN, PAGEBOUND_OTHER_ISBN), "Synthetic Book", "Test Author")) }
+        )
         store.deletePrefix("pagebound.match.")
         assertEquals("pagebound_book_not_found", held { send(ids = BookIdentifiers(emptySet(), "Unknown Book", "Test Author")) })
     }

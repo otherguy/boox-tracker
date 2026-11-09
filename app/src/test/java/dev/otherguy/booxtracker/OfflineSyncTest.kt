@@ -103,6 +103,17 @@ class OfflineSyncTest {
         assertEquals(1, deliveryWork())
     }
 
+    @Test fun aConflictKeepsTheIdentifiersThatNameDifferentBooks() = runBlocking {
+        online = true
+        server.goodreadsBook = 11
+        val update = check(book().put("ISBN", raw("9781398508255, goodreads:58438630")))
+        store.put("lastCheck", update.toString())
+        connection.send("manual", update)
+        val last = connection.state().getJSONObject("last")
+        assertEquals("hardcover_identifier_conflict", last.getString("reason"))
+        assertEquals(listOf("ISBN 9781398508255", "Goodreads ID 58438630"), last.getJSONArray("conflict").let { a -> (0 until a.length()).map(a::getString) })
+    }
+
     @Test fun offlineChecksLeaveOneWaitingDeliveryRun() = runBlocking {
         val work = WorkManager.getInstance(app)
         work.cancelUniqueWork(DELIVERY_WORK_NAME).result.get()

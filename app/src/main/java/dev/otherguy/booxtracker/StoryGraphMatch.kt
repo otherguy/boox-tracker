@@ -16,19 +16,19 @@ class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) 
         val cacheKey = sourceKey?.let { "storygraph.match.${digest(it)}" }
         val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
-        // Evidence is edition id to (normalized title, author key): editions that share both are one book.
-        val evidence = linkedMapOf<String, Pair<String?, String?>>()
+        // Evidence is edition id to (normalized title, author key, identifier): editions that share both keys are one book.
+        val evidence = linkedMapOf<String, Triple<String?, String?, String>>()
         metadata.tags["storygraph"].orEmpty().filter { it.matches(uuidPattern) }.sorted().forEach { id ->
             try {
-                evidence[id] = bookPage(get("/books/$id", null), id).title?.let(::normalized) to null
+                evidence[id] = Triple(bookPage(get("/books/$id", null), id).title?.let(::normalized), null, "storygraph:$id")
             } catch (error: HttpProblem) {
                 if (error.status != 404) throw error
             }
         }
-        suspend fun confirmed(value: String, accepted: Set<String>): Boolean {
+        suspend fun confirmed(value: String, accepted: Set<String>, identifier: String = "ISBN $value"): Boolean {
             // The exact identifier hit comes first; later hits are fuzzy, and each confirmation loads a book page.
             val hits = search(value).take(3).filter { hit -> bookPage(get("/books/${hit.id}", null), hit.id).isbnUid?.replace("-", "")?.uppercase() in accepted }
-            hits.forEach { evidence[it.id] = normalized(it.title) to authorsKey(it.authors) }
+            hits.forEach { evidence[it.id] = Triple(normalized(it.title), authorsKey(it.authors), identifier) }
             return hits.isNotEmpty()
         }
         // An edition named by a tag decides the match, so identifiers are searched only without one.
@@ -36,13 +36,13 @@ class StoryGraphMatcher(private val get: suspend (path: String, frame: String?) 
             for (isbn in metadata.isbns.sorted()) {
                 val isbn10 = isbn10(isbn)
                 val accepted = setOfNotNull(isbn, isbn10)
-                if (!confirmed(isbn, accepted) && isbn10 != null) confirmed(isbn10, accepted)
+                if (!confirmed(isbn, accepted) && isbn10 != null) confirmed(isbn10, accepted, "ISBN $isbn")
             }
         }
-        if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { confirmed(it, setOf(it)) }
+        if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { confirmed(it, setOf(it), "ASIN $it") }
         // StoryGraph has no cheap family id, so sibling editions are recognised by their shared title and author.
         val sameWork = evidence.values.map { it.first }.distinct().size == 1 && evidence.values.mapNotNull { it.second }.distinct().size <= 1
-        if (evidence.size > 1 && !sameWork) throw SyncProblem("storygraph_identifier_conflict")
+        if (evidence.size > 1 && !sameWork) throw identifierConflict("storygraph", evidence.values.map { it.third })
         val bookId = evidence.keys.firstOrNull()
         val result = JSONObject().put("bookId", bookId ?: titleMatch(metadata)).put("matchKind", if (bookId == null) "book" else "edition")
             .put("fingerprint", fingerprint).put("matchedAt", now())

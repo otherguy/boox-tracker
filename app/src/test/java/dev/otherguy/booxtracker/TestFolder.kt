@@ -114,6 +114,9 @@ internal suspend fun awaitUi(predicate: () -> Boolean) = withTimeout(10_000) {
 /** The code of the [SyncProblem] that [block] throws. */
 internal fun held(block: suspend () -> Unit): String = assertThrows(SyncProblem::class.java) { runBlocking { block() } }.code
 
+/** The code and the identifiers of the [SyncProblem] that [block] throws. */
+internal fun conflict(block: suspend () -> Unit): Pair<String, List<String>> = assertThrows(SyncProblem::class.java) { runBlocking { block() } }.let { it.code to it.identifiers }
+
 /** Runs [block] with stderr captured and allows only Robolectric's zero-ID lookup line on it. */
 internal fun capturingStderr(block: suspend () -> Unit) = runBlocking {
     // Earlier tests leave WorkManager's in-memory database to the finalizer. Its connection pool is only released by

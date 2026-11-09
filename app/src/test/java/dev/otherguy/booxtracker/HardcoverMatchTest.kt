@@ -60,6 +60,7 @@ class HardcoverMatchTest {
         server.goodreadsBook = 11
         val problem = assertThrows(SyncProblem::class.java) { runBlocking { matcher().match(null, metadata.copy(tags = mapOf("goodreads" to setOf("58438630")))) } }
         assertEquals("hardcover_identifier_conflict", problem.code)
+        assertEquals(listOf("ISBN 9781398508255", "Goodreads ID 58438630"), problem.identifiers)
     }
 
     @Test fun exactTitleAndAuthorRejectOmnibusAndAmbiguousMatches() = runBlocking {

@@ -896,6 +896,30 @@ class HardcoverTest {
 
     @Test
     @LooperMode(LooperMode.Mode.PAUSED)
+    fun aConflictWarningNamesTheIdentifiersAndTheServiceTag() = capturingStderr {
+        ShadowContentResolver.registerProviderInternal(METADATA_URI.authority, FixtureProvider().withSyncBook())
+        app.hardcover = HardcoverConnection(app, auth) { false }
+        app.hardcover.setEnabled(true)
+        val store = app.diagnostics.store
+        store.enqueue("1", JSONObject().put("key", "held").put("title", JSONObject().put("state", "value").put("raw", "Held Book")), identifiers, "2026-11-01T10:00:00Z", "hardcover")
+        store.put(
+            "hardcover.book.1.${digest("held")}",
+            JSONObject().put("delivery", "error").put("reason", "hardcover_identifier_conflict").put("conflict", JSONArray(listOf("ISBN 9781398508255", "Goodreads ID 58438630"))).toString()
+        )
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        try {
+            awaitUi { controller.get().findViewById<View>(R.id.access_warning) != null }
+            tap(controller.get().findViewById(R.id.book_summary))
+            awaitUi { popupMessage()?.contains("NeoReader Database") == true }
+            val issue = issueLines(popupMessage()!!).single()
+            listOf("Held Book", "ISBN 9781398508255", "Goodreads ID 58438630", "hardcover:").forEach { assertTrue(issue, issue.contains(it)) }
+        } finally {
+            controller.pause().stop().destroy()
+        }
+    }
+
+    @Test
+    @LooperMode(LooperMode.Mode.PAUSED)
     fun theDetailsPopupNamesAnotherEditionWhenTheEbookEditionHasNoPages() = capturingStderr {
         // The ebook's ISBN matches edition 20, which has no page count, so the default edition 21 receives progress.
         server.editionPageCount = 0

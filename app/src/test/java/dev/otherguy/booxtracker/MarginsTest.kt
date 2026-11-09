@@ -248,7 +248,9 @@ class MarginsTest {
         store.deletePrefix("margins.match.")
         assertEquals("tag", send(ids = BookIdentifiers(emptySet(), null, null, mapOf("margins" to setOf(MARGINS_WORK)))).getString("matchedBy"))
         store.deletePrefix("margins.match.")
-        assertEquals("margins_identifier_conflict", held { send(ids = BookIdentifiers(setOf(MARGINS_ISBN, MARGINS_OTHER_ISBN), null, null)) })
+        val conflict = assertThrows(SyncProblem::class.java) { send(ids = BookIdentifiers(setOf(MARGINS_ISBN, MARGINS_OTHER_ISBN), null, null)) }
+        assertEquals("margins_identifier_conflict", conflict.code)
+        assertEquals(setOf("ISBN $MARGINS_ISBN", "ISBN $MARGINS_OTHER_ISBN"), conflict.identifiers.toSet())
         store.deletePrefix("margins.match.")
         // An explicit tag wins over an ISBN of another work.
         val tagged = send(ids = BookIdentifiers(setOf(MARGINS_OTHER_ISBN), null, null, mapOf("margins" to setOf(MARGINS_WORK))))

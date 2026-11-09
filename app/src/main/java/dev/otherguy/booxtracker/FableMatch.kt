@@ -18,39 +18,39 @@ class FableMatcher(private val get: suspend (String) -> JSONObject, private val 
         val cacheKey = sourceKey?.let { "fable.match.${digest(it)}" }
         val cached = cacheKey?.let { store.get(it) }?.let(::JSONObject)
         if (cached?.optString("fingerprint") == fingerprint && now() - cached.optLong("matchedAt") in 0 until 3_600_000) return cached
-        // Evidence is (book id, priority); a lower priority is the stronger identifier.
-        val evidence = mutableListOf<Pair<String, Int>>()
+        // Evidence is (book id, priority, identifier); a lower priority is the stronger identifier.
+        val evidence = mutableListOf<Triple<String, Int, String>>()
         metadata.tags["fable"].orEmpty().filter { it.matches(uuidPattern) }.sorted().forEach { id ->
             val book = try {
                 get("/api/books/$id").optJSONObject("response")
             } catch (error: HttpProblem) {
                 if (error.status == 404) null else throw error
             }
-            book?.optString("id")?.takeIf { it.isNotBlank() }?.let { evidence.add(it to 0) }
+            book?.optString("id")?.takeIf { it.isNotBlank() }?.let { evidence.add(Triple(it, 0, "fable:$id")) }
         }
-        suspend fun exact(value: String, priority: Int): Boolean {
+        suspend fun exact(value: String, priority: Int, identifier: String = "ISBN $value"): Boolean {
             val hits = search(value).filter { book -> listOf(book.optString("isbn"), book.optString("display_isbn")).any { it.trim().uppercase() == value } }
-            hits.forEach { evidence.add(it.getString("id") to priority) }
+            hits.forEach { evidence.add(Triple(it.getString("id"), priority, identifier)) }
             return hits.isNotEmpty()
         }
         // A Fable book named by a tag decides the match, so identifiers are searched only without one.
         if (evidence.isEmpty()) {
             for (isbn in metadata.isbns.sorted()) {
-                if (!exact(isbn, 1)) isbn10(isbn)?.let { exact(it, 2) }
+                if (!exact(isbn, 1)) isbn10(isbn)?.let { exact(it, 2, "ISBN $isbn") }
             }
         }
-        if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { exact(it, 3) }
+        if (evidence.isEmpty()) metadata.tags["asin"].orEmpty().sorted().forEach { exact(it, 3, "ASIN $it") }
         val ids = evidence.map { it.first }.distinct()
         val bookId = when {
             ids.isEmpty() -> null
 
             ids.size == 1 -> ids.single()
 
-            ids.size > 5 -> throw SyncProblem("fable_identifier_conflict")
+            ids.size > 5 -> throw identifierConflict("fable", evidence.map { it.third })
 
             else -> {
                 val families = ids.map { get("/api/books/$it").optJSONObject("response")?.opt("family_id")?.takeUnless { family -> family == JSONObject.NULL } }
-                if (families.any { it == null } || families.distinct().size != 1) throw SyncProblem("fable_identifier_conflict")
+                if (families.any { it == null } || families.distinct().size != 1) throw identifierConflict("fable", evidence.map { it.third })
                 evidence.sortedWith(compareBy({ it.second }, { it.first })).first().first
             }
         }

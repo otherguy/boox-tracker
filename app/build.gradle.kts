@@ -17,10 +17,10 @@ android {
         versionCode =
             providers
                 .gradleProperty("versionCode")
-                .orElse("36")
+                .orElse("37")
                 .get()
                 .toInt()
-        versionName = "0.8.6"
+        versionName = "0.8.7"
     }
     signingConfigs {
         create("diagnostic") {

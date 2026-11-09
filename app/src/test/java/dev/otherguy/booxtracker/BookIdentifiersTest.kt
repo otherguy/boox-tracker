@@ -77,6 +77,13 @@ class BookIdentifiersTest {
         assertEquals(setOf("9781471197376"), two.isbns)
     }
 
+    @Test fun aPublisherIdentifierWithoutSchemeCountsOnlyWithoutAnIsbnTag() {
+        val both = readEpubIdentifiers(epub("""<dc:identifier>isbn:9781398508255</dc:identifier><dc:identifier id="eisbn">9781471197376</dc:identifier>"""))
+        assertEquals(setOf("9781398508255"), both.isbns)
+        val bare = readEpubIdentifiers(epub("""<dc:identifier id="eisbn">9781471197376</dc:identifier><dc:identifier>goodreads:58438630</dc:identifier>"""))
+        assertEquals(setOf("9781471197376"), bare.isbns)
+    }
+
     @Test fun malformedUnsafeAndExternalEntityMetadataCannotSupplyIdentifiers() {
         assertThrows(Exception::class.java) { readEpubIdentifiers(epub("<dc:identifier>")) }
         assertEquals(

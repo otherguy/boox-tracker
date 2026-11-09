@@ -72,7 +72,7 @@ class StoryGraphMatchTest {
     }
 
     @Test fun conflictingConfirmedIdentifiersHold() = runBlocking {
-        assertEquals("storygraph_identifier_conflict", held { matcher().match("key", identifiers(setOf("9781398508255", "9780000000009"))) })
+        assertEquals("storygraph_identifier_conflict" to listOf("ISBN 9780000000009", "ISBN 9781398508255"), conflict { matcher().match("key", identifiers(setOf("9781398508255", "9780000000009"))) })
     }
 
     @Test fun anExplicitTagWinsOverAnIsbnOfAnotherBook() = runBlocking {

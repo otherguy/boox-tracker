@@ -66,6 +66,8 @@ Install updates over the existing app to keep settings and Activity history. Dev
 
 Boox Tracker reads NeoReader's saved library information without changing it. It uses saved access times to detect the latest book and the other books read since its previous check, and reads their progress from the library provider. A book you finish offline is still marked finished after you start the next one. The allowed ebook folder supplies additional EPUB metadata; other formats use NeoReader's database title, author, and identifiers.
 
+An EPUB can carry the publisher's own ID next to the identifiers that calibre shows. Calibre does not list it, so Boox Tracker uses it as an ISBN only when the book has no `isbn:` identifier. When identifiers still point to different books on a tracker, the warning names them. Correct the ebook's identifiers, or add the tracker's tag, such as `fable:` with the Fable book ID; a tag that names a book wins.
+
 Saved library progress can lag behind page turns or differ from the percentage inside the book. Returning to NeoReader's library can help it save the latest state. Background checks request a fifteen-minute interval; Android and BOOX control when they run, especially during sleep.
 
 The **Sync** tab shows the detected book, saved progress, library count, and each service’s match and delivery state. Tap the book for metadata. **Activity** lists foreground reads, background checks, and deliveries in plain words; tap an entry for a summary and its raw record. Repeated unchanged checks and repeated issues share one entry. See the [device-testing guide](docs/device-testing.md) for help with background behaviour.

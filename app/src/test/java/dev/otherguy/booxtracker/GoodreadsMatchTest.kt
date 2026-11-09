@@ -87,7 +87,7 @@ class GoodreadsMatchTest {
         assertEquals("edition", both.getString("matchKind"))
         assertEquals(GOODREADS_WORK, both.getString("workId"))
         assertEquals(GOODREADS_PAPERBACK, both.getString("bookId"))
-        assertEquals("goodreads_identifier_conflict", held { matcher().match("conflict", identifiers(setOf("9781982181680", "9780000000019"))) })
+        assertEquals("goodreads_identifier_conflict" to listOf("ISBN 9780000000019", "ISBN 9781982181680"), conflict { matcher().match("conflict", identifiers(setOf("9781982181680", "9780000000019"))) })
     }
 
     @Test fun anExplicitTagWinsOverAnIsbnOfAnotherWork() = runBlocking {
